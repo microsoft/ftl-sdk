@@ -1,5 +1,5 @@
 /**
- * main.c - Charon client for the FTL SDK
+ * destroy_stream.c - Stream Destruction Functions
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -25,17 +25,16 @@
  #define __FTL_INTERNAL
  #include "ftl.h"
 
- int main(int argc, char** argv) {
-   ftl_stream_configuration_t* stream_config = 0;
-   ftl_status_t status_code;
+void ftl_destory_stream(ftl_stream_configuration_t** stream_config) {
+  if (*stream_config == 0) {
+    // Ok, someone passed us a zeroed struct. Just return
+    return;
+  }
 
-   ftl_init();
-   status_code = ftl_create_stream_configuration(&stream_config);
-   if (status_code != FTL_SUCCESS) {
-     printf("Failed to initialize stream configuration: errno %d\n", status_code);
-     return -1;
-   }
+  // Free the private structure if its allocated (should always be)
+  if ((*stream_config)->private != 0) {
+    free((*stream_config)->private);
+  }
 
-   ftl_destory_stream(&stream_config);
-   return 0;
- }
+  free(*stream_config);
+}

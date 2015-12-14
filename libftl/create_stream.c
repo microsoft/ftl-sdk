@@ -1,5 +1,5 @@
 /**
- * init.c - Library initialization functions
+ * create_stream.c - Stream Creation Functions
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -25,7 +25,26 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 
-// Initializes all sublibraries used by FTL
-ftl_status_t ftl_init() {
+// Allocates the stream configuration structure
+ftl_status_t ftl_create_stream_configuration(ftl_stream_configuration_t** stream_config) {
+  /* First step, make sure we got a zero pointer coming in */
+  if (*stream_config != 0) {
+    return FTL_NON_ZERO_POINTER;
+  }
+
+  *stream_config = malloc(sizeof(ftl_stream_configuration_t));
+  /* eeek, malloc() should almost never fail in real world conditions */
+  if (*stream_config == 0) {
+    return FTL_MALLOC_FAILURE;
+  }
+
+  /* Allocate the private struct now */
+  (*stream_config)->private = malloc(sizeof(ftl_stream_configuration_private_t));
+  if ((*stream_config)->private == 0) {
+    free (*stream_config);
+    return FTL_MALLOC_FAILURE;
+  }
+
+  /* and we're done here */
   return FTL_SUCCESS;
 }

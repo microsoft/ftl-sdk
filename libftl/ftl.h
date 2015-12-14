@@ -27,18 +27,47 @@
 
 /*! \defgroup ftl_public Public Interfaces for libftl */
 
-/*! \brief Return codes for ftl_init
+/*! \brief Status codes used by libftl
  *  \ingroup ftl_public
  */
 
 typedef enum {
-  FTL_INIT_SUCCESS //! libftl successfully initialized
-} ftl_init_status_t;
+  FTL_SUCCESS, /**< Operation was successful */
+  FTL_NON_ZERO_POINTER, /**< Function required a zero-ed pointer, but didn't get one */
+  FTL_MALLOC_FAILURE, /**< memory allocation failed */
+} ftl_status_t;
+
+/*! \brief Video codecs supported by FTL
+ *  \ingroug ftl_public
+ */
+
+typedef enum {
+  FTL_VIDEO_NULL, /**< No video for this stream */
+  FTL_VIDEO_VP8  /**< Google's VP8 codec (recommended default) */
+} ftl_video_codec_t;
+
+/*! \brief Audio codecs supported by FTL
+ *  \ingroup ftl_public
+ */
+
+typedef enum {
+  FTL_AUDIO_NULL, /**< No audio for this stream */
+  FTL_AUDIO_OPUS /**< Xiph's Opus audio codec */
+} ftl_audio_codec_t;
+
+/*! \brief Configuration information for a given stream
+ *  \ingroup ftl_public
+ *
+ * The members of this structure are private
+ */
+
+typedef struct {
+  void* private;
+} ftl_stream_configuration_t;
 
 /*!
  * \ingroup ftl_public
  * \brief FTL Initialization
- *
  *
  * Before using FTL, you must call ftl_init before making any additional calls
  * in this library. ftl_init initializes any submodules that FTL depends on such
@@ -47,6 +76,26 @@ typedef enum {
  * @returns FTL_INIT_SUCCESS on successful initialization. Otherwise, returns
  * ftl_init_status_t enum with the failure state.
  */
-ftl_init_status_t ftl_init();
+ftl_status_t ftl_init();
+
+/*!
+ * \ingroup ftl_public
+ * \brief Initializes a stream configuration structure
+ *
+ * Allocates memory for a given stream, and allows it to be manipulated by
+ * other API calls. This must be called once per stream. The pointer *must*
+ * be derferenced and initialized to 0 before passing it to ftl_create_stream.
+ *
+ * @returns FTL_SUCCESS if the stream configuration tables were successfully
+ * initialized
+ * @returns FTL_NON_ZERO_POINTER if the pointer passed wasn't zeroed before hand
+ */
+
+ftl_status_t ftl_create_stream(ftl_stream_configuration_t** stream_config);
+
+// Load the internal API if necessary
+#ifdef __FTL_INTERNAL
+#include "ftl_private.h"
+#endif // __FTL_INTERNAL
 
 #endif // __FTL_H

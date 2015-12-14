@@ -1,5 +1,5 @@
 /**
- * init.c - Library initialization functions
+ * main.c - Charon client for the FTL SDK
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -22,10 +22,20 @@
  * SOFTWARE.
  **/
 
-#define __FTL_INTERNAL
-#include "ftl.h"
+ #define __FTL_INTERNAL
+ #include "ftl.h"
 
-// Initializes all sublibraries used by FTL
-ftl_status_t ftl_init() {
-  return FTL_SUCCESS;
-}
+ int main(int argc, char** argv) {
+   ftl_stream_configuration_t* stream_config = 0;
+   ftl_status_t status_code;
+
+   ftl_init();
+   status_code = ftl_create_stream_configuration(&stream_config);
+   if (status_code != FTL_SUCCESS) {
+     printf("Failed to initialize stream configuration: errno %d\n", status_code);
+     return -1;
+   }
+
+   printf("stream_config %d\n", (int)stream_config);
+   return 0;
+ }

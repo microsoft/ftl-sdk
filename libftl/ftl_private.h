@@ -1,5 +1,5 @@
 /**
- * init.c - Library initialization functions
+ * \file ftl.h - Private Interfaces for the FTL SDK
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -22,10 +22,21 @@
  * SOFTWARE.
  **/
 
-#define __FTL_INTERNAL
-#include "ftl.h"
+ #ifndef __FTL_PRIVATE_H
+ #define __FTL_PRIVATE_H
 
-// Initializes all sublibraries used by FTL
-ftl_status_t ftl_init() {
-  return FTL_SUCCESS;
-}
+ #include <stdio.h>
+ #include <stdlib.h>
+
+/**
+ * This configuration structure handles basic information for a struct such
+ * as the authetication keys and other similar information. It's members are
+ * private and not to be directly manipulated
+ */
+
+typedef struct {
+  char * authetication_key;
+  ftl_audio_codec_t audio_codec;
+  ftl_video_codec_t video_codec;
+}  ftl_stream_configuration_private_t;
+#endif

@@ -1,5 +1,5 @@
 /**
- * \file ftl.h - Private Interfaces for the FTL SDK
+ * activate.c - Activates an FTL stream
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -22,46 +22,25 @@
  * SOFTWARE.
  **/
 
- #ifndef __FTL_PRIVATE_H
- #define __FTL_PRIVATE_H
+ #define __FTL_INTERNAL
+ #include "ftl.h"
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
+ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
+  ftl_stream_configuration_private_t* config = (ftl_stream_configuration_private_t*)stream_config->private;
 
-#ifndef _WIN32
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#endif
+  /* First things first, resolve ingest IP address */
+  int err = 0;
+  struct addrinfo hints;
+  memset(&hints, 0, sizeof(hints));
 
-/**
- * This configuration structure handles basic information for a struct such
- * as the authetication keys and other similar information. It's members are
- * private and not to be directly manipulated
- */
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = 0;
+  hints.ai_flags = AI_ADDRCONFIG;
+  struct addrinfo* resolved_names = 0;
 
-typedef struct {
-  char * ingest_location;
-  char * authetication_key;
-  ftl_audio_codec_t audio_codec;
-  ftl_video_codec_t video_codec;
-}  ftl_stream_configuration_private_t;
+  err = getaddrinfo(config->ingest_location, NULL, &hints, &resolved_names);
 
-typedef enum {
-  FTL_LOG_CRITICAL,
-  FTL_LOG_ERROR,
-  FTL_LOG_WARN,
-  FTL_LOG_INFO,
-  FTL_LOG_DEBUG
-} ftl_log_severity_t;
 
-/**
- * Logs something to the FTL logs
- */
-
-#define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
-void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
-
-#endif
+  return FTL_SUCCESS;
+}

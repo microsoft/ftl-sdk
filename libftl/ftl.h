@@ -93,6 +93,54 @@ ftl_status_t ftl_init();
 
 ftl_status_t ftl_create_stream(ftl_stream_configuration_t** stream_config);
 
+/*!
+ * \ingroup ftl_public
+ * \brief Set ingest location
+ *
+ * Sets the ingest hostname for where this FTL stream is going.
+ *
+ * @param stream_config An initialized stream_configuration struct
+ * @param ingest_location A standard null-terminated C string with the hostname or IP address of ingest
+ **/
+
+void ftl_set_ingest_location(ftl_stream_configuration_t *stream_config, const char * ingest_location);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Set authetication key
+ *
+ * Authetication keys are used by beam ingest. These keys are shown in the UI
+ * of beam.pro
+ *
+ * @param stream_config An initialized stream_configuration struct
+ * @param authetication_key A standard null-terminated C string with the user-specific authetication key
+ **/
+void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, const char * auth_key);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Activates a FTL
+ *
+ * FTL streams are marked "online" by holding a connection open to styx. This
+ * function uses the information set in the stream configuration to notify beam
+ * that a stream is online, and the configuration aspects of said stream. This
+ * function returns after a stream is accepted by ingest, and starts a keepalive
+ * thread to hold it open.
+ *
+ * @param stream_config Stream configuration information
+ */
+
+ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Frees a stream configuration structure
+ *
+ * Releases memory used by a stream structure.
+ */
+
+void ftl_destory_stream(ftl_stream_configuration_t** stream_config);
+
 // Load the internal API if necessary
 #ifdef __FTL_INTERNAL
 #include "ftl_private.h"

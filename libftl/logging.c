@@ -1,5 +1,5 @@
 /**
- * \file ftl.h - Private Interfaces for the FTL SDK
+ * \file logging.c - Contains debug log functions
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -22,46 +22,17 @@
  * SOFTWARE.
  **/
 
- #ifndef __FTL_PRIVATE_H
- #define __FTL_PRIVATE_H
+#define __FTL_INTERNAL
+#include "ftl.h"
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
+// Convert compiler macro to actual printf call to stderr
+void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...) {
+    va_list args;
+    char message[2048];
+    va_start(args, fmt);
+    vsnprintf(message, 2048, fmt, args);
+    va_end(args);
 
-#ifndef _WIN32
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#endif
-
-/**
- * This configuration structure handles basic information for a struct such
- * as the authetication keys and other similar information. It's members are
- * private and not to be directly manipulated
- */
-
-typedef struct {
-  char * ingest_location;
-  char * authetication_key;
-  ftl_audio_codec_t audio_codec;
-  ftl_video_codec_t video_codec;
-}  ftl_stream_configuration_private_t;
-
-typedef enum {
-  FTL_LOG_CRITICAL,
-  FTL_LOG_ERROR,
-  FTL_LOG_WARN,
-  FTL_LOG_INFO,
-  FTL_LOG_DEBUG
-} ftl_log_severity_t;
-
-/**
- * Logs something to the FTL logs
- */
-
-#define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
-void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
-
-#endif
+    // and now spit it out
+    fprintf(stderr, "[%s]:%d %s\n", file, lineno, message);
+}

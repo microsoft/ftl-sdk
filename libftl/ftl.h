@@ -25,6 +25,8 @@
 #ifndef __FTL_H
 #define __FTL_H
 
+#include <stdint.h>
+
 /*! \defgroup ftl_public Public Interfaces for libftl */
 
 /*! \brief Status codes used by libftl
@@ -35,6 +37,11 @@ typedef enum {
   FTL_SUCCESS, /**< Operation was successful */
   FTL_NON_ZERO_POINTER, /**< Function required a zero-ed pointer, but didn't get one */
   FTL_MALLOC_FAILURE, /**< memory allocation failed */
+  FTL_DNS_FAILURE, /**< DNS probe failed */
+  FTL_CONNECT_ERROR, /**< Failed to connect to ingest */
+  FTL_INTERNAL_ERROR, /**< Got valid inputs, but FTL failed to complete the action due to internal failure */
+  FTL_CONFIG_ERROR, /**< The configuration supplied was invalid or incomplete */
+  FTL_STREAM_REJECTED, /**< Ingest rejected our connect command */
 } ftl_status_t;
 
 /*! \brief Video codecs supported by FTL
@@ -113,9 +120,10 @@ void ftl_set_ingest_location(ftl_stream_configuration_t *stream_config, const ch
  * of beam.pro
  *
  * @param stream_config An initialized stream_configuration struct
+ * @param channel_id the numerical channel assigned to the user by the beam backend
  * @param authetication_key A standard null-terminated C string with the user-specific authetication key
  **/
-void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, const char * auth_key);
+void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, uint64_t channel_id, const char * auth_key);
 
 /*!
  * \ingroup ftl_public

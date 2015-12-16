@@ -68,14 +68,17 @@ void ftl_set_ingest_location(ftl_stream_configuration_t *stream_config, const ch
 }
 
 // Setter for auth key
-void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, const char * auth_key) {
+void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, uint64_t channel_id, const char * auth_key) {
   ftl_stream_configuration_private_t* config = (ftl_stream_configuration_private_t*)stream_config->private;
   size_t len = 0;
+
+  /* Easy stuff first */
+  config->channel_id = channel_id;
 
   /* Let's pray we got a valid string */
   len = strlen(auth_key);
   config->authetication_key = malloc((len*sizeof(char)));
-  strcpy(config->ingest_location, auth_key);
+  strcpy(config->authetication_key, auth_key);
 }
 
 // Safely frees all members of the stream_configuration struct

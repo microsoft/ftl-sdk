@@ -1,5 +1,5 @@
 /**
- * destroy_stream.c - Stream Destruction Functions
+ * charon_protocol.c - Activates an FTL stream
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -25,16 +25,15 @@
  #define __FTL_INTERNAL
  #include "ftl.h"
 
-void ftl_destory_stream(ftl_stream_configuration_t** stream_config) {
-  if (*stream_config == 0) {
-    // Ok, someone passed us a zeroed struct. Just return
-    return;
-  }
+ ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str) {
+   char response_code_char[4];
+   snprintf(response_code_char, 4, "%s", response_str);
 
-  // Free the private structure if its allocated (should always be)
-  if ((*stream_config)->private != 0) {
-    free((*stream_config)->private);
-  }
+   int response_code = atoi(response_code_char);   switch (response_code) {
+     case 200: /* Sucess */
+       return FTL_CHARON_OK;
+   }
 
-  free(*stream_config);
-}
+   /* Got an invalid or unknown response code */
+   return FTL_CHARON_UNKNOWN;
+ }

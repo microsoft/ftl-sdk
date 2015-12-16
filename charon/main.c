@@ -36,7 +36,10 @@
      return -1;
    }
 
-   ftl_set_ingest_location(stream_config, "ingest.wdc01.beam.pro");
+   ftl_set_ingest_location(stream_config, "localhost");
+   ftl_set_authetication_key(stream_config, 1, "testtest");
+
+   ftl_activate_stream(stream_config);
    ftl_destory_stream(&stream_config);
    return 0;
  }

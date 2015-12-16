@@ -27,10 +27,12 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #ifndef _WIN32
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -44,6 +46,7 @@
 
 typedef struct {
   char * ingest_location;
+  uint32_t channel_id;
   char * authetication_key;
   ftl_audio_codec_t audio_codec;
   ftl_video_codec_t video_codec;
@@ -58,10 +61,27 @@ typedef enum {
 } ftl_log_severity_t;
 
 /**
+ * Charon always responses with a three digit response code after each command
+ *
+ * This enum holds defined number sequences
+ **/
+
+typedef enum {
+  FTL_CHARON_UNKNOWN = 0,
+  FTL_CHARON_OK = 200
+} ftl_charon_response_code_t;
+
+/**
  * Logs something to the FTL logs
  */
 
 #define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
 void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
+
+/**
+ * Functions related to the charon prootocol itself
+ **/
+
+ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str);
 
 #endif

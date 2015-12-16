@@ -27,6 +27,8 @@
 
  int main(int argc, char** argv) {
    ftl_stream_configuration_t* stream_config = 0;
+   ftl_stream_video_component_t* video_component = 0;
+   ftl_stream_audio_component_t* audio_component = 0;
    ftl_status_t status_code;
 
    ftl_init();
@@ -38,6 +40,12 @@
 
    ftl_set_ingest_location(stream_config, "localhost");
    ftl_set_authetication_key(stream_config, 1, "testtest");
+
+   video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, 1, 1280, 720);
+   ftl_attach_video_component_to_stream(stream_config, video_component);
+
+   audio_component = ftl_create_audio_component(FTL_AUDIO_OPUS, 97, 2);
+   ftl_attach_audio_component_to_stream(stream_config, audio_component);
 
    ftl_activate_stream(stream_config);
    ftl_destory_stream(&stream_config);

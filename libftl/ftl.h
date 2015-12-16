@@ -72,6 +72,26 @@ typedef struct {
   void* private;
 } ftl_stream_configuration_t;
 
+/*! \brief Configuration information for a audio stream component
+ *  \ingroup ftl_public
+ *
+ * The members of this structure are private
+ */
+
+typedef struct {
+  void* private;
+} ftl_stream_audio_component_t;
+
+/*! \brief Configuration information for a video stream component
+ *  \ingroup ftl_public
+ *
+ * The members of this structure are private
+ */
+
+typedef struct {
+  void* private;
+} ftl_stream_video_component_t;
+
 /*!
  * \ingroup ftl_public
  * \brief FTL Initialization
@@ -127,7 +147,54 @@ void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, uint64
 
 /*!
  * \ingroup ftl_public
- * \brief Activates a FTL
+ * \brief Creates an audio component object to add to a stream.
+ *
+ * FTL streams are comprised of multiple components. In most cases, the two
+ * present components are audio and video, of which there can be one of each.
+ * ftl_create_audiocomponent creates a structure describing the audio component
+ * and allows configuration of it
+ *
+ * @param codec - video codec supported by FTL
+ * @param payload_type - RTP payload type of the stream. May be set to NULL to choose a sensible default
+ * @param ssrc - SSRC identifer of the stream. May be set to NULL to dynamically generate a SSRC
+ */
+
+ftl_stream_audio_component_t* ftl_create_audio_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Creates a video component object to add to a stream.
+ *
+ * FTL streams are comprised of multiple components. In most cases, the two
+ * present components are audio and video, of which there can be one of each.
+ * ftl_video_create_component creates a structure describing the video component
+ * and allows configuration of it
+ *
+ * @param codec - video codec supported by FTL
+ * @param payload_type - RTP payload type of the stream. May be set to NULL to choose a sensible default
+ * @param ssrc - SSRC identifer of the stream. May be set to NULL to dynamically generate a SSRC
+ * @param height - Height of the video to be encoded
+ * @param width - Width of the video to be encoded
+ */
+
+ftl_stream_video_component_t* ftl_create_video_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc, uint32_t width, uint32_t height);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Attachs a video component to the stream
+ *
+ * After a video component is configured, it must be attached to the stream. This
+ * function does just that.
+ *
+ * @param stream_config An initialized stream configuration struct
+ * @param video_component An initialized video component
+ **/
+
+void ftl_attach_video_component_to_stream(ftl_stream_configuration_t* stream_config, ftl_stream_video_component_t* component);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Activates FTL
  *
  * FTL streams are marked "online" by holding a connection open to styx. This
  * function uses the information set in the stream configuration to notify beam

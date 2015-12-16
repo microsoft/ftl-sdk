@@ -5,6 +5,7 @@ include_directories(libftl)
 
 add_library(ftl SHARED libftl/activate.c
                        libftl/charon_protocol.c
+                       libftl/components.c
                        libftl/init.c
                        libftl/logging.c
                        libftl/stream_configuration.c)

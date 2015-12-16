@@ -48,9 +48,25 @@ typedef struct {
   char * ingest_location;
   uint32_t channel_id;
   char * authetication_key;
-  ftl_audio_codec_t audio_codec;
-  ftl_video_codec_t video_codec;
+  ftl_stream_audio_component_t* audio_component;
+  ftl_stream_video_component_t* video_component;
 }  ftl_stream_configuration_private_t;
+
+typedef struct {
+  ftl_video_codec_t codec;
+  uint8_t payload_type;
+  uint32_t ssrc;
+  void* codec_info;
+} ftl_stream_audio_component_private_common_t;
+
+typedef struct {
+  ftl_video_codec_t codec;
+  uint8_t payload_type;
+  uint32_t ssrc;
+  uint32_t height;
+  uint32_t width;
+  void* codec_info;
+} ftl_stream_video_component_private_common_t;
 
 typedef enum {
   FTL_LOG_CRITICAL,
@@ -77,6 +93,13 @@ typedef enum {
 
 #define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
 void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
+
+/**
+ * Value to string conversion functions
+ */
+
+const char * ftl_audio_codec_to_string(ftl_video_codec_t codec);
+const char * ftl_video_codec_to_string(ftl_video_codec_t codec);
 
 /**
  * Functions related to the charon prootocol itself

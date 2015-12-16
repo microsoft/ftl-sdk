@@ -47,10 +47,10 @@ ftl_status_t ftl_create_stream_configuration(ftl_stream_configuration_t** stream
 
   /* Now we need to setup the private members */
   ftl_stream_configuration_private_t* config = (ftl_stream_configuration_private_t*)(*stream_config)->private;
+  config->audio_component = 0;
+  config->video_component = 0;
   config->ingest_location = 0;
   config->authetication_key = 0;
-  config->audio_codec = FTL_AUDIO_NULL;
-  config->video_codec = FTL_VIDEO_NULL;
 
   /* and we're done here */
   return FTL_SUCCESS;

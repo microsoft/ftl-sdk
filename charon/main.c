@@ -25,11 +25,75 @@
  #define __FTL_INTERNAL
  #include "ftl.h"
 
- int main(int argc, char** argv) {
+#include <unistd.h>
+
+void usage() {
+    printf("Usage: charon -h host -c channel_id -a authkey\n\n");
+    printf("Charon is used to signal to ingest that a FTL stream is online\n");
+    printf("\t-h\t\t\tIngest hostname\n");
+    printf("\t-c\t\t\tChannel ID\n");
+    printf("\t-a\t\t\tAuthetication key for given channel id\n");
+    printf("\t-v\t\t\tVerbose mode\n");
+    printf("\t-?\t\t\tThis help message\n");
+    exit (0);
+}
+
+int main(int argc, char** argv) {
    ftl_stream_configuration_t* stream_config = 0;
    ftl_stream_video_component_t* video_component = 0;
    ftl_stream_audio_component_t* audio_component = 0;
    ftl_status_t status_code;
+
+   int channel_id = 0;
+   char* ingest_location = 0;
+   char* authetication_key = 0;
+   int c;
+   int success = 0;
+   int verbose = 0;
+
+   opterr = 0;
+
+   if (FTL_VERSION_MAINTENANCE != 0) {
+       printf("charon - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
+   } else {
+       printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
+   }
+
+   while ((c = getopt (argc, argv, "a:c:h:v?")) != -1) {
+       switch (c) {
+           case 'a':
+                authetication_key = optarg;
+                break;
+            case 'c':
+                success = sscanf(optarg, "%d", &channel_id);
+                if (success != 1) {
+                    printf("ERROR: channel ID must be numeric");
+                    return;
+                }
+                break;
+            case 'h':
+                ingest_location = optarg;
+                break;
+            case 'v':
+                verbose = 1;
+                break;
+            case '?':
+                usage();
+                break;
+       }
+   }
+
+   /* Make sure we have all the required bits */
+   if (!authetication_key || !ingest_location || !channel_id) {
+       usage();
+   }
+
+   if (verbose) {
+       printf("\nConfiguration:\n");
+       printf("\tingesting to: %s\n", ingest_location);
+       printf("\tchannel id: %d\n", channel_id);
+       printf("\tauthetication key: %s\n", authetication_key);
+   }
 
    ftl_init();
    status_code = ftl_create_stream_configuration(&stream_config);
@@ -38,8 +102,8 @@
      return -1;
    }
 
-   ftl_set_ingest_location(stream_config, "localhost");
-   ftl_set_authetication_key(stream_config, 1, "testtest");
+   ftl_set_ingest_location(stream_config, ingest_location);
+   ftl_set_authetication_key(stream_config, channel_id, authetication_key);
 
    video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, 1, 1280, 720);
    ftl_attach_video_component_to_stream(stream_config, video_component);
@@ -48,6 +112,7 @@
    ftl_attach_audio_component_to_stream(stream_config, audio_component);
 
    ftl_activate_stream(stream_config);
-   ftl_destory_stream(&stream_config);
+   printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
+//   ftl_destory_stream(&stream_config);
    return 0;
  }

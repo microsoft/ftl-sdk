@@ -27,6 +27,10 @@
 
 #include <stdint.h>
 
+extern const int FTL_VERSION_MAJOR;
+extern const int FTL_VERSION_MINOR;
+extern const int FTL_VERSION_MAINTENANCE;
+
 /*! \defgroup ftl_public Public Interfaces for libftl */
 
 /*! \brief Status codes used by libftl

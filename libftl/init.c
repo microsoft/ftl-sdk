@@ -25,6 +25,10 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 
+const int FTL_VERSION_MAJOR = 0;
+const int FTL_VERSION_MINOR = 1;
+const int FTL_VERSION_MAINTENANCE = 0;
+
 // Initializes all sublibraries used by FTL
 ftl_status_t ftl_init() {
   return FTL_SUCCESS;

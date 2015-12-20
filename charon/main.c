@@ -123,7 +123,9 @@ int main(int argc, char** argv) {
    ftl_activate_stream(stream_config);
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
-   while (shutdown_flag != 1) { }
+   while (shutdown_flag != 1) {
+       sleep(1);
+   }
 
    printf("\nShutting down\n");
    ftl_deactivate_stream(stream_config);

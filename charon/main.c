@@ -26,6 +26,13 @@
  #include "ftl.h"
 
 #include <unistd.h>
+#include <signal.h>
+
+volatile sig_atomic_t shutdown_flag = 0;
+
+void shutdown_stream(int sig) {
+    shutdown_flag = 1;
+}
 
 void usage() {
     printf("Usage: charon -h host -c channel_id -a authkey\n\n");
@@ -52,6 +59,8 @@ int main(int argc, char** argv) {
    int verbose = 0;
 
    opterr = 0;
+
+   signal(SIGINT, shutdown_stream);
 
    if (FTL_VERSION_MAINTENANCE != 0) {
        printf("charon - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
@@ -113,6 +122,12 @@ int main(int argc, char** argv) {
 
    ftl_activate_stream(stream_config);
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
-//   ftl_destory_stream(&stream_config);
+   printf("Press Ctrl-C to shutdown your stream in this window\n");
+   while (shutdown_flag != 1) { }
+
+   printf("\nShutting down\n");
+   ftl_deactivate_stream(stream_config);
+   ftl_destory_stream(&stream_config);
+
    return 0;
  }

@@ -42,6 +42,7 @@ typedef enum {
   FTL_INTERNAL_ERROR, /**< Got valid inputs, but FTL failed to complete the action due to internal failure */
   FTL_CONFIG_ERROR, /**< The configuration supplied was invalid or incomplete */
   FTL_STREAM_REJECTED, /**< Ingest rejected our connect command */
+  FTL_NOT_ACTIVE_STREAM, /**< The function required an active stream and was passed an inactive one */
 } ftl_status_t;
 
 /*! \brief Video codecs supported by FTL
@@ -206,6 +207,18 @@ void ftl_attach_video_component_to_stream(ftl_stream_configuration_t* stream_con
  */
 
 ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Deactivates an FTL stream
+ *
+ * Deactivate stream cleanly shuts a stream down, and sends a DISCONNECT message
+ * to ingest to bring a stream offline.
+ *
+ * @param stream_config Active stream configuration
+ */
+
+ftl_status_t ftl_deactivate_stream(ftl_stream_configuration_t *stream_config);
 
 /*!
  * \ingroup ftl_public

@@ -163,6 +163,18 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   const char conclude_signal[] = ".\n";
   send(sock, conclude_signal, strlen(conclude_signal), 0);
 
+  // Check our return code
+  recv(sock, buf, 2048, 0);
+  response_code = ftl_charon_read_response_code(buf);
+  if (response_code != FTL_CHARON_OK) {
+    FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our parameters. Returned response code was %d", response_code);
+    close(sock);
+    return FTL_STREAM_REJECTED;
+  }
+
+  // We're good to go, set the connected status to true, and save the socket
+  config->connected = 1;
+  config->ingest_socket = sock;
   return FTL_SUCCESS;
 
 buffer_overflow:

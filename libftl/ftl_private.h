@@ -45,6 +45,8 @@
  */
 
 typedef struct {
+  int ingest_socket;
+  int connected;
   char * ingest_location;
   uint32_t channel_id;
   char * authetication_key;

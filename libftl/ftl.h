@@ -115,6 +115,11 @@ typedef struct {
  * in this library. ftl_init initializes any submodules that FTL depends on such
  * as libsrtp. Under normal cirmstances, this function should never fail.
  *
+ * On Windows, this function calls WSAStartup() to initialize Winsock. It is
+ * the responsibility of the calling app to call WSACleanup() at application
+ * shutdown as FTL can't safely call it (as your application may be using sockets
+ * elsewhere
+ *
  * @returns FTL_INIT_SUCCESS on successful initialization. Otherwise, returns
  * ftl_init_status_t enum with the failure state.
  */

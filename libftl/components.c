@@ -38,7 +38,7 @@ void ftl_attach_video_component_to_stream(ftl_stream_configuration_t* stream_con
 }
 
 ftl_stream_audio_component_t* ftl_create_audio_component(
-  ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc) {
+  ftl_audio_codec_t codec, uint8_t payload_type, uint32_t ssrc) {
 
 //#warning SSRC not dynamically generated yet
 //#warning PT not sensible set
@@ -77,7 +77,7 @@ ftl_stream_video_component_t* ftl_create_video_component(
   return component;
 }
 
-const char * ftl_audio_codec_to_string(ftl_video_codec_t codec) {
+const char * ftl_audio_codec_to_string(ftl_audio_codec_t codec) {
   switch (codec) {
     case FTL_AUDIO_NULL: return "";
     case FTL_AUDIO_OPUS: return "OPUS";

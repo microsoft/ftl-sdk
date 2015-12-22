@@ -181,7 +181,7 @@ FTL_API void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config
  * @param ssrc - SSRC identifer of the stream. May be set to NULL to dynamically generate a SSRC
  */
 
-FTL_API ftl_stream_audio_component_t* ftl_create_audio_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc);
+FTL_API ftl_stream_audio_component_t* ftl_create_audio_component(ftl_audio_codec_t codec, uint8_t payload_type, uint32_t ssrc);
 
 /*!
  * \ingroup ftl_public

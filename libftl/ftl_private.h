@@ -60,7 +60,7 @@ typedef struct {
 }  ftl_stream_configuration_private_t;
 
 typedef struct {
-  ftl_video_codec_t codec;
+  ftl_audio_codec_t codec;
   uint8_t payload_type;
   uint32_t ssrc;
   void* codec_info;
@@ -105,7 +105,7 @@ void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno
  * Value to string conversion functions
  */
 
-const char * ftl_audio_codec_to_string(ftl_video_codec_t codec);
+const char * ftl_audio_codec_to_string(ftl_audio_codec_t codec);
 const char * ftl_video_codec_to_string(ftl_video_codec_t codec);
 
 /**

@@ -67,15 +67,15 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
     sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
     if (sock == -1) {
       /* try the next candidate */
-      FTL_LOG(FTL_LOG_DEBUG, "failed to create socket. error: %s", strerror(errno));
+      FTL_LOG(FTL_LOG_DEBUG, "failed to create socket. error: %s", ftl_get_socket_error());
       continue;
     }
 
     /* Go for broke */
     if (connect (sock, p->ai_addr, p->ai_addrlen) == -1) {
-	  ftl_close_socket(sock);
+      FTL_LOG(FTL_LOG_DEBUG, "failed to connect on candidate, error: %s", ftl_get_socket_error());
+      ftl_close_socket(sock);
       sock = 0;
-      FTL_LOG(FTL_LOG_DEBUG, "failed to connect on candidate, error: %s", strerror(errno));
       continue;
     }
 
@@ -86,7 +86,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   /* Check to see if we actually connected */
   if (sock <= 0) {
     FTL_LOG(FTL_LOG_ERROR, "failed to connect to ingest. Last error was: %s",
-            strerror(errno));
+            ftl_get_socket_error());
     return FTL_CONNECT_ERROR;
   }
 

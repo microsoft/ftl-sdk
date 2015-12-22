@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
    if (FTL_VERSION_MAINTENANCE != 0) {
        printf("charon - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
    } else {
-       printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
+       printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
    }
 
    while ((c = getopt (argc, argv, "a:c:h:v?")) != -1) {

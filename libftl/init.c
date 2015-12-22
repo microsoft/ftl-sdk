@@ -25,6 +25,7 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 
+char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 1;
 FTL_API const int FTL_VERSION_MAINTENANCE = 0;

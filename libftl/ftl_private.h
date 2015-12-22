@@ -118,7 +118,11 @@ ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_s
  * Platform abstractions
  **/
 
+// FIXME: make this less global
+extern char error_message[1000];
+
 void ftl_init_sockets();
 int ftl_close_socket(int sock);
+char * ftl_get_socket_error();
 
 #endif

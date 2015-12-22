@@ -139,7 +139,7 @@ FTL_API ftl_status_t ftl_init();
  * @returns FTL_NON_ZERO_POINTER if the pointer passed wasn't zeroed before hand
  */
 
-FTL_API ftl_status_t ftl_create_stream(ftl_stream_configuration_t** stream_config);
+FTL_API ftl_status_t ftl_create_stream_configuration(ftl_stream_configuration_t** stream_config);
 
 /*!
  * \ingroup ftl_public
@@ -200,6 +200,19 @@ FTL_API ftl_stream_audio_component_t* ftl_create_audio_component(ftl_video_codec
  */
 
 FTL_API ftl_stream_video_component_t* ftl_create_video_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc, uint32_t width, uint32_t height);
+
+/*!
+* \ingroup ftl_public
+* \brief Attachs a audio component to the stream
+*
+* After an audio component is configured, it must be attached to the stream. This
+* function does just that.
+*
+* @param stream_config An initialized stream configuration struct
+* @param audio_component An initialized video component
+**/
+
+FTL_API void ftl_attach_audio_component_to_stream(ftl_stream_configuration_t* stream_config, ftl_stream_audio_component_t* component);
 
 /*!
  * \ingroup ftl_public

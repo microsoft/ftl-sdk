@@ -37,6 +37,8 @@
  **/
 
 #define WIN32_LEAN_AND_MEAN 1
+#include <stdio.h>
+#include <stdlib.h>
 #include <windows.h>
 #include "win32/xgetopt.h"
 #else

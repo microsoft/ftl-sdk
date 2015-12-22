@@ -26,9 +26,27 @@
 #include "ftl.h"
 
 void ftl_init_sockets() {
-    WSAStartup(MAKEWORD(2, 2), NULL);
+  WSADATA wsaData;
+  WSAStartup(MAKEWORD(2, 2), &wsaData);
 }
 
 int ftl_close_socket(int sock) {
-	return closesocket(sock);
+  return closesocket(sock);
+}
+
+char * ftl_get_socket_error() {
+  int error_code = WSAGetLastError();
+
+  if (FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+                    NULL, 
+                    error_code,
+                    0, 
+                    (LPTSTR)&error_message,
+                    1000,
+                    NULL) == 0) {
+    // Err, oops, formatmessage failed -_-;
+    return "FormatMessage() failed to process error!";
+  }
+
+  return error_message;
 }

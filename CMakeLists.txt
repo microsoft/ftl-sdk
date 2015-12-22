@@ -25,8 +25,8 @@ add_library(ftl SHARED libftl/activate.c
                        libftl/init.c
                        libftl/logging.c
                        libftl/stream_configuration.c
-					   libftl/ftl.h
-					   libftl/ftl_private.h
+                       libftl/ftl.h
+                       libftl/ftl_private.h
              ${FTL_PLATFORM_FILES})
 if(WIN32)
   target_link_libraries(ftl ws2_32)

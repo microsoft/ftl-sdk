@@ -4,14 +4,18 @@ project(libftl)
 
 include_directories(libftl)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
+
 if (WIN32)
-	set(CHARON_PLATFORM_FILES charon/win32/xgetopt.c
-            							  charon/win32/xgetopt.h
+  set(CHARON_PLATFORM_FILES charon/win32/xgetopt.c
+                            charon/win32/xgetopt.h
                             charon/win32/ctrlc_handler.c)
   set(CHARON_PLATFORM_LIBS kernel32 user32 gdi32 advapi32)
-	set(FTL_PLATFORM_FILES libftl/win32/socket.c)
+  set(FTL_PLATFORM_FILES libftl/win32/socket.c)
 else()
-	set(FTL_PLATFORM_FILES libftl/posix/socket.c)
+  set(CHARON_PLATFORM_FILES charon/posix/ctrlc_handler.c)
+  set(FTL_PLATFORM_FILES libftl/posix/socket.c)
 endif()
 
 add_library(ftl SHARED libftl/activate.c

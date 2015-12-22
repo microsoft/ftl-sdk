@@ -1,5 +1,5 @@
 /**
- * init.c - Library initialization functions
+ * charon.h - Global Header for the Charon client
  *
  * Copyright (c) 2015 Michael Casadevall
  *
@@ -22,15 +22,32 @@
  * SOFTWARE.
  **/
 
-#define __FTL_INTERNAL
-#include "ftl.h"
+/* Include definitions */
+ #include "ftl.h"
 
-FTL_API const int FTL_VERSION_MAJOR = 0;
-FTL_API const int FTL_VERSION_MINOR = 1;
-FTL_API const int FTL_VERSION_MAINTENANCE = 0;
+/* Windows specific includes */
+#ifdef _WIN32
 
-// Initializes all sublibraries used by FTL
-ftl_status_t ftl_init() {
-  ftl_init_sockets();
-  return FTL_SUCCESS;
-}
+/**
+ * We have to define LEAN_AND_MEAN because winsock will pull in duplicate
+ * header definitions without it as the winsock 1.1 API is in windows.h vs
+ * ws2_32.h.
+ *
+ * Yay for backwards source compatability
+ **/
+
+#define WIN32_LEAN_AND_MEAN 1
+#include <windows.h>
+#include "win32/xgetopt.h"
+#else
+/* POSIX headers */
+#include <unistd.h>
+#include <signal.h>
+#endif 
+
+/***
+ * Functions related to Ctrl-C handling
+ **/
+
+void charon_install_ctrlc_handler();
+void charon_loop_until_ctrlc();

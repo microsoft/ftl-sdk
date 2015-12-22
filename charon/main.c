@@ -22,17 +22,7 @@
  * SOFTWARE.
  **/
 
- #define __FTL_INTERNAL
- #include "ftl.h"
-
-#include <unistd.h>
-#include <signal.h>
-
-volatile sig_atomic_t shutdown_flag = 0;
-
-void shutdown_stream(int sig) {
-    shutdown_flag = 1;
-}
+ #include "charon.h"
 
 void usage() {
     printf("Usage: charon -h host -c channel_id -a authkey\n\n");
@@ -60,7 +50,7 @@ int main(int argc, char** argv) {
 
    opterr = 0;
 
-   signal(SIGINT, shutdown_stream);
+   charon_install_ctrlc_handler();
 
    if (FTL_VERSION_MAINTENANCE != 0) {
        printf("charon - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
@@ -123,9 +113,9 @@ int main(int argc, char** argv) {
    ftl_activate_stream(stream_config);
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
-   while (shutdown_flag != 1) {
-       sleep(1);
-   }
+
+  // Wait until we're ctrl-c'ed
+   charon_loop_until_ctrlc();
 
    printf("\nShutting down\n");
    ftl_deactivate_stream(stream_config);

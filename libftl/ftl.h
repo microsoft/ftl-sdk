@@ -27,10 +27,6 @@
 
 #include <stdint.h>
 
-extern const int FTL_VERSION_MAJOR;
-extern const int FTL_VERSION_MINOR;
-extern const int FTL_VERSION_MAINTENANCE;
-
 #ifdef _WIN32
 #	ifdef __FTL_INTERNAL
 #		define FTL_API __declspec(dllexport)
@@ -40,6 +36,11 @@ extern const int FTL_VERSION_MAINTENANCE;
 #else
 #	define FTL_API
 #endif
+
+FTL_API extern const int FTL_VERSION_MAJOR;
+FTL_API extern const int FTL_VERSION_MINOR;
+FTL_API extern const int FTL_VERSION_MAINTENANCE;
+
 
 /*! \defgroup ftl_public Public Interfaces for libftl */
 

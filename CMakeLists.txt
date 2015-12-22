@@ -10,6 +10,8 @@ if (WIN32)
                             charon/win32/ctrlc_handler.c)
   set(CHARON_PLATFORM_LIBS kernel32 user32 gdi32 advapi32)
 	set(FTL_PLATFORM_FILES libftl/win32/socket.c)
+else()
+	set(FTL_PLATFORM_FILES libftl/posix/socket.c)
 endif()
 
 add_library(ftl SHARED libftl/activate.c

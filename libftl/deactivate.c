@@ -45,7 +45,7 @@
      return FTL_INTERNAL_ERROR;
    }
 
-   close(config->ingest_socket);
+   ftl_close_socket(config->ingest_socket);
    config->connected = 0;
 
    return FTL_SUCCESS;

@@ -3,6 +3,10 @@ project(libftl)
 
 include_directories(libftl)
 
+if (WIN32)
+	set(FTL_PLATFORM_FILES libftl/win32/socket.c)
+endif()
+
 add_library(ftl SHARED libftl/activate.c
                        libftl/charon_protocol.c
                        libftl/components.c
@@ -11,7 +15,8 @@ add_library(ftl SHARED libftl/activate.c
                        libftl/logging.c
                        libftl/stream_configuration.c
 					   libftl/ftl.h
-					   libftl/ftl_private.h)
+					   libftl/ftl_private.h
+					   ${FTL_PLATFORM_FILES})
 if(WIN32)
   target_link_libraries(ftl ws2_32)
 endif()

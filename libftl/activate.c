@@ -73,7 +73,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
 
     /* Go for broke */
     if (connect (sock, p->ai_addr, p->ai_addrlen) == -1) {
-      close(sock);
+	  ftl_close_socket(sock);
       sock = 0;
       FTL_LOG(FTL_LOG_DEBUG, "failed to connect on candidate, error: %s", strerror(errno));
       continue;
@@ -97,7 +97,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   if (string_len == 2048) {
     /* Abort, buffer exceeded */
     FTL_LOG(FTL_LOG_CRITICAL, "send buffer exceeded; connect string is too long!");
-    close(sock);
+    ftl_close_socket(sock);
     return FTL_INTERNAL_ERROR;
   }
 
@@ -108,7 +108,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   response_code = ftl_charon_read_response_code(buf);
   if (response_code != FTL_CHARON_OK) {
     FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d", response_code);
-    close(sock);
+    ftl_close_socket(sock);
     return FTL_STREAM_REJECTED;
   }
 
@@ -168,7 +168,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   response_code = ftl_charon_read_response_code(buf);
   if (response_code != FTL_CHARON_OK) {
     FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our parameters. Returned response code was %d", response_code);
-    close(sock);
+    ftl_close_socket(sock);
     return FTL_STREAM_REJECTED;
   }
 
@@ -179,6 +179,6 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
 
 buffer_overflow:
   FTL_LOG(FTL_LOG_CRITICAL, "internal buffer overflow! Bailing out!");
-  if (sock <= 0) close(sock);
+  if (sock <= 0) ftl_close_socket(sock);
   return FTL_INTERNAL_ERROR;
 }

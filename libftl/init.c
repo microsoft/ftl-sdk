@@ -31,5 +31,6 @@ const int FTL_VERSION_MAINTENANCE = 0;
 
 // Initializes all sublibraries used by FTL
 ftl_status_t ftl_init() {
+  ftl_init_sockets();
   return FTL_SUCCESS;
 }

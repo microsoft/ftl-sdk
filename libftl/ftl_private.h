@@ -114,4 +114,11 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec);
 
 ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str);
 
+/**
+ * Platform abstractions
+ **/
+
+void ftl_init_sockets();
+int ftl_close_socket(int sock);
+
 #endif

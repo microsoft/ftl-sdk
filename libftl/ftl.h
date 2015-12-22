@@ -32,7 +32,7 @@ extern const int FTL_VERSION_MINOR;
 extern const int FTL_VERSION_MAINTENANCE;
 
 #ifdef _WIN32
-#	ifdef FTL_BUILD
+#	ifdef __FTL_INTERNAL
 #		define FTL_API __declspec(dllexport)
 #	else
 #		define FTL_API __declspec(dllimport)

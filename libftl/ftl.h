@@ -31,6 +31,16 @@ extern const int FTL_VERSION_MAJOR;
 extern const int FTL_VERSION_MINOR;
 extern const int FTL_VERSION_MAINTENANCE;
 
+#ifdef _WIN32
+#	ifdef FTL_BUILD
+#		define FTL_API __declspec(dllexport)
+#	else
+#		define FTL_API __declspec(dllimport)
+#	endif
+#else
+#	define FTL_API
+#endif
+
 /*! \defgroup ftl_public Public Interfaces for libftl */
 
 /*! \brief Status codes used by libftl
@@ -108,7 +118,7 @@ typedef struct {
  * @returns FTL_INIT_SUCCESS on successful initialization. Otherwise, returns
  * ftl_init_status_t enum with the failure state.
  */
-ftl_status_t ftl_init();
+FTL_API ftl_status_t ftl_init();
 
 /*!
  * \ingroup ftl_public
@@ -123,7 +133,7 @@ ftl_status_t ftl_init();
  * @returns FTL_NON_ZERO_POINTER if the pointer passed wasn't zeroed before hand
  */
 
-ftl_status_t ftl_create_stream(ftl_stream_configuration_t** stream_config);
+FTL_API ftl_status_t ftl_create_stream(ftl_stream_configuration_t** stream_config);
 
 /*!
  * \ingroup ftl_public
@@ -135,7 +145,7 @@ ftl_status_t ftl_create_stream(ftl_stream_configuration_t** stream_config);
  * @param ingest_location A standard null-terminated C string with the hostname or IP address of ingest
  **/
 
-void ftl_set_ingest_location(ftl_stream_configuration_t *stream_config, const char * ingest_location);
+FTL_API void ftl_set_ingest_location(ftl_stream_configuration_t *stream_config, const char * ingest_location);
 
 /*!
  * \ingroup ftl_public
@@ -148,7 +158,8 @@ void ftl_set_ingest_location(ftl_stream_configuration_t *stream_config, const ch
  * @param channel_id the numerical channel assigned to the user by the beam backend
  * @param authetication_key A standard null-terminated C string with the user-specific authetication key
  **/
-void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, uint64_t channel_id, const char * auth_key);
+
+FTL_API void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, uint32_t channel_id, const char * auth_key);
 
 /*!
  * \ingroup ftl_public
@@ -164,7 +175,7 @@ void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, uint64
  * @param ssrc - SSRC identifer of the stream. May be set to NULL to dynamically generate a SSRC
  */
 
-ftl_stream_audio_component_t* ftl_create_audio_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc);
+FTL_API ftl_stream_audio_component_t* ftl_create_audio_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc);
 
 /*!
  * \ingroup ftl_public
@@ -182,7 +193,7 @@ ftl_stream_audio_component_t* ftl_create_audio_component(ftl_video_codec_t codec
  * @param width - Width of the video to be encoded
  */
 
-ftl_stream_video_component_t* ftl_create_video_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc, uint32_t width, uint32_t height);
+FTL_API ftl_stream_video_component_t* ftl_create_video_component(ftl_video_codec_t codec, uint8_t payload_type, uint32_t ssrc, uint32_t width, uint32_t height);
 
 /*!
  * \ingroup ftl_public
@@ -195,7 +206,7 @@ ftl_stream_video_component_t* ftl_create_video_component(ftl_video_codec_t codec
  * @param video_component An initialized video component
  **/
 
-void ftl_attach_video_component_to_stream(ftl_stream_configuration_t* stream_config, ftl_stream_video_component_t* component);
+FTL_API void ftl_attach_video_component_to_stream(ftl_stream_configuration_t* stream_config, ftl_stream_video_component_t* component);
 
 /*!
  * \ingroup ftl_public
@@ -210,7 +221,7 @@ void ftl_attach_video_component_to_stream(ftl_stream_configuration_t* stream_con
  * @param stream_config Stream configuration information
  */
 
-ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config);
+FTL_API ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config);
 
 /*!
  * \ingroup ftl_public
@@ -222,7 +233,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config);
  * @param stream_config Active stream configuration
  */
 
-ftl_status_t ftl_deactivate_stream(ftl_stream_configuration_t *stream_config);
+FTL_API ftl_status_t ftl_deactivate_stream(ftl_stream_configuration_t *stream_config);
 
 /*!
  * \ingroup ftl_public
@@ -231,7 +242,7 @@ ftl_status_t ftl_deactivate_stream(ftl_stream_configuration_t *stream_config);
  * Releases memory used by a stream structure.
  */
 
-void ftl_destory_stream(ftl_stream_configuration_t** stream_config);
+FTL_API void ftl_destory_stream(ftl_stream_configuration_t** stream_config);
 
 // Load the internal API if necessary
 #ifdef __FTL_INTERNAL

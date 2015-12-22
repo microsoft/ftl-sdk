@@ -31,6 +31,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <WS2tcpip.h>
+#include <WinSock2.h>
+#endif
+
 #ifndef _WIN32
 #include <errno.h>
 #include <sys/types.h>

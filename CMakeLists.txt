@@ -4,9 +4,6 @@ project(libftl)
 
 include_directories(libftl)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
-
 if (WIN32)
   set(CHARON_PLATFORM_FILES charon/win32/xgetopt.c
                             charon/win32/xgetopt.h

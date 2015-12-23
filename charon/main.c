@@ -27,9 +27,11 @@
 void usage() {
     printf("Usage: charon -h host -c channel_id -a authkey\n\n");
     printf("Charon is used to signal to ingest that a FTL stream is online\n");
-    printf("\t-h\t\t\tIngest hostname\n");
+    printf("\t-i\t\t\tIngest hostname\n");
     printf("\t-c\t\t\tChannel ID\n");
     printf("\t-a\t\t\tAuthetication key for given channel id\n");
+    printf("\t-h\t\t\tVideo Height\n");
+    printf("\t-w\t\t\tVideo Width\n");
     printf("\t-v\t\t\tVerbose mode\n");
     printf("\t-?\t\t\tThis help message\n");
     exit (0);
@@ -45,6 +47,8 @@ int main(int argc, char** argv) {
    char* ingest_location = 0;
    char* authetication_key = 0;
    int c;
+   int video_height = 0;
+   int video_width = 0;
    int success = 0;
    int verbose = 0;
 
@@ -58,7 +62,7 @@ int main(int argc, char** argv) {
        printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
    }
 
-   while ((c = getopt (argc, argv, "a:c:h:v?")) != -1) {
+   while ((c = getopt (argc, argv, "a:c:h:i:vw:?")) != -1) {
        switch (c) {
            case 'a':
                 authetication_key = optarg;
@@ -71,10 +75,24 @@ int main(int argc, char** argv) {
                 }
                 break;
             case 'h':
+                success = sscanf(optarg, "%d", &video_height);
+                if (success != 1) {
+                    printf("ERROR: video height must be numeric");
+                    return -1;
+                }
+                break;
+            case 'i':
                 ingest_location = optarg;
                 break;
             case 'v':
                 verbose = 1;
+                break;
+            case 'w':
+                success = sscanf(optarg, "%d", &video_width);
+                if (success != 1) {
+                    printf("ERROR: video width must be numeric");
+                    return -1;
+                }
                 break;
             case '?':
                 usage();
@@ -89,6 +107,8 @@ int main(int argc, char** argv) {
 
    if (verbose) {
        printf("\nConfiguration:\n");
+       printf("\tvideo height: %d\n", video_height);
+       printf("\tvideo width: %d\n", video_width);
        printf("\tingesting to: %s\n", ingest_location);
        printf("\tchannel id: %d\n", channel_id);
        printf("\tauthetication key: %s\n", authetication_key);
@@ -104,13 +124,17 @@ int main(int argc, char** argv) {
    ftl_set_ingest_location(stream_config, ingest_location);
    ftl_set_authetication_key(stream_config, channel_id, authetication_key);
 
-   video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, 1, 1280, 720);
+   video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, 1, video_width, video_height);
    ftl_attach_video_component_to_stream(stream_config, video_component);
 
    audio_component = ftl_create_audio_component(FTL_AUDIO_OPUS, 97, 2);
    ftl_attach_audio_component_to_stream(stream_config, audio_component);
 
-   ftl_activate_stream(stream_config);
+   if (ftl_activate_stream(stream_config)  != FTL_SUCCESS) {
+     printf("Failed to activate stream, see above for error message\n");
+     return -1;
+   }
+
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 

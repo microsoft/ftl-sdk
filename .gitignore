@@ -1,9 +1,1 @@
 build
-CMakeCache.txt
-CMakeFiles
-Makefile
-cmake_install.cmake
-*.dylib
-*.so
-*.exe
-*.dll

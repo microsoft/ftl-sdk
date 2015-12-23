@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
                 success = sscanf(optarg, "%d", &channel_id);
                 if (success != 1) {
                     printf("ERROR: channel ID must be numeric");
-                    return;
+                    return -1;
                 }
                 break;
             case 'h':

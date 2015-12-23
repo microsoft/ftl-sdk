@@ -5,11 +5,14 @@ project(libftl)
 include_directories(libftl)
 
 if (WIN32)
-	set(CHARON_PLATFORM_FILES charon/win32/xgetopt.c
-            							  charon/win32/xgetopt.h
+  set(CHARON_PLATFORM_FILES charon/win32/xgetopt.c
+                            charon/win32/xgetopt.h
                             charon/win32/ctrlc_handler.c)
   set(CHARON_PLATFORM_LIBS kernel32 user32 gdi32 advapi32)
-	set(FTL_PLATFORM_FILES libftl/win32/socket.c)
+  set(FTL_PLATFORM_FILES libftl/win32/socket.c)
+else()
+  set(CHARON_PLATFORM_FILES charon/posix/ctrlc_handler.c)
+  set(FTL_PLATFORM_FILES libftl/posix/socket.c)
 endif()
 
 add_library(ftl SHARED libftl/activate.c
@@ -19,8 +22,8 @@ add_library(ftl SHARED libftl/activate.c
                        libftl/init.c
                        libftl/logging.c
                        libftl/stream_configuration.c
-					   libftl/ftl.h
-					   libftl/ftl_private.h
+                       libftl/ftl.h
+                       libftl/ftl_private.h
              ${FTL_PLATFORM_FILES})
 if(WIN32)
   target_link_libraries(ftl ws2_32)

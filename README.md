@@ -23,7 +23,12 @@ FTL is made of up many different components which all interoperate to provide en
 * SDP - Session Description Protocol. A handshake protocol used by WebRTC to establish a connection to Janus and Plex.
 
 ## Compilation
-TBD
+```
+mkdir build
+cd build
+cmake ..
+make
+```
 
 ## Usage
-TBD
+`./charon -h INGEST_IP -c CHANNEL_ID -a CHANNEL_STREAM_KEY`

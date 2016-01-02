@@ -27,6 +27,8 @@
 void usage() {
     printf("Usage: charon -h host -c channel_id -a authkey\n\n");
     printf("Charon is used to signal to ingest that a FTL stream is online\n");
+    printf("\t-A\t\t\tset audio SSRC\n");
+    printf("\t-V\t\t\tset video SSRC\n");
     printf("\t-i\t\t\tIngest hostname\n");
     printf("\t-c\t\t\tChannel ID\n");
     printf("\t-a\t\t\tAuthetication key for given channel id\n");
@@ -49,6 +51,9 @@ int main(int argc, char** argv) {
    int c;
    int video_height = 0;
    int video_width = 0;
+   int audio_ssrc = 0;
+   int video_ssrc = 0;
+
    int success = 0;
    int verbose = 0;
 
@@ -62,8 +67,22 @@ int main(int argc, char** argv) {
        printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
    }
 
-   while ((c = getopt (argc, argv, "a:c:h:i:vw:?")) != -1) {
+   while ((c = getopt (argc, argv, "A:V:a:c:h:i:vw:?")) != -1) {
        switch (c) {
+           case 'A':
+                success = sscanf(optarg, "%d", &audio_ssrc);
+                if (success != 1) {
+                  printf("ERROR: Audio SSRC must be numeric");
+                  return -1;
+                }
+                break;
+            case 'V':
+                 success = sscanf(optarg, "%d", &video_ssrc);
+                 if (success != 1) {
+                   printf("ERROR: Video SSRC must be numeric");
+                   return -1;
+                 }
+                 break;
            case 'a':
                 authetication_key = optarg;
                 break;
@@ -101,12 +120,14 @@ int main(int argc, char** argv) {
    }
 
    /* Make sure we have all the required bits */
-   if (!authetication_key || !ingest_location || !channel_id) {
+   if (!authetication_key || !ingest_location || !channel_id || !audio_ssrc || !video_ssrc) {
        usage();
    }
 
    if (verbose) {
        printf("\nConfiguration:\n");
+       printf("\taudio ssrc: %d\n", audio_ssrc);
+       printf("\tvideo ssrc: %d\n", video_ssrc);
        printf("\tvideo height: %d\n", video_height);
        printf("\tvideo width: %d\n", video_width);
        printf("\tingesting to: %s\n", ingest_location);
@@ -124,10 +145,10 @@ int main(int argc, char** argv) {
    ftl_set_ingest_location(stream_config, ingest_location);
    ftl_set_authetication_key(stream_config, channel_id, authetication_key);
 
-   video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, 1, video_width, video_height);
+   video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, video_ssrc, video_width, video_height);
    ftl_attach_video_component_to_stream(stream_config, video_component);
 
-   audio_component = ftl_create_audio_component(FTL_AUDIO_OPUS, 97, 2);
+   audio_component = ftl_create_audio_component(FTL_AUDIO_OPUS, 96, audio_ssrc);
    ftl_attach_audio_component_to_stream(stream_config, audio_component);
 
    if (ftl_activate_stream(stream_config)  != FTL_SUCCESS) {

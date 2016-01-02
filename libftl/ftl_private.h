@@ -92,7 +92,9 @@ typedef enum {
 typedef enum {
   FTL_CHARON_UNKNOWN = 0,
   FTL_CHARON_OK = 200,
-  FTL_CHARON_STREAM_UNAUTHORIZED = 400
+  FTL_CHARON_BAD_REQUEST= 400,
+  FTL_CHARON_UNAUTHORIZED = 401,
+  FTL_CHARON_OLD_VERSION = 402
 } ftl_charon_response_code_t;
 
 /**

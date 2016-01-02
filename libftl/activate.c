@@ -112,6 +112,10 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
     return FTL_STREAM_REJECTED;
   }
 
+  /* We always send our version component first */
+  string_len = snprintf(buf, 2048, "ProtocolVersion: %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
+  send(sock, buf, string_len, 0);
+
   /* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
   ftl_stream_video_component_private_common_t *video_component = config->video_component->private;
   if (video_component != 0) {

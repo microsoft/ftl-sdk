@@ -128,4 +128,18 @@ void ftl_init_sockets();
 int ftl_close_socket(int sock);
 char * ftl_get_socket_error();
 
+/**
+ * Embrace MSVC's old idiot ball, _snprintf. This strictly speaking is *NOT*
+ * a drop-in replacement for snprintf; it doesn't terminate w/ NULL characters
+ * which is at best unfortunate, and at worst a security hole. As such, we need
+ * to make sure that we always check the return value and don't use the string if
+ * we overflow (which should always be the case)
+ *
+ * At least VS2015 has this function implemented correctly.
+ */
+
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#define snprintf _snprintf
+#endif
+
 #endif

@@ -46,7 +46,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = 0;
-  hints.ai_flags = AI_ADDRCONFIG;
+
   struct addrinfo* resolved_names = 0;
   struct addrinfo* p = 0;
 

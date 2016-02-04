@@ -25,13 +25,20 @@ add_library(ftl SHARED libftl/activate.c
                        libftl/ftl.h
                        libftl/ftl_private.h
              ${FTL_PLATFORM_FILES})
+set_target_properties(ftl PROPERTIES VERSION "0.2.1")
+set_target_properties(ftl PROPERTIES SOVERSION 0)
+
 if(WIN32)
   target_link_libraries(ftl ws2_32)
 endif()
 
-add_executable(charon 
+add_executable(charon
                charon/main.c
                charon/charon.h
                ${CHARON_PLATFORM_FILES})
 target_link_libraries(charon ftl ${CHARON_PLATFORM_LIBS})
 target_include_directories(charon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/charon)
+
+# Install rules
+install(TARGETS ftl DESTINATION lib)
+install(FILES libftl/ftl.h DESTINATION "include/ftl")

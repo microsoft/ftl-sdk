@@ -83,6 +83,9 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
     break;
   }
 
+  /* Free the resolved name struct */
+  freeaddrinfo(resolved_names);
+
   /* Check to see if we actually connected */
   if (sock <= 0) {
     FTL_LOG(FTL_LOG_ERROR, "failed to connect to ingest. Last error was: %s",

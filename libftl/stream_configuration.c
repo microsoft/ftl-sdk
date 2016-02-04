@@ -62,7 +62,7 @@ void ftl_set_ingest_location(ftl_stream_configuration_t *stream_config, const ch
   size_t len = 0;
 
   /* Let's pray we got a valid string */
-  len = strlen(ingest_location);
+  len = strlen(ingest_location)+1;
   config->ingest_location = malloc((len*sizeof(char)));
   strcpy(config->ingest_location, ingest_location);
 }
@@ -76,27 +76,44 @@ void ftl_set_authetication_key(ftl_stream_configuration_t *stream_config, uint32
   config->channel_id = channel_id;
 
   /* Let's pray we got a valid string */
-  len = strlen(auth_key);
+  len = strlen(auth_key)+1;
   config->authetication_key = malloc((len*sizeof(char)));
   strcpy(config->authetication_key, auth_key);
 }
 
-// Safely frees all members of the stream_configuration struct
+// Safely frees all FTL member
 void ftl_destory_stream(ftl_stream_configuration_t** stream_config) {
   if (*stream_config == 0) {
     // Ok, someone passed us a zeroed struct. Just return
     return;
   }
 
-  // Free the private structure if its allocated (should always be)
+  ftl_stream_configuration_private_t* config = (ftl_stream_configuration_private_t*)(*stream_config)->private;
+  if (config->ingest_location) free(config->ingest_location);
+  if (config->authetication_key) free(config->authetication_key);
+
+  // Free the audio component if present
+  ftl_stream_audio_component_t* audio_component = config->audio_component;
+  if (audio_component) {
+    if (audio_component->private) {
+      free(audio_component->private);
+    }
+
+    free(audio_component);
+  }
+
+  // Free the audio component if present
+  ftl_stream_video_component_t* video_component = config->video_component;
+  if (video_component) {
+    if (video_component->private) {
+      free(video_component->private);
+    }
+
+    free(video_component);
+  }
+
+  // Finally, free the private structure if its allocated (should always be)
   if ((*stream_config)->private != 0) {
-    ftl_stream_configuration_private_t* config = (ftl_stream_configuration_private_t*)(*stream_config)->private;
-
-    // Free dynamically allocated memory
-    if (config->ingest_location != 0) { free(config->ingest_location); }
-    if (config->authetication_key != 0) { free(config->authetication_key); }
-
-    // And now blow away the private structure
     free((*stream_config)->private);
   }
 

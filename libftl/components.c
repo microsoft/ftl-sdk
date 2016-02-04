@@ -45,7 +45,7 @@ ftl_stream_audio_component_t* ftl_create_audio_component(
 
   /* Allocate the component bits */
   ftl_stream_audio_component_t* component = malloc(sizeof(ftl_stream_audio_component_t));
-  component->private = malloc(sizeof(ftl_stream_audio_component_t));
+  component->private = malloc(sizeof(ftl_stream_audio_component_private_common_t));
   ftl_stream_audio_component_private_common_t *component_internal = component->private;
 
   /* Copy the struct data in, and return */

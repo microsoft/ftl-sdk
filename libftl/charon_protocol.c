@@ -25,15 +25,15 @@
  #define __FTL_INTERNAL
  #include "ftl.h"
 
- ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str) {
-   char response_code_char[4];
-   snprintf(response_code_char, 4, "%s", response_str);
+ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str) {
+    char response_code_char[4];
+    snprintf(response_code_char, 4, "%s", response_str);
 
-   int response_code = atoi(response_code_char);
+    int response_code = atoi(response_code_char);
 
-   /* Part of me feels like I've coded this stupidly */
-   switch (response_code) {
-       case FTL_CHARON_OK: /* Sucess */
+    /* Part of me feels like I've coded this stupidly */
+    switch (response_code) {
+        case FTL_CHARON_OK: /* Sucess */
             return FTL_CHARON_OK;
         case FTL_CHARON_BAD_REQUEST:
             return FTL_CHARON_BAD_REQUEST;

@@ -29,9 +29,24 @@
    char response_code_char[4];
    snprintf(response_code_char, 4, "%s", response_str);
 
-   int response_code = atoi(response_code_char);   switch (response_code) {
-     case 200: /* Sucess */
-       return FTL_CHARON_OK;
+   int response_code = atoi(response_code_char);
+
+   /* Part of me feels like I've coded this stupidly */
+   switch (response_code) {
+       case FTL_CHARON_OK: /* Sucess */
+            return FTL_CHARON_OK;
+        case FTL_CHARON_BAD_REQUEST:
+            return FTL_CHARON_BAD_REQUEST;
+        case FTL_CHARON_UNAUTHORIZED:
+            return FTL_CHARON_UNAUTHORIZED;
+        case FTL_CHARON_OLD_VERSION:
+            return FTL_CHARON_OLD_VERSION;
+        case FTL_CHARON_AUDIO_SSRC_COLLISION:
+            return FTL_CHARON_AUDIO_SSRC_COLLISION;
+        case FTL_CHARON_VIDEO_SSRC_COLLISION:
+            return FTL_CHARON_VIDEO_SSRC_COLLISION;
+        case FTL_CHARON_INTERNAL_SERVER_ERROR:
+            return FTL_CHARON_INTERNAL_SERVER_ERROR;
    }
 
    /* Got an invalid or unknown response code */

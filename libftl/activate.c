@@ -185,7 +185,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
       return FTL_CHARON_UNAUTHORIZED;
     case FTL_CHARON_OLD_VERSION:
       FTL_LOG(FTL_LOG_ERROR, "charon protocol mismatch. Please update to latest charon/libftl");
-      return FTL_UNAUTHORIZED;
+      return FTL_OLD_VERSION;
     case FTL_CHARON_AUDIO_SSRC_COLLISION:
       FTL_LOG(FTL_LOG_ERROR, "audio SSRC collision from this IP address. Please change your audio SSRC to an unused value");
       return FTL_CHARON_AUDIO_SSRC_COLLISION;
@@ -195,6 +195,9 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
     case FTL_CHARON_INTERNAL_SERVER_ERROR:
       FTL_LOG(FTL_LOG_ERROR, "parameters accepted, but ingest couldn't start FTL. Please contact support!");
       return FTL_CHARON_INTERNAL_SERVER_ERROR;
+    case FTL_CHARON_INVALID_STREAM_KEY:
+      FTL_LOG(FTL_LOG_ERROR, "invalid stream key or channel id");
+      return FTL_STREAM_REJECTED;
   }
 
   // We're good to go, set the connected status to true, and save the socket

@@ -25,7 +25,7 @@ add_library(ftl SHARED libftl/activate.c
                        libftl/ftl.h
                        libftl/ftl_private.h
              ${FTL_PLATFORM_FILES})
-set_target_properties(ftl PROPERTIES VERSION "0.2.1")
+set_target_properties(ftl PROPERTIES VERSION "0.2.2")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)

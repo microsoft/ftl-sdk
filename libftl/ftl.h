@@ -57,6 +57,10 @@ typedef enum {
   FTL_CONFIG_ERROR, /**< The configuration supplied was invalid or incomplete */
   FTL_STREAM_REJECTED, /**< Ingest rejected our connect command */
   FTL_NOT_ACTIVE_STREAM, /**< The function required an active stream and was passed an inactive one */
+  FTL_UNAUTHORIZED, /**< Parameters were correct, but streamer not authorized to use FTL */
+  FTL_AUDIO_SSRC_COLLISION, /**< The audio SSRC from this IP is currently in use */
+  FTL_VIDEO_SSRC_COLLISION, /**< The video SSRC from this IP is currently in use */
+  FTL_BAD_REQUEST /**< Ingest didn't like our request. Should never happen */
 } ftl_status_t;
 
 /*! \brief Video codecs supported by FTL

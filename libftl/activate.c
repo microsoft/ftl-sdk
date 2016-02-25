@@ -173,10 +173,28 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   // Check our return code
   recv(sock, buf, 2048, 0);
   response_code = ftl_charon_read_response_code(buf);
-  if (response_code != FTL_CHARON_OK) {
-    FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our parameters. Returned response code was %d", response_code);
-    ftl_close_socket(sock);
-    return FTL_STREAM_REJECTED;
+  switch (response_code) {
+    case FTL_CHARON_OK:
+      FTL_LOG(FTL_LOG_DEBUG, "ingest accepted our paramteres");
+      break;
+    case FTL_CHARON_BAD_REQUEST:
+      FTL_LOG(FTL_LOG_ERROR, "ingest responded bad request. Possible charon bug?");
+      return FTL_BAD_REQUEST;
+    case FTL_CHARON_UNAUTHORIZED:
+      FTL_LOG(FTL_LOG_ERROR, "channel is not authorized for FTL");
+      return FTL_CHARON_UNAUTHORIZED;
+    case FTL_CHARON_OLD_VERSION:
+      FTL_LOG(FTL_LOG_ERROR, "charon protocol mismatch. Please update to latest charon/libftl");
+      return FTL_UNAUTHORIZED;
+    case FTL_CHARON_AUDIO_SSRC_COLLISION:
+      FTL_LOG(FTL_LOG_ERROR, "audio SSRC collision from this IP address. Please change your audio SSRC to an unused value");
+      return FTL_CHARON_AUDIO_SSRC_COLLISION;
+    case FTL_CHARON_VIDEO_SSRC_COLLISION:
+      FTL_LOG(FTL_LOG_ERROR, "video SSRC collision from this IP address. Please change your audio SSRC to an unused value");
+      return FTL_CHARON_VIDEO_SSRC_COLLISION;
+    case FTL_CHARON_INTERNAL_SERVER_ERROR:
+      FTL_LOG(FTL_LOG_ERROR, "parameters accepted, but ingest couldn't start FTL. Please contact support!");
+      return FTL_CHARON_INTERNAL_SERVER_ERROR;
   }
 
   // We're good to go, set the connected status to true, and save the socket

@@ -41,7 +41,6 @@ FTL_API extern const int FTL_VERSION_MAJOR;
 FTL_API extern const int FTL_VERSION_MINOR;
 FTL_API extern const int FTL_VERSION_MAINTENANCE;
 
-
 /*! \defgroup ftl_public Public Interfaces for libftl */
 
 /*! \brief Status codes used by libftl
@@ -78,6 +77,18 @@ typedef enum {
   FTL_AUDIO_OPUS /**< Xiph's Opus audio codec */
 } ftl_audio_codec_t;
 
+/*! \brief Log levels used by libftl; returned via logging callback
+ *  \ingroup ftl_public
+ */
+
+typedef enum {
+  FTL_LOG_CRITICAL,
+  FTL_LOG_ERROR,
+  FTL_LOG_WARN,
+  FTL_LOG_INFO,
+  FTL_LOG_DEBUG
+} ftl_log_severity_t;
+
 /*! \brief Configuration information for a given stream
  *  \ingroup ftl_public
  *
@@ -107,6 +118,12 @@ typedef struct {
 typedef struct {
   void* private;
 } ftl_stream_video_component_t;
+
+/*! \brief Function prototype for FTL logging callback
+ * \ingroup ftl_public
+ */
+
+typedef void (*ftl_logging_function_t)(ftl_log_severity_t log_level, const char * log_message);
 
 /*!
  * \ingroup ftl_public
@@ -262,6 +279,21 @@ FTL_API ftl_status_t ftl_deactivate_stream(ftl_stream_configuration_t *stream_co
  */
 
 FTL_API void ftl_destory_stream(ftl_stream_configuration_t** stream_config);
+
+/*!
+ * \ingroup ftl_public
+ * \brief Registers a callback to get libftl messages
+ *
+ * libftl has internal logging for debugging FTL issues. These messages are normally
+ * logged to STDERR, but can be redirected by using this function, and passing a pointer
+ * to a function that implements the following prototype:
+ *
+ * void log_test(ftl_log_severity_t log_level, const char * message)
+ *
+ * see charon/main.c for an example
+ */
+
+FTL_API void ftl_register_log_handler(ftl_logging_function_t log_func);
 
 // Load the internal API if necessary
 #ifdef __FTL_INTERNAL

@@ -24,6 +24,11 @@
 
  #include "charon.h"
 
+void log_test(ftl_log_severity_t log_level, const char * message) {
+  fprintf(stderr, "libftl message: %s\n", message);
+  return;
+}
+
 void usage() {
     printf("Usage: charon -h host -c channel_id -a authkey\n\n");
     printf("Charon is used to signal to ingest that a FTL stream is online\n");
@@ -136,6 +141,8 @@ int main(int argc, char** argv) {
    }
 
    ftl_init();
+   ftl_register_log_handler(log_test);
+
    status_code = ftl_create_stream_configuration(&stream_config);
    if (status_code != FTL_SUCCESS) {
      printf("Failed to initialize stream configuration: errno %d\n", status_code);

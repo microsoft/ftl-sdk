@@ -25,6 +25,16 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 
+static ftl_logging_function_t ftl_log_cb;
+
+void ftl_logging_init() {
+  ftl_log_cb = 0;
+}
+
+void ftl_register_log_handler(ftl_logging_function_t log_func) {
+  ftl_log_cb = log_func;
+}
+
 // Convert compiler macro to actual printf call to stderr
 void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...) {
     va_list args;
@@ -34,5 +44,9 @@ void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno
     va_end(args);
 
     // and now spit it out
-    fprintf(stderr, "[%s]:%d %s\n", file, lineno, message);
+    if (ftl_log_cb != 0) {
+      (*ftl_log_cb)(log_level, message);
+    } else {
+      fprintf(stderr, "[%s]:%d %s\n", file, lineno, message);
+    }
 }

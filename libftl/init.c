@@ -28,10 +28,11 @@
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 2;
-FTL_API const int FTL_VERSION_MAINTENANCE = 1;
+FTL_API const int FTL_VERSION_MAINTENANCE = 2;
 
 // Initializes all sublibraries used by FTL
 ftl_status_t ftl_init() {
   ftl_init_sockets();
+  ftl_logging_init();
   return FTL_SUCCESS;
 }

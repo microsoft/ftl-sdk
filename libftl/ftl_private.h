@@ -75,14 +75,6 @@ typedef struct {
   void* codec_info;
 } ftl_stream_video_component_private_common_t;
 
-typedef enum {
-  FTL_LOG_CRITICAL,
-  FTL_LOG_ERROR,
-  FTL_LOG_WARN,
-  FTL_LOG_INFO,
-  FTL_LOG_DEBUG
-} ftl_log_severity_t;
-
 /**
  * Charon always responses with a three digit response code after each command
  *
@@ -102,6 +94,7 @@ typedef enum {
  */
 
 #define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
+void ftl_logging_init(); /* Sets the callback to 0 disabling it */
 void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
 
 /**

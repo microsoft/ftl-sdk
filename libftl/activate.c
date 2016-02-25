@@ -182,7 +182,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
       return FTL_BAD_REQUEST;
     case FTL_CHARON_UNAUTHORIZED:
       FTL_LOG(FTL_LOG_ERROR, "channel is not authorized for FTL");
-      return FTL_CHARON_UNAUTHORIZED;
+      return FTL_UNAUTHORIZED;
     case FTL_CHARON_OLD_VERSION:
       FTL_LOG(FTL_LOG_ERROR, "charon protocol mismatch. Please update to latest charon/libftl");
       return FTL_OLD_VERSION;

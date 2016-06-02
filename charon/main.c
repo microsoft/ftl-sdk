@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
    video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, video_ssrc, video_width, video_height);
    ftl_attach_video_component_to_stream(stream_config, video_component);
 
-   audio_component = ftl_create_audio_component(FTL_AUDIO_OPUS, 96, audio_ssrc);
+   audio_component = ftl_create_audio_component(FTL_AUDIO_OPUS, 97, audio_ssrc);
    ftl_attach_audio_component_to_stream(stream_config, audio_component);
 
    if (ftl_activate_stream(stream_config)  != FTL_SUCCESS) {

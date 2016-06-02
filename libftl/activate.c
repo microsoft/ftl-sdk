@@ -54,14 +54,14 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   int ingest_port = 8084;
   char ingest_port_str[10];
   snprintf(ingest_port_str, 10, "%d", ingest_port);
-
+  
   err = getaddrinfo(config->ingest_location, ingest_port_str, &hints, &resolved_names);
   if (err != 0) {
     FTL_LOG(FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", config->ingest_location);
     FTL_LOG(FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));
     return FTL_DNS_FAILURE;
   }
-
+  
   /* Open a socket to the control port */
   for (p = resolved_names; p != NULL; p = p->ai_next) {
     sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
@@ -85,7 +85,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
 
   /* Free the resolved name struct */
   freeaddrinfo(resolved_names);
-
+  
   /* Check to see if we actually connected */
   if (sock <= 0) {
     FTL_LOG(FTL_LOG_ERROR, "failed to connect to ingest. Last error was: %s",
@@ -96,14 +96,14 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   /* If we've got a connection, let's send a CONNECT command and see if ingest will play ball */
   int string_len;
 
-  string_len = snprintf(buf, 2048, "CONNECT %d %s\n", config->channel_id, config->authetication_key);
+  string_len = snprintf(buf, 2048, "CONNECT %d %s\r\n\r\n", config->channel_id, config->authetication_key);
   if (string_len == 2048) {
     /* Abort, buffer exceeded */
     FTL_LOG(FTL_LOG_CRITICAL, "send buffer exceeded; connect string is too long!");
     ftl_close_socket(sock);
     return FTL_INTERNAL_ERROR;
   }
-
+  
   /* Send it, and let's read back the response */
   send(sock, buf, string_len, 0);
   recv(sock, buf, 2048, 0);
@@ -116,34 +116,34 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   }
 
   /* We always send our version component first */
-  string_len = snprintf(buf, 2048, "ProtocolVersion: %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
+  string_len = snprintf(buf, 2048, "ProtocolVersion: %d.%d\r\n\r\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
   send(sock, buf, string_len, 0);
 
   /* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
   ftl_stream_video_component_private_common_t *video_component = config->video_component->private;
   if (video_component != 0) {
     /* We're sending video */
-    const char video_true[] = "Video: true\n";
+    const char video_true[] = "Video: true\r\n\r\n";
     send(sock, video_true, strlen(video_true), 0);
 
     /* FIXME: make this a macro or a function? */
-    string_len = snprintf(buf, 2048, "VideoCodec: %s\n", ftl_video_codec_to_string(video_component->codec));
+    string_len = snprintf(buf, 2048, "VideoCodec: %s\r\n\r\n", ftl_video_codec_to_string(video_component->codec));
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
 
-    string_len = snprintf(buf, 2048, "VideoHeight: %d\n", video_component->height);
+    string_len = snprintf(buf, 2048, "VideoHeight: %d\r\n\r\n", video_component->height);
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
 
-    string_len = snprintf(buf, 2048, "VideoWidth: %d\n", video_component->width);
+    string_len = snprintf(buf, 2048, "VideoWidth: %d\r\n\r\n", video_component->width);
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
 
-    string_len = snprintf(buf, 2048, "VideoPayloadType: %d\n", video_component->payload_type);
+    string_len = snprintf(buf, 2048, "VideoPayloadType: %d\r\n\r\n", video_component->payload_type);
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
 
-    string_len = snprintf(buf, 2048, "VideoIngestSSRC: %d\n", video_component->ssrc);
+    string_len = snprintf(buf, 2048, "VideoIngestSSRC: %d\r\n\r\n", video_component->ssrc);
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
   }
@@ -151,23 +151,23 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   ftl_stream_audio_component_private_common_t *audio_component = config->audio_component->private;
   if (audio_component != 0) {
     /* We're sending video */
-    const char audio_true[] = "Audio: true\n";
+    const char audio_true[] = "Audio: true\r\n\r\n";
     send(sock, audio_true, strlen(audio_true), 0);
 
-    string_len = snprintf(buf, 2048, "AudioCodec: %s\n", ftl_audio_codec_to_string(audio_component->codec));
+    string_len = snprintf(buf, 2048, "AudioCodec: %s\r\n\r\n", ftl_audio_codec_to_string(audio_component->codec));
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
 
-    string_len = snprintf(buf, 2048, "AudioPayloadType: %d\n", audio_component->payload_type);
+    string_len = snprintf(buf, 2048, "AudioPayloadType: %d\r\n\r\n", audio_component->payload_type);
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
 
-    string_len = snprintf(buf, 2048, "AudioIngestSSRC: %d\n", audio_component->ssrc);
+    string_len = snprintf(buf, 2048, "AudioIngestSSRC: %d\r\n\r\n", audio_component->ssrc);
     if (string_len == 2048)  goto buffer_overflow;
     send(sock, buf, string_len, 0);
   }
   /* Ok, we're done sending parameters, send the finished signal */
-  const char conclude_signal[] = ".\n";
+  const char conclude_signal[] = ".\r\n\r\n";
   send(sock, conclude_signal, strlen(conclude_signal), 0);
 
   // Check our return code

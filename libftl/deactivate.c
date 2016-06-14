@@ -35,7 +35,10 @@
      return FTL_NOT_ACTIVE_STREAM;
    }
 
-   snprintf(disconnect_cmd, 2048, "DISCONNECT %d %s\n", config->channel_id, config->authetication_key);
+  char hmacBuffer[512];
+  ftl_charon_get_hmac(config->ingest_socket, config->authetication_key, hmacBuffer);
+
+   snprintf(disconnect_cmd, 2048, "DISCONNECT %d $%s\n", config->channel_id, hmacBuffer);
    send(config->ingest_socket, disconnect_cmd, strnlen(disconnect_cmd, 2048), 0);
    recv(config->ingest_socket, buf, 2048, 0);
 

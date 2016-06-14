@@ -25,6 +25,8 @@
  #define __FTL_INTERNAL
  #include "ftl.h"
 
+ #include "hmac/hmac.h"
+
 ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str) {
     char response_code_char[4];
     snprintf(response_code_char, 4, "%s", response_str);
@@ -52,3 +54,49 @@ ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_s
    /* Got an invalid or unknown response code */
    return FTL_CHARON_UNKNOWN;
  }
+
+unsigned char decode_hex_char(char c) {
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'A' && c <= 'Z') {
+        return (c - 'A') + 10;
+    }
+    if (c >= 'a' && c <= 'z') {
+        return (c - 'a') + 10;
+    }
+
+    return 0;
+}
+
+int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
+    char buf[2048];
+    int string_len;
+    int response_code;
+
+    send(sock, "HMAC\r\n\r\n", 8, 0);
+    string_len = recv(sock, buf, 2048, 0);
+
+    response_code = ftl_charon_read_response_code(buf);
+    if (response_code != FTL_CHARON_OK) {
+        FTL_LOG(FTL_LOG_ERROR, "ingest did not give us an HMAC nonce");
+        return 0;
+    }
+
+    int len = string_len - 5; // Strip "200 " and "\n"
+    if (len % 2) {
+        FTL_LOG(FTL_LOG_ERROR, "ingest did not give us a well-formed hex string");
+        return 0;
+    }
+
+    int messageLen = len / 2;
+    unsigned char msg[messageLen];
+
+    const char *hexMsgBuf = buf + 4;
+    for(int i = 0; i < messageLen; i++) {
+        msg[i] = (decode_hex_char(hexMsgBuf[i * 2])  << 4) + decode_hex_char(hexMsgBuf[(i * 2) + 1]);
+    }
+
+    hmacsha512(auth_key, msg, messageLen, dst);
+    return 1;
+}

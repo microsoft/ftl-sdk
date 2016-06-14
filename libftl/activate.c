@@ -93,10 +93,14 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
     return FTL_CONNECT_ERROR;
   }
 
-  /* If we've got a connection, let's send a CONNECT command and see if ingest will play ball */
   int string_len;
 
-  string_len = snprintf(buf, 2048, "CONNECT %d %s\r\n\r\n", config->channel_id, config->authetication_key);
+  char hmacBuffer[512];
+  ftl_charon_get_hmac(sock, config->authetication_key, hmacBuffer);
+
+  /* If we've got a connection, let's send a CONNECT command and see if ingest will play ball */
+
+  string_len = snprintf(buf, 2048, "CONNECT %d $%s\r\n\r\n", config->channel_id, hmacBuffer);
   if (string_len == 2048) {
     /* Abort, buffer exceeded */
     FTL_LOG(FTL_LOG_CRITICAL, "send buffer exceeded; connect string is too long!");

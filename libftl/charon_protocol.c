@@ -69,13 +69,24 @@ unsigned char decode_hex_char(char c) {
     return 0;
 }
 
+int recv_all(int sock, char * buf, int buflen) {
+    int pos = 0;
+    while (pos == 0 || buf[pos - 1] != '\n') {
+        pos += recv(sock, buf + pos, buflen - pos, 0);
+        if (pos >= buflen) {
+            return pos;
+        }
+    }
+    return pos;
+}
+
 int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
     char buf[2048];
     int string_len;
     int response_code;
 
     send(sock, "HMAC\r\n\r\n", 8, 0);
-    string_len = recv(sock, buf, 2048, 0);
+    string_len = recv_all(sock, buf, 2048);
 
     response_code = ftl_charon_read_response_code(buf);
     if (response_code != FTL_CHARON_OK) {

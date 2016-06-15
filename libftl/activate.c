@@ -110,7 +110,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   
   /* Send it, and let's read back the response */
   send(sock, buf, string_len, 0);
-  recv(sock, buf, 2048, 0);
+  recv_all(sock, buf, 2048);
 
   response_code = ftl_charon_read_response_code(buf);
   if (response_code != FTL_CHARON_OK) {
@@ -175,7 +175,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   send(sock, conclude_signal, strlen(conclude_signal), 0);
 
   // Check our return code
-  recv(sock, buf, 2048, 0);
+  recv_all(sock, buf, 2048);
   response_code = ftl_charon_read_response_code(buf);
   switch (response_code) {
     case FTL_CHARON_OK:

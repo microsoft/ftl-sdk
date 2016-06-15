@@ -40,7 +40,7 @@
 
    snprintf(disconnect_cmd, 2048, "DISCONNECT %d $%s\n", config->channel_id, hmacBuffer);
    send(config->ingest_socket, disconnect_cmd, strnlen(disconnect_cmd, 2048), 0);
-   recv(config->ingest_socket, buf, 2048, 0);
+   recv_all(config->ingest_socket, buf, 2048);
 
    response_code = ftl_charon_read_response_code(buf);
    if (response_code != FTL_CHARON_OK) {

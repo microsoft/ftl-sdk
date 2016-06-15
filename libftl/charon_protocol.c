@@ -125,8 +125,9 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
     int messageLen = len / 2;
     unsigned char msg[messageLen];
 
+    int i;
     const char *hexMsgBuf = buf + 4;
-    for(int i = 0; i < messageLen; i++) {
+    for(i = 0; i < messageLen; i++) {
         msg[i] = (decode_hex_char(hexMsgBuf[i * 2]) << 4) +
                   decode_hex_char(hexMsgBuf[(i * 2) + 1]);
     }

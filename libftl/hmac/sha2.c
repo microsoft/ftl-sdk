@@ -64,8 +64,6 @@ static const uint64_t K[80] = {
     0x4cc5d4becb3e42b6ULL, 0x597f299cfc657e2aULL, 0x5fcb6fab3ad6faecULL, 0x6c44198c4a475817ULL
 };
 
-#define BLOCK_SIZE          128
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //  INTERNAL FUNCTIONS
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -193,24 +191,24 @@ void
 
     while( BufferSize > 0 )
     {
-        if( Context->curlen == 0 && BufferSize >= BLOCK_SIZE )
+        if( Context->curlen == 0 && BufferSize >= SHA512_BLOCK_SIZE )
         {
            TransformFunction( Context, (uint8_t *)Buffer );
-           Context->length += BLOCK_SIZE * 8;
-           Buffer = (uint8_t*)Buffer + BLOCK_SIZE;
-           BufferSize -= BLOCK_SIZE;
+           Context->length += SHA512_BLOCK_SIZE * 8;
+           Buffer = (uint8_t*)Buffer + SHA512_BLOCK_SIZE;
+           BufferSize -= SHA512_BLOCK_SIZE;
         }
         else
         {
-           n = MIN( BufferSize, (BLOCK_SIZE - Context->curlen) );
+           n = MIN( BufferSize, (SHA512_BLOCK_SIZE - Context->curlen) );
            memcpy( Context->buf + Context->curlen, Buffer, (size_t)n );
            Context->curlen += n;
            Buffer = (uint8_t*)Buffer + n;
            BufferSize -= n;
-           if( Context->curlen == BLOCK_SIZE )
+           if( Context->curlen == SHA512_BLOCK_SIZE )
            {
               TransformFunction( Context, Context->buf );
-              Context->length += 8*BLOCK_SIZE;
+              Context->length += 8*SHA512_BLOCK_SIZE;
               Context->curlen = 0;
            }
        }

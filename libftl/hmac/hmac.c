@@ -12,7 +12,8 @@ const unsigned char hex_digits[] = "0123456789abcdef";
 int hmacsha512(const char * rawKey, const unsigned char * message, const int messageLength, char * result) {
 	int rawKeyLen = strlen(rawKey);
 	if (rawKeyLen > SHA512_BLOCK_SIZE) {
-		printf("%d > %d\n", rawKeyLen, SHA512_BLOCK_SIZE);
+		printf("Key is bigger than SHA512 Block Size (Should never happen): %d > %d\n", rawKeyLen, SHA512_BLOCK_SIZE);
+		result[0] = 0;
 		return 0;
 	}
 

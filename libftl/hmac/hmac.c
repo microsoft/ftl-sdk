@@ -3,7 +3,6 @@
 #include "hmac.h"
 #include "sha2.h"
 #include <stdio.h>
-#include <stdlib.h>
 
 #define O_KEY_PAD 0x5C
 #define I_KEY_PAD 0x36

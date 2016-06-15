@@ -65,9 +65,10 @@ unsigned char decode_hex_char(char c) {
     if (c >= '0' && c <= '9') {
         return c - '0';
     }
-    if (c >= 'A' && c <= 'Z') {
-        return (c - 'A') + 10;
-    }
+
+    // Set the 5th bit. Makes ASCII chars lowercase :)
+    c |= (1 << 5);
+    
     if (c >= 'a' && c <= 'z') {
         return (c - 'a') + 10;
     }

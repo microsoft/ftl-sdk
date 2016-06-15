@@ -3,6 +3,7 @@
 #include "hmac.h"
 #include "sha2.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 #define O_KEY_PAD 0x5C
 #define I_KEY_PAD 0x36
@@ -10,11 +11,20 @@
 const unsigned char hex_digits[] = "0123456789abcdef";
 
 int hmacsha512(const char * rawKey, const unsigned char * message, const int messageLength, char * result) {
-	int rawKeyLen = strlen(rawKey);
-	if (rawKeyLen > SHA512_BLOCK_SIZE) {
-		printf("Key is bigger than SHA512 Block Size (Should never happen): %d > %d\n", rawKeyLen, SHA512_BLOCK_SIZE);
-		result[0] = 0;
-		return 0;
+	Sha512Context ctx;
+	SHA512_HASH computedHash;
+	int keyLen = strlen(rawKey);
+
+	const char * key;
+	if (keyLen > SHA512_BLOCK_SIZE) {
+		Sha512Initialise(&ctx);
+		Sha512Update(&ctx, (void*)rawKey, keyLen);
+		Sha512Finalise(&ctx, &computedHash);
+
+		key = (const char *)computedHash.bytes;
+		keyLen = SHA512_HASH_SIZE;
+	} else {
+		key = rawKey;
 	}
 
 	unsigned char iKeyPad[SHA512_BLOCK_SIZE];
@@ -24,17 +34,15 @@ int hmacsha512(const char * rawKey, const unsigned char * message, const int mes
 	memset(iKeyPad, I_KEY_PAD, SHA512_BLOCK_SIZE);
 
 	int i;
-	for(i = 0; i < rawKeyLen; i++) {
-		oKeyPad[i] ^= rawKey[i];
-		iKeyPad[i] ^= rawKey[i];
+	for(i = 0; i < keyLen; i++) {
+		oKeyPad[i] ^= key[i];
+		iKeyPad[i] ^= key[i];
 	}
 
-	Sha512Context ctx;
 	Sha512Initialise(&ctx);
 	Sha512Update(&ctx, (void*)iKeyPad, SHA512_BLOCK_SIZE);
 	Sha512Update(&ctx, (void*)message, messageLength);
 
-	SHA512_HASH computedHash;
 	Sha512Finalise(&ctx, &computedHash);
 
 	Sha512Initialise(&ctx);
@@ -49,6 +57,8 @@ int hmacsha512(const char * rawKey, const unsigned char * message, const int mes
 	}
 
 	result[SHA512_HEX_STRING_HASH_SIZE - 1] = 0;
+
+	memset(computedHash.bytes, 0, sizeof(computedHash.bytes));
 
 	return SHA512_HEX_STRING_HASH_SIZE;
 }

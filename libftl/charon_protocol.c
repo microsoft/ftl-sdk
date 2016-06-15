@@ -77,10 +77,22 @@ unsigned char decode_hex_char(char c) {
 
 int recv_all(int sock, char * buf, int buflen) {
     int pos = 0;
+    int n;
     while (pos == 0 || buf[pos - 1] != '\n') {
-        pos += recv(sock, buf + pos, buflen - pos, 0);
+        n = recv(sock, buf + pos, buflen - pos, 0);
+        if (n < 0) {
+            const char * error = ftl_get_socket_error();
+            FTL_LOG(FTL_LOG_ERROR, "socket error while receiving: %s", error);
+            return n;
+        }
+        if (n == 0) {
+            FTL_LOG(FTL_LOG_ERROR, "received truncated message from ingest");
+            return 0;
+        }
+        pos += n;
         if (pos >= buflen) {
-            return pos;
+            FTL_LOG(FTL_LOG_ERROR, "received too long message from ingest");
+            return 0;
         }
     }
     return pos;

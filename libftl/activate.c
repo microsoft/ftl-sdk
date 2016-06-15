@@ -110,7 +110,13 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   
   /* Send it, and let's read back the response */
   send(sock, buf, string_len, 0);
-  recv_all(sock, buf, 2048);
+  string_len = recv_all(sock, buf, 2048);
+
+  if (string_len < 4 || string_len == 2048) {
+    FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
+    ftl_close_socket(sock);
+    return FTL_INTERNAL_ERROR;
+  }
 
   response_code = ftl_charon_read_response_code(buf);
   if (response_code != FTL_CHARON_OK) {
@@ -175,7 +181,14 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   send(sock, conclude_signal, strlen(conclude_signal), 0);
 
   // Check our return code
-  recv_all(sock, buf, 2048);
+  string_len = recv_all(sock, buf, 2048);
+
+  if (string_len < 4 || string_len == 2048) {
+    FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
+    ftl_close_socket(sock);
+    return FTL_INTERNAL_ERROR;
+  }
+  
   response_code = ftl_charon_read_response_code(buf);
   switch (response_code) {
     case FTL_CHARON_OK:

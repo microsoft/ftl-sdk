@@ -27,6 +27,12 @@
 
  #include "hmac/hmac.h"
 
+/*
+    Please note that throughout the code, we send "\r\n\r\n", where a normal newline ("\n") would suffice.
+    This is done due to some firewalls / anti-malware systems not passing our packets through when we don't send those double-windows-newlines.
+    They seem to detect our protocol as HTTP wrongly.
+*/
+
 ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str) {
     char response_code_char[4];
     snprintf(response_code_char, 4, "%s", response_str);
@@ -105,7 +111,8 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
 
     const char *hexMsgBuf = buf + 4;
     for(int i = 0; i < messageLen; i++) {
-        msg[i] = (decode_hex_char(hexMsgBuf[i * 2])  << 4) + decode_hex_char(hexMsgBuf[(i * 2) + 1]);
+        msg[i] = (decode_hex_char(hexMsgBuf[i * 2]) << 4) +
+                  decode_hex_char(hexMsgBuf[(i * 2) + 1]);
     }
 
     hmacsha512(auth_key, msg, messageLen, dst);

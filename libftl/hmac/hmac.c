@@ -43,7 +43,7 @@ int hmacsha512(const char * rawKey, const unsigned char * message, const int mes
 
 	Sha512Finalise(&ctx, &computedHash);
 
-	for(int i = 0; i < SHA512_HASH_SIZE; i++) {
+	for(i = 0; i < SHA512_HASH_SIZE; i++) {
 		result[i * 2] = hex_digits[computedHash.bytes[i] >> 4];
 		result[(i * 2) + 1] = hex_digits[computedHash.bytes[i] & 0x0F];
 	}

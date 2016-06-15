@@ -36,8 +36,10 @@ ftl_status_t ftl_deactivate_stream(ftl_stream_configuration_t *stream_config) {
   }
 
   char hmacBuffer[512];
-  ftl_charon_get_hmac(config->ingest_socket, config->authetication_key, hmacBuffer);
-
+  if(!ftl_charon_get_hmac(config->ingest_socket, config->authetication_key, hmacBuffer)) {
+    FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
+    return FTL_INTERNAL_ERROR;
+  }
   int string_len;
 
   snprintf(disconnect_cmd, 2048, "DISCONNECT %d $%s\n", config->channel_id, hmacBuffer);

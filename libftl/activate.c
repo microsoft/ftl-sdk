@@ -96,7 +96,11 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   int string_len;
 
   char hmacBuffer[512];
-  ftl_charon_get_hmac(sock, config->authetication_key, hmacBuffer);
+  if(!ftl_charon_get_hmac(sock, config->authetication_key, hmacBuffer)) {
+    FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
+    ftl_close_socket(sock);
+    return FTL_INTERNAL_ERROR;
+  }
 
   /* If we've got a connection, let's send a CONNECT command and see if ingest will play ball */
 
@@ -188,7 +192,7 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
     ftl_close_socket(sock);
     return FTL_INTERNAL_ERROR;
   }
-  
+
   response_code = ftl_charon_read_response_code(buf);
   switch (response_code) {
     case FTL_CHARON_OK:

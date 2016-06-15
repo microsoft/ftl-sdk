@@ -105,6 +105,10 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
 
     send(sock, "HMAC\r\n\r\n", 8, 0);
     string_len = recv_all(sock, buf, 2048);
+    if (string_len < 4 || string_len == 2048) {
+        FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
+        return 0;
+    }
 
     response_code = ftl_charon_read_response_code(buf);
     if (response_code != FTL_CHARON_OK) {

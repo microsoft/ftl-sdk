@@ -112,6 +112,9 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec);
  * Functions related to the charon prootocol itself
  **/
 
+int recv_all(int sock, char * buf, int buflen);
+
+int ftl_charon_get_hmac(int sock, char * auth_key, char * dst);
 ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str);
 
 /**

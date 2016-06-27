@@ -15,7 +15,11 @@ else()
   set(FTL_PLATFORM_FILES libftl/posix/socket.c)
 endif()
 
-add_library(ftl SHARED libftl/activate.c
+add_library(ftl SHARED libftl/hmac/hmac.c
+                       libftl/hmac/hmac.h
+                       libftl/hmac/sha2.c
+                       libftl/hmac/sha2.h
+                       libftl/activate.c
                        libftl/charon_protocol.c
                        libftl/components.c
                        libftl/deactivate.c

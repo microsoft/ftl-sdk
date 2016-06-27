@@ -25,6 +25,14 @@
  #define __FTL_INTERNAL
  #include "ftl.h"
 
+ #include "hmac/hmac.h"
+
+/*
+    Please note that throughout the code, we send "\r\n\r\n", where a normal newline ("\n") would suffice.
+    This is done due to some firewalls / anti-malware systems not passing our packets through when we don't send those double-windows-newlines.
+    They seem to detect our protocol as HTTP wrongly.
+*/
+
 ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str) {
     char response_code_char[4];
     snprintf(response_code_char, 4, "%s", response_str);
@@ -52,3 +60,79 @@ ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_s
    /* Got an invalid or unknown response code */
    return FTL_CHARON_UNKNOWN;
  }
+
+unsigned char decode_hex_char(char c) {
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+
+    // Set the 5th bit. Makes ASCII chars lowercase :)
+    c |= (1 << 5);
+    
+    if (c >= 'a' && c <= 'z') {
+        return (c - 'a') + 10;
+    }
+
+    return 0;
+}
+
+int recv_all(int sock, char * buf, int buflen) {
+    int pos = 0;
+    int n;
+    while (pos == 0 || buf[pos - 1] != '\n') {
+        n = recv(sock, buf + pos, buflen - pos, 0);
+        if (n < 0) {
+            const char * error = ftl_get_socket_error();
+            FTL_LOG(FTL_LOG_ERROR, "socket error while receiving: %s", error);
+            return n;
+        }
+        if (n == 0) {
+            FTL_LOG(FTL_LOG_ERROR, "received truncated message from ingest");
+            return 0;
+        }
+        pos += n;
+        if (pos >= buflen) {
+            FTL_LOG(FTL_LOG_ERROR, "received too long message from ingest");
+            return 0;
+        }
+    }
+    return pos;
+}
+
+int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
+    char buf[2048];
+    int string_len;
+    int response_code;
+
+    send(sock, "HMAC\r\n\r\n", 8, 0);
+    string_len = recv_all(sock, buf, 2048);
+    if (string_len < 4 || string_len == 2048) {
+        FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
+        return 0;
+    }
+
+    response_code = ftl_charon_read_response_code(buf);
+    if (response_code != FTL_CHARON_OK) {
+        FTL_LOG(FTL_LOG_ERROR, "ingest did not give us an HMAC nonce");
+        return 0;
+    }
+
+    int len = string_len - 5; // Strip "200 " and "\n"
+    if (len % 2) {
+        FTL_LOG(FTL_LOG_ERROR, "ingest did not give us a well-formed hex string");
+        return 0;
+    }
+
+    int messageLen = len / 2;
+    unsigned char msg[messageLen];
+
+    int i;
+    const char *hexMsgBuf = buf + 4;
+    for(i = 0; i < messageLen; i++) {
+        msg[i] = (decode_hex_char(hexMsgBuf[i * 2]) << 4) +
+                  decode_hex_char(hexMsgBuf[(i * 2) + 1]);
+    }
+
+    hmacsha512(auth_key, msg, messageLen, dst);
+    return 1;
+}

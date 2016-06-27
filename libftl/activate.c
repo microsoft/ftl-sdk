@@ -93,10 +93,18 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
     return FTL_CONNECT_ERROR;
   }
 
-  /* If we've got a connection, let's send a CONNECT command and see if ingest will play ball */
   int string_len;
 
-  string_len = snprintf(buf, 2048, "CONNECT %d %s\r\n\r\n", config->channel_id, config->authetication_key);
+  char hmacBuffer[512];
+  if(!ftl_charon_get_hmac(sock, config->authetication_key, hmacBuffer)) {
+    FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
+    ftl_close_socket(sock);
+    return FTL_INTERNAL_ERROR;
+  }
+
+  /* If we've got a connection, let's send a CONNECT command and see if ingest will play ball */
+
+  string_len = snprintf(buf, 2048, "CONNECT %d $%s\r\n\r\n", config->channel_id, hmacBuffer);
   if (string_len == 2048) {
     /* Abort, buffer exceeded */
     FTL_LOG(FTL_LOG_CRITICAL, "send buffer exceeded; connect string is too long!");
@@ -106,7 +114,13 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   
   /* Send it, and let's read back the response */
   send(sock, buf, string_len, 0);
-  recv(sock, buf, 2048, 0);
+  string_len = recv_all(sock, buf, 2048);
+
+  if (string_len < 4 || string_len == 2048) {
+    FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
+    ftl_close_socket(sock);
+    return FTL_INTERNAL_ERROR;
+  }
 
   response_code = ftl_charon_read_response_code(buf);
   if (response_code != FTL_CHARON_OK) {
@@ -171,7 +185,14 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   send(sock, conclude_signal, strlen(conclude_signal), 0);
 
   // Check our return code
-  recv(sock, buf, 2048, 0);
+  string_len = recv_all(sock, buf, 2048);
+
+  if (string_len < 4 || string_len == 2048) {
+    FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
+    ftl_close_socket(sock);
+    return FTL_INTERNAL_ERROR;
+  }
+
   response_code = ftl_charon_read_response_code(buf);
   switch (response_code) {
     case FTL_CHARON_OK:

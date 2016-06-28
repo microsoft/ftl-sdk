@@ -124,7 +124,12 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
     }
 
     int messageLen = len / 2;
-    unsigned char msg[messageLen];
+    unsigned char *msg;
+
+    if( (msg = (unsigned char*)malloc(messageLen * sizeof(*msg))) == NULL){
+        FTL_LOG(FTL_LOG_ERROR, "Unable to allocate %d bytes of memory", messageLen * sizeof(*msg));
+        return 0;        
+    }
 
     int i;
     const char *hexMsgBuf = buf + 4;
@@ -134,5 +139,6 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
     }
 
     hmacsha512(auth_key, msg, messageLen, dst);
+    free(msg);
     return 1;
 }

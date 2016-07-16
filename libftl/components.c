@@ -81,6 +81,7 @@ const char * ftl_audio_codec_to_string(ftl_audio_codec_t codec) {
   switch (codec) {
     case FTL_AUDIO_NULL: return "";
     case FTL_AUDIO_OPUS: return "OPUS";
+    case FTL_AUDIO_AAC: return "AAC";
   }
 
   // Should be never reached
@@ -91,6 +92,7 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec) {
   switch (codec) {
     case FTL_VIDEO_NULL: return "";
     case FTL_VIDEO_VP8: return "VP8";
+    case FTL_VIDEO_H264: return "H264";
   }
 
   // Should be never reached

@@ -70,7 +70,8 @@ typedef enum {
 
 typedef enum {
   FTL_VIDEO_NULL, /**< No video for this stream */
-  FTL_VIDEO_VP8  /**< Google's VP8 codec (recommended default) */
+  FTL_VIDEO_VP8,  /**< Google's VP8 codec (recommended default) */
+  FTL_VIDEO_H264
 } ftl_video_codec_t;
 
 /*! \brief Audio codecs supported by FTL
@@ -79,7 +80,8 @@ typedef enum {
 
 typedef enum {
   FTL_AUDIO_NULL, /**< No audio for this stream */
-  FTL_AUDIO_OPUS /**< Xiph's Opus audio codec */
+  FTL_AUDIO_OPUS, /**< Xiph's Opus audio codec */
+  FTL_AUDIO_AAC
 } ftl_audio_codec_t;
 
 /*! \brief Log levels used by libftl; returned via logging callback

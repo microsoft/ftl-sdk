@@ -38,3 +38,29 @@ int ftl_close_socket(int sock) {
 char * ftl_get_socket_error() {
   return strerror(errno);
 }
+
+ftl_set_socket_recv_timeout(int socket, int ms_timeout){
+  struct timeval tv;
+
+  tv.tv_sec = 0;
+  tv.tv_usec = ms_timeout * 1000;
+
+  setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv));  
+}
+
+ftl_set_socket_send_timeout(int socket, int ms_timeout){
+  struct timeval tv;
+
+  tv.tv_sec = 0;
+  tv.tv_usec = ms_timeout * 1000;
+
+  setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
+}
+
+ftl_set_socket_enable_keepalive(int socket){
+  int keep_alive = 1;
+  setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
+}
+
+
+

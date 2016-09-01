@@ -50,3 +50,16 @@ char * ftl_get_socket_error() {
 
   return error_message;
 }
+
+ftl_set_socket_recv_timeout(int socket, int ms_timeout){
+  setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
+}
+
+ftl_set_socket_send_timeout(int socket, int ms_timeout){
+  setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
+}
+
+ftl_set_socket_enable_keepalive(int socket){
+  int keep_alive = 1;
+  setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
+}

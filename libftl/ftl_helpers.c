@@ -76,27 +76,26 @@ unsigned char decode_hex_char(char c) {
     return 0;
 }
 
-int recv_all(int sock, char * buf, int buflen) {
+int recv_all(int sock, char * buf, int buflen, const char line_terminator) {
     int pos = 0;
     int n;
-    while (pos == 0 || buf[pos - 1] != '\n') {
-        n = recv(sock, buf + pos, buflen - pos, 0);
+    int bytes_recd = 0;
+
+    do {
+        n = recv(sock, buf, buflen, 0);
         if (n < 0) {
+            //this will abort in the event of an error or in the buffer is filled before the terminiator is reached
             const char * error = ftl_get_socket_error();
             FTL_LOG(FTL_LOG_ERROR, "socket error while receiving: %s", error);
             return n;
         }
-        if (n == 0) {
-            FTL_LOG(FTL_LOG_ERROR, "received truncated message from ingest");
-            return 0;
-        }
-        pos += n;
-        if (pos >= buflen) {
-            FTL_LOG(FTL_LOG_ERROR, "received too long message from ingest");
-            return 0;
-        }
-    }
-    return pos;
+        
+        buf += n;
+        buflen -= n;
+        bytes_recd += n;
+    } while(buf[-1] != line_terminator);
+
+    return bytes_recd;
 }
 
 int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {

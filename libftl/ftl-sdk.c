@@ -2,35 +2,39 @@
 #include "ftl.h"
 #include "ftl_private.h"
 
-bool _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);
+static bool _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);
+static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 
 FTL_API ftl_status_t ftl_init(){
   return FTL_SUCCESS;
 }
 
-FTL_API ftl_handle_t* ftl_ingest_create(ftl_ingest_params_t *params){
-  ftl_stream_configuration_private_t *ftl_cfg = NULL;
+FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params){
+  ftl_status_t ret_status = FTL_SUCCESS;
+	ftl_stream_configuration_private_t ftl_cfg;
 
   if( (ftl_cfg = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t)) == NULL){
-    return NULL;
+    ret_status = FTL_MALLOC_FAILURE;
+		goto fail;
   }
-
-  memcpy(ftl_cfg->params, params, sizeof(ftl_ingest_params_t));
 
   ftl_cfg->connected = 0;
 
   ftl_cfg->key = NULL;
   if( (ftl_cfg->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
-    return FTL_MALLOC_FAILURE;
+    ret_status = FTL_MALLOC_FAILURE;
+		goto fail;
   }
 
   if ( _get_chan_id_and_key(params->stream_key, &ftl_cfg->channel_id, ftl_cfg->key) == false ) {
-    return FTL_BAD_OR_INVALID_STREAM_KEY;
+    ret_status = FTL_BAD_OR_INVALID_STREAM_KEY;
+		goto fail;
   }
 
 /*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
   if ( _lookup_ingest_ip(params->ingest_hostname, ftl_cfg->ingest_ip) == false ) {
-    return FTL_DNS_FAILURE;
+    ret_status = FTL_DNS_FAILURE;
+		goto fail;
   }
 
   ftl_cfg->audio.payload_type = AUDIO_PTYPE;
@@ -40,9 +44,20 @@ FTL_API ftl_handle_t* ftl_ingest_create(ftl_ingest_params_t *params){
   ftl_cfg->audio.ssrc = ftl_cfg->channel_id;
   ftl_cfg->video.ssrc = ftl_cfg->channel_id + 1;
 
-  
+	ftl_handle->private = ftl_cfg;
+  return ret_status;
 
-  return (ftl_handle_t*)ftl_cfg;
+fail:
+
+	if(*ftl_handle != NULL) {
+		if (ftl_cfg->key != NULL) {
+			free(ftl_cfg->key);
+		}
+
+		free(ftl_cfg);
+	}
+
+	return ret_status;	
 }
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){

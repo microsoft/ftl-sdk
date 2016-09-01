@@ -1,7 +1,7 @@
 /**
- * \file ftl.h - Private Interfaces for the FTL SDK
+ * \file ftl_private.h - Private Interfaces for the FTL SDK
  *
- * Copyright (c) 2015 Michael Casadevall
+ * Copyright (c) 2015 Beam Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,8 @@
 typedef struct {
   int ingest_socket;
   int connected;
-  char * ingest_location;
+  ftl_ingest_params_t params;
+  char *ingest_ip;
   uint32_t channel_id;
   char * authetication_key;
   ftl_stream_audio_component_t* audio_component;
@@ -127,16 +128,6 @@ extern char error_message[1000];
 void ftl_init_sockets();
 int ftl_close_socket(int sock);
 char * ftl_get_socket_error();
-
-/**
- * Embrace MSVC's old idiot ball, _snprintf. This strictly speaking is *NOT*
- * a drop-in replacement for snprintf; it doesn't terminate w/ NULL characters
- * which is at best unfortunate, and at worst a security hole. As such, we need
- * to make sure that we always check the return value and don't use the string if
- * we overflow (which should always be the case)
- *
- * At least VS2015 has this function implemented correctly.
- */
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf

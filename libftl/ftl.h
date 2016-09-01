@@ -64,6 +64,11 @@ typedef enum {
   FTL_OLD_VERSION /**< libftl needs to be updated */
 } ftl_status_t;
 
+typedef enum {
+  FTL_CONNECTION_DISCONNECTED,
+  FTL_CONNECTION_RECONNECTED
+} ftl_connection_status_t;
+
 /*! \brief Video codecs supported by FTL
  *  \ingroug ftl_public
  */
@@ -83,6 +88,11 @@ typedef enum {
   FTL_AUDIO_OPUS, /**< Xiph's Opus audio codec */
   FTL_AUDIO_AAC
 } ftl_audio_codec_t;
+
+typedef enum {
+  FTL_AUDIO_DATA, 
+  FTL_VIDEO_DATA
+} ftl_media_type_t;
 
 /*! \brief Log levels used by libftl; returned via logging callback
  *  \ingroup ftl_public
@@ -130,7 +140,21 @@ typedef struct {
  * \ingroup ftl_public
  */
 
-typedef void (*ftl_logging_function_t)(ftl_log_severity_t log_level, const char * log_message);
+ typedef void (*ftl_logging_function_t)(ftl_log_severity_t log_level, const char * log_message);
+  typedef void (*ftl_status_function_t)(ftl_connection_status_t status);
+
+ typedef struct {
+   char *ingest_hostname;
+   char *stream_key;
+   ftl_video_codec_t video_codec;
+   ftl_audio_codec_t audio_codec;
+   void *status_callback;
+   ftl_logging_function_t log_func;
+ } ftl_ingest_params_t;
+
+ typedef struct {
+  void* private;
+ } ftl_handle_t;
 
 /*!
  * \ingroup ftl_public
@@ -149,6 +173,21 @@ typedef void (*ftl_logging_function_t)(ftl_log_severity_t log_level, const char 
  * ftl_init_status_t enum with the failure state.
  */
 FTL_API ftl_status_t ftl_init();
+
+FTL_API ftl_handle_t* ftl_ingest_create(ftl_ingest_params_t *params);
+
+FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
+
+FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle);
+
+FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname);
+FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, const char *stream_key);
+
+FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32 len);
+
+FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
+
+FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 
 /*!
  * \ingroup ftl_public

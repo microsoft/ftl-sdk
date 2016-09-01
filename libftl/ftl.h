@@ -62,6 +62,7 @@ typedef enum {
   FTL_VIDEO_SSRC_COLLISION, /**< The video SSRC from this IP is currently in use */
   FTL_BAD_REQUEST, /**< Ingest didn't like our request. Should never happen */
   FTL_OLD_VERSION /**< libftl needs to be updated */
+  FTL_BAD_OR_INVALID_STREAM_KEY,
 } ftl_status_t;
 
 typedef enum {

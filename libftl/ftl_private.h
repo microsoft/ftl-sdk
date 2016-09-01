@@ -43,23 +43,14 @@
 #include <netdb.h>
 #endif
 
+#define MAX_KEY_LEN 100
+#define VIDEO_PTYPE 96
+#define AUDIO_PTYPE 97
 /**
  * This configuration structure handles basic information for a struct such
  * as the authetication keys and other similar information. It's members are
  * private and not to be directly manipulated
  */
-
-typedef struct {
-  int ingest_socket;
-  int connected;
-  ftl_ingest_params_t params;
-  char *ingest_ip;
-  uint32_t channel_id;
-  char * authetication_key;
-  ftl_stream_audio_component_t* audio_component;
-  ftl_stream_video_component_t* video_component;
-}  ftl_stream_configuration_private_t;
-
 typedef struct {
   ftl_audio_codec_t codec;
   uint8_t payload_type;
@@ -75,6 +66,16 @@ typedef struct {
   uint32_t width;
   void* codec_info;
 } ftl_stream_video_component_private_common_t;
+
+typedef struct {
+  int ingest_socket;
+  int connected;
+  char ingest_ip[16];//ipv4 only
+  uint32_t channel_id;
+  char *key;
+  ftl_stream_audio_component_private_common_t audio;
+  ftl_stream_video_component_private_common_t video;
+}  ftl_stream_configuration_private_t;
 
 /**
  * Charon always responses with a three digit response code after each command

@@ -2,18 +2,47 @@
 #include "ftl.h"
 #include "ftl_private.h"
 
+bool _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);
+
 FTL_API ftl_status_t ftl_init(){
   return FTL_SUCCESS;
 }
 
 FTL_API ftl_handle_t* ftl_ingest_create(ftl_ingest_params_t *params){
-  ftl_stream_configuration_private_t *ftl_cfg;
+  ftl_stream_configuration_private_t *ftl_cfg = NULL;
 
-  if( (cfg = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t)) == NULL){
+  if( (ftl_cfg = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t)) == NULL){
     return NULL;
   }
 
-  memcpy(cfg->params, params, sizeof(ftl_ingest_params_t));
+  memcpy(ftl_cfg->params, params, sizeof(ftl_ingest_params_t));
+
+  ftl_cfg->connected = 0;
+
+  ftl_cfg->key = NULL;
+  if( (ftl_cfg->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
+    return FTL_MALLOC_FAILURE;
+  }
+
+  if ( _get_chan_id_and_key(params->stream_key, &ftl_cfg->channel_id, ftl_cfg->key) == false ) {
+    return FTL_BAD_OR_INVALID_STREAM_KEY;
+  }
+
+/*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
+  if ( _lookup_ingest_ip(params->ingest_hostname, ftl_cfg->ingest_ip) == false ) {
+    return FTL_DNS_FAILURE;
+  }
+
+  ftl_cfg->audio.payload_type = AUDIO_PTYPE;
+  ftl_cfg->video.payload_type = VIDEO_PTYPE;
+
+  //TODO: this should be randomly generated, there is a potential for ssrc collisions with this
+  ftl_cfg->audio.ssrc = ftl_cfg->channel_id;
+  ftl_cfg->video.ssrc = ftl_cfg->channel_id + 1;
+
+  
+
+  return (ftl_handle_t*)ftl_cfg;
 }
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
@@ -32,3 +61,56 @@ FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_t
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
+
+bool _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
+	int len;
+	
+	len = strlen(stream_key);
+	for (int i = 0; i != len; i++) {
+		/* find the comma that divides the stream key */
+		if (stream_key[i] == '-' || stream_key[i] == ',') {
+			/* stream key gets copied */
+			strcpy(key, stream_key+i+1);
+
+			/* Now get the channel id */
+			char * copy_of_key = strdup(stream_key);
+			copy_of_key[i] = '\0';
+			*chan_id = atol(copy_of_key);
+			free(copy_of_key);
+
+			return true;
+		}
+	}
+
+		return false;
+}
+
+
+static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip) {
+	struct hostent *remoteHost;
+	struct in_addr addr;
+	bool success = false;
+	ingest_ip[0] = '\0';
+
+	remoteHost = gethostbyname(ingest_location);
+
+	if (remoteHost) {
+		int i = 0;
+		if (remoteHost->h_addrtype == AF_INET)
+		{
+			while (remoteHost->h_addr_list[i] != 0) {
+				addr.s_addr = *(u_long *)remoteHost->h_addr_list[i++];
+				blog(LOG_INFO, "IP Address #%d of ingest is: %s\n", i, inet_ntoa(addr));
+
+				//revolving dns ensures this will change automatically so just use first ip found
+				if (!success) {
+					strcpy(ingest_ip, inet_ntoa(addr));
+					success = true;
+          //break;
+				}
+			}
+		}
+	}
+
+	return success;
+}

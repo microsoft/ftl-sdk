@@ -61,7 +61,7 @@ typedef enum {
   FTL_AUDIO_SSRC_COLLISION, /**< The audio SSRC from this IP is currently in use */
   FTL_VIDEO_SSRC_COLLISION, /**< The video SSRC from this IP is currently in use */
   FTL_BAD_REQUEST, /**< Ingest didn't like our request. Should never happen */
-  FTL_OLD_VERSION /**< libftl needs to be updated */
+  FTL_OLD_VERSION, /**< libftl needs to be updated */
   FTL_BAD_OR_INVALID_STREAM_KEY,
 } ftl_status_t;
 
@@ -175,7 +175,7 @@ typedef struct {
  */
 FTL_API ftl_status_t ftl_init();
 
-FTL_API ftl_handle_t* ftl_ingest_create(ftl_ingest_params_t *params);
+FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params);
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 
@@ -184,12 +184,13 @@ FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle);
 FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname);
 FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, const char *stream_key);
 
-FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32 len);
+FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len);
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 
+#if 0
 /*!
  * \ingroup ftl_public
  * \brief Initializes a stream configuration structure
@@ -341,7 +342,7 @@ FTL_API void ftl_destory_stream(ftl_stream_configuration_t** stream_config);
  */
 
 FTL_API void ftl_register_log_handler(ftl_logging_function_t log_func);
-
+#endif
 // Load the internal API if necessary
 #ifdef __FTL_INTERNAL
 #include "ftl_private.h"

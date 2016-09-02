@@ -24,7 +24,6 @@
 
  #define __FTL_INTERNAL
  #include "ftl.h"
-
  #include "hmac/hmac.h"
 
 /*
@@ -33,7 +32,7 @@
     They seem to detect our protocol as HTTP wrongly.
 */
 
-ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_str) {
+ftl_response_code_t ftl_charon_read_response_code(const char * response_str) {
     char response_code_char[4];
     snprintf(response_code_char, 4, "%s", response_str);
 
@@ -41,24 +40,24 @@ ftl_charon_response_code_t ftl_charon_read_response_code(const char * response_s
 
     /* Part of me feels like I've coded this stupidly */
     switch (response_code) {
-        case FTL_CHARON_OK: /* Sucess */
-            return FTL_CHARON_OK;
-        case FTL_CHARON_BAD_REQUEST:
-            return FTL_CHARON_BAD_REQUEST;
-        case FTL_CHARON_UNAUTHORIZED:
-            return FTL_CHARON_UNAUTHORIZED;
-        case FTL_CHARON_OLD_VERSION:
-            return FTL_CHARON_OLD_VERSION;
-        case FTL_CHARON_AUDIO_SSRC_COLLISION:
-            return FTL_CHARON_AUDIO_SSRC_COLLISION;
-        case FTL_CHARON_VIDEO_SSRC_COLLISION:
-            return FTL_CHARON_VIDEO_SSRC_COLLISION;
-        case FTL_CHARON_INTERNAL_SERVER_ERROR:
-            return FTL_CHARON_INTERNAL_SERVER_ERROR;
+        case FTL_INGEST_RESP_OK: /* Sucess */
+            return FTL_INGEST_RESP_OK;
+        case FTL_INGEST_RESP_BAD_REQUEST:
+            return FTL_INGEST_RESP_BAD_REQUEST;
+        case FTL_INGEST_RESP_UNAUTHORIZED:
+            return FTL_INGEST_RESP_UNAUTHORIZED;
+        case FTL_INGEST_RESP_OLD_VERSION:
+            return FTL_INGEST_RESP_OLD_VERSION;
+        case FTL_INGEST_RESP_AUDIO_SSRC_COLLISION:
+            return FTL_INGEST_RESP_AUDIO_SSRC_COLLISION;
+        case FTL_INGEST_RESP_VIDEO_SSRC_COLLISION:
+            return FTL_INGEST_RESP_VIDEO_SSRC_COLLISION;
+        case FTL_INGEST_RESP_INTERNAL_SERVER_ERROR:
+            return FTL_INGEST_RESP_INTERNAL_SERVER_ERROR;
    }
 
    /* Got an invalid or unknown response code */
-   return FTL_CHARON_UNKNOWN;
+   return FTL_INGEST_RESP_UNKNOWN;
  }
 
 unsigned char decode_hex_char(char c) {
@@ -104,14 +103,14 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
     int response_code;
 
     send(sock, "HMAC\r\n\r\n", 8, 0);
-    string_len = recv_all(sock, buf, 2048);
+    string_len = recv_all(sock, buf, 2048, '\n');
     if (string_len < 4 || string_len == 2048) {
         FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
         return 0;
     }
 
     response_code = ftl_charon_read_response_code(buf);
-    if (response_code != FTL_CHARON_OK) {
+    if (response_code != FTL_INGEST_RESP_OK) {
         FTL_LOG(FTL_LOG_ERROR, "ingest did not give us an HMAC nonce");
         return 0;
     }
@@ -140,4 +139,26 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
     hmacsha512(auth_key, msg, messageLen, dst);
     free(msg);
     return 1;
+}
+
+const char * ftl_audio_codec_to_string(ftl_audio_codec_t codec) {
+  switch (codec) {
+    case FTL_AUDIO_NULL: return "";
+    case FTL_AUDIO_OPUS: return "OPUS";
+    case FTL_AUDIO_AAC: return "AAC";
+  }
+
+  // Should be never reached
+  return "";
+}
+
+const char * ftl_video_codec_to_string(ftl_video_codec_t codec) {
+  switch (codec) {
+    case FTL_VIDEO_NULL: return "";
+    case FTL_VIDEO_VP8: return "VP8";
+    case FTL_VIDEO_H264: return "H264";
+  }
+
+  // Should be never reached
+  return "";
 }

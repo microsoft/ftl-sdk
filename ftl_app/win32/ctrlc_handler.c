@@ -22,7 +22,7 @@
 * SOFTWARE.
 **/
 
-#include "charon.h"
+#include "main.h"
 
 /**
 * On POSIX platforms, we need to catch SIGINT, and and change the state

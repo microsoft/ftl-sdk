@@ -22,7 +22,7 @@
  * SOFTWARE.
  **/
 
- #include "charon.h"
+ #include "main.h"
 
 void log_test(ftl_log_severity_t log_level, const char * message) {
   fprintf(stderr, "libftl message: %s\n", message);

@@ -50,99 +50,122 @@ int main(int argc, char** argv) {
    ftl_stream_audio_component_t* audio_component = 0;
    ftl_status_t status_code;
 
+
    int channel_id = 0;
    char* ingest_location = 0;
-   char* authetication_key = 0;
-   int c;
-   int video_height = 0;
-   int video_width = 0;
-   int audio_ssrc = 0;
-   int video_ssrc = 0;
+char* authetication_key = 0;
+int c;
+int video_height = 0;
+int video_width = 0;
+int audio_ssrc = 0;
+int video_ssrc = 0;
 
-   int success = 0;
-   int verbose = 0;
+int success = 0;
+int verbose = 0;
 
-   opterr = 0;
+opterr = 0;
 
-   charon_install_ctrlc_handler();
+charon_install_ctrlc_handler();
 
-   if (FTL_VERSION_MAINTENANCE != 0) {
-       printf("charon - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
-   } else {
-       printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
-   }
+if (FTL_VERSION_MAINTENANCE != 0) {
+	printf("charon - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
+}
+else {
+	printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
+}
 
-   while ((c = getopt (argc, argv, "A:V:a:c:h:i:vw:?")) != -1) {
-       switch (c) {
-           case 'A':
-                success = sscanf(optarg, "%d", &audio_ssrc);
-                if (success != 1) {
-                  printf("ERROR: Audio SSRC must be numeric");
-                  return -1;
-                }
-                break;
-            case 'V':
-                 success = sscanf(optarg, "%d", &video_ssrc);
-                 if (success != 1) {
-                   printf("ERROR: Video SSRC must be numeric");
-                   return -1;
-                 }
-                 break;
-           case 'a':
-                authetication_key = optarg;
-                break;
-            case 'c':
-                success = sscanf(optarg, "%d", &channel_id);
-                if (success != 1) {
-                    printf("ERROR: channel ID must be numeric");
-                    return -1;
-                }
-                break;
-            case 'h':
-                success = sscanf(optarg, "%d", &video_height);
-                if (success != 1) {
-                    printf("ERROR: video height must be numeric");
-                    return -1;
-                }
-                break;
-            case 'i':
-                ingest_location = optarg;
-                break;
-            case 'v':
-                verbose = 1;
-                break;
-            case 'w':
-                success = sscanf(optarg, "%d", &video_width);
-                if (success != 1) {
-                    printf("ERROR: video width must be numeric");
-                    return -1;
-                }
-                break;
-            case '?':
-                usage();
-                break;
-       }
-   }
+while ((c = getopt(argc, argv, "A:V:a:c:h:i:vw:?")) != -1) {
+	switch (c) {
+	case 'A':
+		success = sscanf(optarg, "%d", &audio_ssrc);
+		if (success != 1) {
+			printf("ERROR: Audio SSRC must be numeric");
+			return -1;
+		}
+		break;
+	case 'V':
+		success = sscanf(optarg, "%d", &video_ssrc);
+		if (success != 1) {
+			printf("ERROR: Video SSRC must be numeric");
+			return -1;
+		}
+		break;
+	case 'a':
+		authetication_key = optarg;
+		break;
+	case 'c':
+		success = sscanf(optarg, "%d", &channel_id);
+		if (success != 1) {
+			printf("ERROR: channel ID must be numeric");
+			return -1;
+		}
+		break;
+	case 'h':
+		success = sscanf(optarg, "%d", &video_height);
+		if (success != 1) {
+			printf("ERROR: video height must be numeric");
+			return -1;
+		}
+		break;
+	case 'i':
+		ingest_location = optarg;
+		break;
+	case 'v':
+		verbose = 1;
+		break;
+	case 'w':
+		success = sscanf(optarg, "%d", &video_width);
+		if (success != 1) {
+			printf("ERROR: video width must be numeric");
+			return -1;
+		}
+		break;
+	case '?':
+		usage();
+		break;
+	}
+}
 
-   /* Make sure we have all the required bits */
-   if (!authetication_key || !ingest_location || !channel_id || !audio_ssrc || !video_ssrc) {
-       usage();
-   }
+#if 0
+/* Make sure we have all the required bits */
+if (!authetication_key || !ingest_location || !channel_id || !audio_ssrc || !video_ssrc) {
+	usage();
+}
+#endif
 
-   if (verbose) {
-       printf("\nConfiguration:\n");
-       printf("\taudio ssrc: %d\n", audio_ssrc);
-       printf("\tvideo ssrc: %d\n", video_ssrc);
-       printf("\tvideo height: %d\n", video_height);
-       printf("\tvideo width: %d\n", video_width);
-       printf("\tingesting to: %s\n", ingest_location);
-       printf("\tchannel id: %d\n", channel_id);
-       printf("\tauthetication key: %s\n", authetication_key);
-   }
+if (verbose) {
+	printf("\nConfiguration:\n");
+	printf("\taudio ssrc: %d\n", audio_ssrc);
+	printf("\tvideo ssrc: %d\n", video_ssrc);
+	printf("\tvideo height: %d\n", video_height);
+	printf("\tvideo width: %d\n", video_width);
+	printf("\tingesting to: %s\n", ingest_location);
+	printf("\tchannel id: %d\n", channel_id);
+	printf("\tauthetication key: %s\n", authetication_key);
+}
 
-   ftl_init();
-   ftl_register_log_handler(log_test);
+	ftl_init();
+	ftl_handle_t handle;
+	ftl_ingest_params_t params;
 
+	params.log_func = log_test;
+	params.stream_key = "82585-3s5iskinhxous0czsdmggwq8fd4fyyu5";
+	params.video_codec = FTL_VIDEO_H264;
+	params.audio_codec = FTL_AUDIO_OPUS;
+	params.ingest_hostname = "ingest-sea.beam.pro";
+	params.status_callback = NULL;
+
+	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
+		printf("Failed to create ingest handle %d\n", status_code);
+		return -1;
+	}
+
+   if ((status_code = ftl_ingest_connect(&handle)) != FTL_SUCCESS) {
+	   printf("Failed to connect to ingest %d\n", status_code);
+	   return -1;
+	}
+
+#if 0
    status_code = ftl_create_stream_configuration(&stream_config);
    if (status_code != FTL_SUCCESS) {
      printf("Failed to initialize stream configuration: errno %d\n", status_code);
@@ -162,16 +185,17 @@ int main(int argc, char** argv) {
      printf("Failed to activate stream, see above for error message\n");
      return -1;
    }
+#endif
 
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
   // Wait until we're ctrl-c'ed
    charon_loop_until_ctrlc();
-
+#if 0
    printf("\nShutting down\n");
    ftl_deactivate_stream(stream_config);
    ftl_destory_stream(&stream_config);
-
+#endif
    return 0;
  }

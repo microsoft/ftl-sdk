@@ -91,7 +91,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   int string_len;
 
   char hmacBuffer[512];
-  if(!ftl_charon_get_hmac(stream_config->ingest_socket, stream_config->key, hmacBuffer)) {
+  if(!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, hmacBuffer)) {
     FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
     response_code = FTL_INTERNAL_ERROR;
     goto fail;    
@@ -107,7 +107,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   }
 
   /* We always send our version component first */
-  if ((response_code = _ftl_send_command(stream_config, TRUE, "ProtocolVersion: %d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR))){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, "ProtocolVersion: %d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR)) != FTL_INGEST_RESP_OK){
     response_code = FTL_OLD_VERSION;
     goto fail;
   }  
@@ -115,7 +115,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   /* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
   ftl_stream_video_component_private_common_t *video = &stream_config->video;
   /* We're sending video */
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "Video: TRUE")) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, "Video: true")) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
@@ -141,7 +141,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
 
   ftl_stream_audio_component_private_common_t *audio = &stream_config->audio;
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "Audio: TRUE")) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, "Audio: true")) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
@@ -202,7 +202,7 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
 
   sprintf(format, "%s\r\n\r\n", cmd_fmt);
 
-  va_start(valist, format);
+  va_start(valist, cmd_fmt);
 
   memset(buf, 0, buflen);
 

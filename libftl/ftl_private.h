@@ -122,8 +122,8 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec);
 
 int recv_all(int sock, char * buf, int buflen, const char line_terminator);
 
-int ftl_charon_get_hmac(int sock, char * auth_key, char * dst);
-ftl_response_code_t ftl_charon_read_response_code(const char * response_str);
+int ftl_get_hmac(int sock, char * auth_key, char * dst);
+ftl_response_code_t ftl_read_response_code(const char * response_str);
 
 /**
  * Platform abstractions
@@ -135,6 +135,8 @@ extern char error_message[1000];
 void ftl_init_sockets();
 int ftl_close_socket(int sock);
 char * ftl_get_socket_error();
+
+ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf

@@ -53,7 +53,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl_cfg->audio.ssrc = ftl_cfg->channel_id;
   ftl_cfg->video.ssrc = ftl_cfg->channel_id + 1;
 
-	ftl_handle->private = ftl_cfg;
+  ftl_handle->private = ftl_cfg;
   return ret_status;
 
 fail:
@@ -71,8 +71,11 @@ fail:
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
+  ftl_status_t status;
 
-  return FTL_SUCCESS;
+  status = _ingest_connect(ftl_cfg);
+
+  return status;
 }
 
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle) {

@@ -32,7 +32,7 @@
     They seem to detect our protocol as HTTP wrongly.
 */
 
-ftl_response_code_t ftl_charon_read_response_code(const char * response_str) {
+ftl_response_code_t ftl_read_response_code(const char * response_str) {
     char response_code_char[4];
     snprintf(response_code_char, 4, "%s", response_str);
 
@@ -97,7 +97,7 @@ int recv_all(int sock, char * buf, int buflen, const char line_terminator) {
     return bytes_recd;
 }
 
-int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
+int ftl_get_hmac(int sock, char * auth_key, char * dst) {
     char buf[2048];
     int string_len;
     int response_code;
@@ -109,7 +109,7 @@ int ftl_charon_get_hmac(int sock, char * auth_key, char * dst) {
         return 0;
     }
 
-    response_code = ftl_charon_read_response_code(buf);
+    response_code = ftl_read_response_code(buf);
     if (response_code != FTL_INGEST_RESP_OK) {
         FTL_LOG(FTL_LOG_ERROR, "ingest did not give us an HMAC nonce");
         return 0;

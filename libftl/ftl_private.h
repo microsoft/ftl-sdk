@@ -50,16 +50,40 @@
 #define AUDIO_PTYPE 97
 #define SOCKET_RECV_TIMEOUT_MS 500
 #define SOCKET_SEND_TIMEOUT_MS 500
+#define MAX_PACKET_MTU 1500  //Max length of buffer
+#define FTL_UDP_DATA_PORT 8082   //The port on which to listen for incoming data
+#define RTP_HEADER_BASE_LEN 12
+#define RTP_FUA_HEADER_LEN 2
+#define NACK_RB_SIZE 1024
+#define NACK_RTT_AVG_SECONDS 5
 /**
  * This configuration structure handles basic information for a struct such
  * as the authetication keys and other similar information. It's members are
  * private and not to be directly manipulated
  */
 typedef struct {
+	uint8_t packet[MAX_PACKET_MTU];
+	int len;
+	uint64_t insert_ns;
+	int sn;
+	pthread_mutex_t mutex;
+}nack_slot_t;
+
+typedef struct {
   ftl_audio_codec_t codec;
   uint8_t payload_type;
   uint32_t ssrc;
-  void* codec_info;
+  uint32_t timestamp;
+  uint32_t timestamp_step;
+  uint16_t seq_num;
+  uint8_t fua_nalu_type;
+  //	pthread_mutex_t  packets_mutex;
+  os_sem_t         *send_sem;
+  int64_t min_nack_rtt;
+  int64_t max_nack_rtt;
+  int64_t nack_rtt_avg;
+  BOOL nack_slots_initalized;
+  nack_slot_t *nack_slots[NACK_RB_SIZE];
 } ftl_stream_audio_component_private_common_t;
 
 typedef struct {
@@ -68,7 +92,17 @@ typedef struct {
   uint32_t ssrc;
   uint32_t height;
   uint32_t width;
-  void* codec_info;
+  uint32_t timestamp;
+  uint32_t timestamp_step;
+  uint16_t seq_num;
+  uint8_t fua_nalu_type;
+  //	pthread_mutex_t  packets_mutex;
+  os_sem_t         *send_sem;
+  int64_t min_nack_rtt;
+  int64_t max_nack_rtt;
+  int64_t nack_rtt_avg;
+  BOOL nack_slots_initalized;
+  nack_slot_t *nack_slots[NACK_RB_SIZE];
 } ftl_stream_video_component_private_common_t;
 
 typedef struct {
@@ -77,6 +111,7 @@ typedef struct {
   char ingest_ip[16];//ipv4 only
   uint32_t channel_id;
   char *key;
+  char hmacBuffer[512];
   ftl_stream_audio_component_private_common_t audio;
   ftl_stream_video_component_private_common_t video;
 }  ftl_stream_configuration_private_t;

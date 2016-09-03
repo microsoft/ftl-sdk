@@ -22,6 +22,7 @@ add_library(ftl SHARED libftl/hmac/hmac.c
                        libftl/ftl-sdk.c
                        libftl/handshake.c
                        libftl/ftl_helpers.c
+					   libftl/media.c
                        libftl/logging.c
                        libftl/ftl.h
                        libftl/ftl_private.h

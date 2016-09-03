@@ -90,17 +90,13 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
 
   int string_len;
 
-  char hmacBuffer[512];
-  if(!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, hmacBuffer)) {
+  if(!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, stream_config->hmacBuffer)) {
     FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
     response_code = FTL_INTERNAL_ERROR;
     goto fail;    
   }
 
-  /* If we've got a connection, let's send a CONNECT command and see if ingest will play ball */
-  response_code = _ftl_send_command(stream_config, TRUE, "CONNECT %d $%s", stream_config->channel_id, hmacBuffer);
-
-  if (response_code != FTL_INGEST_RESP_OK) {
+  if ( (response_code = _ftl_send_command(stream_config, TRUE, "CONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
     FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d", response_code);
     response_code = FTL_STREAM_REJECTED;
     goto fail;
@@ -171,13 +167,35 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   return FTL_SUCCESS;
 
 fail:
-  if (sock <= 0) {
-    ftl_close_socket(sock);
+  if (stream_config->ingest_socket <= 0) {
+    ftl_close_socket(stream_config->ingest_socket);
   }
 
   response_code = _log_response(response_code);
 
   return response_code;
+}
+
+ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config) {
+
+	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
+
+	if (stream_config->connected) {
+		if ((response_code = _ftl_send_command(stream_config, TRUE, "DISCONNECT %d %s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
+			FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d\n", response_code);
+			return response_code;
+		}
+
+		stream_config->connected = 0;
+
+		if (stream_config->ingest_socket <= 0) {
+			ftl_close_socket(stream_config->ingest_socket);
+		}
+
+		return FTL_SUCCESS;
+	}
+
+	return FTL_NOT_ACTIVE_STREAM;
 }
 
 static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, const char *cmd_fmt, ...){

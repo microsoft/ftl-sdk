@@ -73,7 +73,11 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
   ftl_status_t status;
 
-  status = _ingest_connect(ftl_cfg);
+  if ((status = _ingest_connect(ftl_cfg)) != FTL_SUCCESS) {
+	  return status;
+  }
+
+  //TODO:  setup media udp socket now
 
   return status;
 }
@@ -93,14 +97,59 @@ FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, cons
 }
 
 FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len) {
+
+	int pkt_len;
+	int payload_size;
+
+	int remaining = len;
+	int first_fu = 1;
+
+	while (remaining > 0) {
+
+		uint16_t sn = ftl->media[OBS_ENCODER_VIDEO].seq_num;
+		uint32_t ssrc = ftl->media[OBS_ENCODER_VIDEO].ssrc;
+		uint8_t *pkt_buf;
+		pkt_buf = _nack_get_empty_packet(ftl, ssrc, sn, &pkt_len);
+
+		payload_size = _make_video_rtp_packet(ftl, p, remaining, pkt_buf, &pkt_len, first_fu);
+
+		first_fu = 0;
+		remaining -= payload_size;
+		consumed += payload_size;
+		p += payload_size;
+
+		/*if all data has been consumed set marker bit*/
+		if ((packet->size - consumed) == 0 && !is_header) {
+			_set_marker_bit(ftl, OBS_ENCODER_VIDEO, pkt_buf);
+		}
+
+		_nack_send_packet(ftl, ssrc, sn, pkt_len);
+	}
+
 	return FTL_SUCCESS;
 }
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
+	ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_status_t status;
+
+	status = _ingest_disconnect(ftl_cfg);
+
 	return FTL_SUCCESS;
 }
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
+	ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_status_t status;
+
+	if (ftl_cfg != NULL) {
+		if (ftl_cfg->key != NULL) {
+			free(ftl_cfg->key);
+		}
+
+		free(ftl_cfg);
+	}
+
 	return FTL_SUCCESS;
 }
 

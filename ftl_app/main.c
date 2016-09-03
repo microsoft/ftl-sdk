@@ -165,37 +165,23 @@ if (verbose) {
 	   return -1;
 	}
 
-#if 0
-   status_code = ftl_create_stream_configuration(&stream_config);
-   if (status_code != FTL_SUCCESS) {
-     printf("Failed to initialize stream configuration: errno %d\n", status_code);
-     return -1;
-   }
-
-   ftl_set_ingest_location(stream_config, ingest_location);
-   ftl_set_authetication_key(stream_config, channel_id, authetication_key);
-
-   video_component = ftl_create_video_component(FTL_VIDEO_VP8, 96, video_ssrc, video_width, video_height);
-   ftl_attach_video_component_to_stream(stream_config, video_component);
-
-   audio_component = ftl_create_audio_component(FTL_AUDIO_OPUS, 97, audio_ssrc);
-   ftl_attach_audio_component_to_stream(stream_config, audio_component);
-
-   if (ftl_activate_stream(stream_config)  != FTL_SUCCESS) {
-     printf("Failed to activate stream, see above for error message\n");
-     return -1;
-   }
-#endif
-
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
   // Wait until we're ctrl-c'ed
-   charon_loop_until_ctrlc();
-#if 0
-   printf("\nShutting down\n");
-   ftl_deactivate_stream(stream_config);
-   ftl_destory_stream(&stream_config);
-#endif
+//   charon_loop_until_ctrlc();
+
+   Sleep(2);
+
+	if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS) {
+		printf("Failed to disconnect from ingest %d\n", status_code);
+		return -1;
+	}
+
+   if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS) {
+	   printf("Failed to disconnect from ingest %d\n", status_code);
+	   return -1;
+   }
+
    return 0;
  }

@@ -46,12 +46,14 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 		goto fail;
   }
 
-  ftl_cfg->audio.payload_type = AUDIO_PTYPE;
-  ftl_cfg->video.payload_type = VIDEO_PTYPE;
+  ftl_cfg->audio.media_component.payload_type = AUDIO_PTYPE;
+  ftl_cfg->video.media_component.payload_type = VIDEO_PTYPE;
 
   //TODO: this should be randomly generated, there is a potential for ssrc collisions with this
-  ftl_cfg->audio.ssrc = ftl_cfg->channel_id;
-  ftl_cfg->video.ssrc = ftl_cfg->channel_id + 1;
+  ftl_cfg->audio.media_component.ssrc = ftl_cfg->channel_id;
+  ftl_cfg->video.media_component.ssrc = ftl_cfg->channel_id + 1;
+
+  ftl_cfg->video.frame_rate = params->video_frame_rate;
 
   ftl_handle->private = ftl_cfg;
   return ret_status;
@@ -71,13 +73,15 @@ fail:
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
-  ftl_status_t status;
+  ftl_status_t status = FTL_SUCCESS;
 
   if ((status = _ingest_connect(ftl_cfg)) != FTL_SUCCESS) {
 	  return status;
   }
 
-  //TODO:  setup media udp socket now
+  if ((status = _media_init(ftl_cfg)) != FTL_SUCCESS) {
+	  return status;
+  }
 
   return status;
 }
@@ -98,32 +102,45 @@ FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, cons
 
 FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len) {
 
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_media_component_common_t *mc = NULL;
+
+	if (media_type == FTL_AUDIO_DATA) {
+		mc = &ftl->audio.media_component;
+	}
+	else if (media_type == FTL_VIDEO_DATA) {
+		mc = &ftl->video.media_component;
+	}
+	else {
+		return FTL_UNSUPPORTED_MEDIA_TYPE;
+	}
+
 	int pkt_len;
 	int payload_size;
+	int consumed = 0;
 
 	int remaining = len;
 	int first_fu = 1;
 
 	while (remaining > 0) {
-
-		uint16_t sn = ftl->media[OBS_ENCODER_VIDEO].seq_num;
-		uint32_t ssrc = ftl->media[OBS_ENCODER_VIDEO].ssrc;
+		uint16_t sn = mc->seq_num;
+		uint32_t ssrc = mc->ssrc;
 		uint8_t *pkt_buf;
-		pkt_buf = _nack_get_empty_packet(ftl, ssrc, sn, &pkt_len);
+		pkt_buf = media_get_empty_packet(ftl, ssrc, sn, &pkt_len);
 
-		payload_size = _make_video_rtp_packet(ftl, p, remaining, pkt_buf, &pkt_len, first_fu);
+		payload_size = media_make_video_rtp_packet(ftl, pkt_buf, remaining, pkt_buf, &pkt_len, first_fu);
 
 		first_fu = 0;
 		remaining -= payload_size;
 		consumed += payload_size;
-		p += payload_size;
+		pkt_buf += payload_size;
 
 		/*if all data has been consumed set marker bit*/
-		if ((packet->size - consumed) == 0 && !is_header) {
-			_set_marker_bit(ftl, OBS_ENCODER_VIDEO, pkt_buf);
+		if (remaining <= 0) {
+			media_set_marker_bit(ftl, pkt_buf);
 		}
 
-		_nack_send_packet(ftl, ssrc, sn, pkt_len);
+		media_send_packet(ftl, ssrc, sn, pkt_len);
 	}
 
 	return FTL_SUCCESS;

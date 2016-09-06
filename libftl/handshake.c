@@ -163,6 +163,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   } 
 
   // We're good to go, set the connected status to TRUE, and save the socket
+  stream_config->media.assigned_port = FTL_UDP_MEDIA_PORT; //TODO: receive this from the server
   stream_config->connected = 1;
   return FTL_SUCCESS;
 

@@ -63,6 +63,7 @@ typedef enum {
   FTL_BAD_REQUEST, /**< Ingest didn't like our request. Should never happen */
   FTL_OLD_VERSION, /**< libftl needs to be updated */
   FTL_BAD_OR_INVALID_STREAM_KEY,
+  FTL_UNSUPPORTED_MEDIA_TYPE,
 } ftl_status_t;
 
 typedef enum {
@@ -148,6 +149,7 @@ typedef struct {
    char *ingest_hostname;
    char *stream_key;
    ftl_video_codec_t video_codec;
+   float video_frame_rate; //TODO: add runtime detection mode of frame rate to simplify sdk
    ftl_audio_codec_t audio_codec;
    void *status_callback;
    ftl_logging_function_t log_func;

@@ -1,6 +1,12 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.1)
 enable_language(C)
 project(libftl)
+
+
+include_directories(${PTHREAD_INCLUDE_DIR})
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 
 include_directories(libftl)
 
@@ -31,14 +37,14 @@ set_target_properties(ftl PROPERTIES VERSION "0.2.3")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32)
+  target_link_libraries(ftl ws2_32 pthread-win32)
 endif()
 
 add_executable(ftl_app
                ftl_app/main.c
                ftl_app/main.h
                ${FTL_PLATFORM_FILES})
-target_link_libraries(ftl_app ftl ${FTL_PLATFORM_LIBS})
+target_link_libraries(ftl_app ftl Threads::Threads ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules

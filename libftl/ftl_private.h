@@ -50,8 +50,9 @@
 #define AUDIO_PTYPE 97
 #define SOCKET_RECV_TIMEOUT_MS 500
 #define SOCKET_SEND_TIMEOUT_MS 500
-#define MAX_PACKET_MTU 1500  //Max length of buffer
-#define FTL_UDP_DATA_PORT 8082   //The port on which to listen for incoming data
+#define MAX_PACKET_BUFFER 1500  //Max length of buffer
+#define MAX_MTU 1392
+#define FTL_UDP_MEDIA_PORT 8082   //The port on which to listen for incoming data
 #define RTP_HEADER_BASE_LEN 12
 #define RTP_FUA_HEADER_LEN 2
 #define NACK_RB_SIZE 1024
@@ -62,7 +63,7 @@
  * private and not to be directly manipulated
  */
 typedef struct {
-	uint8_t packet[MAX_PACKET_MTU];
+	uint8_t packet[MAX_PACKET_BUFFER];
 	int len;
 	uint64_t insert_ns;
 	int sn;
@@ -70,40 +71,42 @@ typedef struct {
 }nack_slot_t;
 
 typedef struct {
+	uint8_t payload_type;
+	uint32_t ssrc;
+	uint32_t timestamp;
+	uint32_t timestamp_step;
+	uint16_t seq_num;
+	//	pthread_mutex_t  packets_mutex;
+	os_sem_t         *send_sem;
+	int64_t min_nack_rtt;
+	int64_t max_nack_rtt;
+	int64_t nack_rtt_avg;
+	BOOL nack_slots_initalized;
+	nack_slot_t *nack_slots[NACK_RB_SIZE];
+}ftl_media_component_common_t;
+
+typedef struct {
   ftl_audio_codec_t codec;
-  uint8_t payload_type;
-  uint32_t ssrc;
-  uint32_t timestamp;
-  uint32_t timestamp_step;
-  uint16_t seq_num;
-  uint8_t fua_nalu_type;
-  //	pthread_mutex_t  packets_mutex;
-  os_sem_t         *send_sem;
-  int64_t min_nack_rtt;
-  int64_t max_nack_rtt;
-  int64_t nack_rtt_avg;
-  BOOL nack_slots_initalized;
-  nack_slot_t *nack_slots[NACK_RB_SIZE];
-} ftl_stream_audio_component_private_common_t;
+  ftl_media_component_common_t media_component;
+} ftl_audio_component_t;
 
 typedef struct {
   ftl_video_codec_t codec;
-  uint8_t payload_type;
-  uint32_t ssrc;
   uint32_t height;
   uint32_t width;
-  uint32_t timestamp;
-  uint32_t timestamp_step;
-  uint16_t seq_num;
+  float frame_rate;
   uint8_t fua_nalu_type;
-  //	pthread_mutex_t  packets_mutex;
-  os_sem_t         *send_sem;
-  int64_t min_nack_rtt;
-  int64_t max_nack_rtt;
-  int64_t nack_rtt_avg;
-  BOOL nack_slots_initalized;
-  nack_slot_t *nack_slots[NACK_RB_SIZE];
-} ftl_stream_video_component_private_common_t;
+  ftl_media_component_common_t media_component;
+} ftl_video_component_t;
+
+typedef struct {
+	struct sockaddr_in server_addr;
+	SOCKET media_socket;
+	int assigned_port;
+	BOOL recv_thread_running;
+	pthread_t recv_thread;
+	int max_mtu;
+} ftl_media_config_t;
 
 typedef struct {
   int ingest_socket;
@@ -112,8 +115,9 @@ typedef struct {
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];
-  ftl_stream_audio_component_private_common_t audio;
-  ftl_stream_video_component_private_common_t video;
+  ftl_media_config_t media;
+  ftl_audio_component_t audio;
+  ftl_video_component_t video;
 }  ftl_stream_configuration_private_t;
 
 /**
@@ -172,6 +176,12 @@ int ftl_close_socket(int sock);
 char * ftl_get_socket_error();
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
+ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
+int media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt);
+int media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len);
+int media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in);
+int media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int len);
+uint8_t* media_get_empty_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int *buf_len);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf

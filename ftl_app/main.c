@@ -44,6 +44,9 @@ void usage() {
     exit (0);
 }
 
+BOOL get_nalu(FILE *fp, uint8_t *buf, uint32_t *length);
+BOOL get_video_frame(FILE *fp, uint8_t *buf, uint32_t *length);
+
 int main(int argc, char** argv) {
    ftl_stream_configuration_t* stream_config = 0;
    ftl_stream_video_component_t* video_component = 0;
@@ -51,14 +54,11 @@ int main(int argc, char** argv) {
    ftl_status_t status_code;
 
 
-   int channel_id = 0;
-   char* ingest_location = 0;
-char* authetication_key = 0;
-int c;
-int video_height = 0;
-int video_width = 0;
-int audio_ssrc = 0;
-int video_ssrc = 0;
+   char* ingest_location = NULL;
+   char* video_input = NULL;
+   char* audio_input = NULL;
+   char* stream_key = NULL;
+   int c;
 
 int success = 0;
 int verbose = 0;
@@ -68,14 +68,15 @@ opterr = 0;
 charon_install_ctrlc_handler();
 
 if (FTL_VERSION_MAINTENANCE != 0) {
-	printf("charon - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
+	printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
 }
 else {
-	printf("charon - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
+	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
 }
 
-while ((c = getopt(argc, argv, "A:V:a:c:h:i:vw:?")) != -1) {
+while ((c = getopt(argc, argv, "i:v:s:?")) != -1) {
 	switch (c) {
+#if 0
 	case 'A':
 		success = sscanf(optarg, "%d", &audio_ssrc);
 		if (success != 1) {
@@ -107,14 +108,25 @@ while ((c = getopt(argc, argv, "A:V:a:c:h:i:vw:?")) != -1) {
 			return -1;
 		}
 		break;
+#endif
 	case 'i':
 		ingest_location = optarg;
 		break;
 	case 'v':
-		verbose = 1;
+		video_input = optarg;
 		break;
+#if 0
 	case 'w':
 		success = sscanf(optarg, "%d", &video_width);
+		if (success != 1) {
+			printf("ERROR: video width must be numeric");
+			return -1;
+		}
+		break;
+#endif
+	case 's':
+		stream_key = optarg;
+		success = sscanf(optarg, "%s", stream_key);
 		if (success != 1) {
 			printf("ERROR: video width must be numeric");
 			return -1;
@@ -126,13 +138,12 @@ while ((c = getopt(argc, argv, "A:V:a:c:h:i:vw:?")) != -1) {
 	}
 }
 
-#if 0
 /* Make sure we have all the required bits */
-if (!authetication_key || !ingest_location || !channel_id || !audio_ssrc || !video_ssrc) {
+if (!stream_key || !ingest_location || !video_input) {
 	usage();
 }
-#endif
 
+#if 0
 if (verbose) {
 	printf("\nConfiguration:\n");
 	printf("\taudio ssrc: %d\n", audio_ssrc);
@@ -143,17 +154,46 @@ if (verbose) {
 	printf("\tchannel id: %d\n", channel_id);
 	printf("\tauthetication key: %s\n", authetication_key);
 }
+#endif
+
+	FILE *video_fp = NULL;	
+	uint32_t len = 0;
+	uint8_t *h264_frame;
+	uint8_t *dummy;
+
+	if (video_input != NULL) {
+		if ((video_fp = fopen(video_input, "rb")) == NULL) {
+			printf("Failed to open video input file %s\n", video_input);
+			return -1;
+		}
+
+		if ((h264_frame = malloc(10000000)) == NULL) {
+			printf("Failed to allocate memory for bitstream\n");
+			return -1;
+		}
+
+		if ((dummy = malloc(500)) == NULL) {
+			printf("Failed to allocate memory for bitstream\n");
+			return -1;
+		}
+
+		memset(dummy, 0, 500);
+	}
+	else {
+		return -1;
+	}
 
 	ftl_init();
 	ftl_handle_t handle;
 	ftl_ingest_params_t params;
 
 	params.log_func = log_test;
-	params.stream_key = "82585-3s5iskinhxous0czsdmggwq8fd4fyyu5";
+	params.stream_key = stream_key;//"82585-3s5iskinhxous0czsdmggwq8fd4fyyu5";
 	params.video_codec = FTL_VIDEO_H264;
 	params.audio_codec = FTL_AUDIO_OPUS;
-	params.ingest_hostname = "ingest-sea.beam.pro";
+	params.ingest_hostname = ingest_location;//"ingest-sea.beam.pro";
 	params.status_callback = NULL;
+	params.video_frame_rate = 30;
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
 		printf("Failed to create ingest handle %d\n", status_code);
@@ -168,11 +208,29 @@ if (verbose) {
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
-  // Wait until we're ctrl-c'ed
-//   charon_loop_until_ctrlc();
 
-   Sleep(2);
+   while (!ctrlc_pressed()) {
+	   uint8_t nalu_type;
+	   if (feof(video_fp)) {
+		   printf("Restarting Stream\n");
+		   fseek(video_fp, 0, SEEK_SET);
+		   continue;
+	   }
 
+	   if (get_video_frame(video_fp, h264_frame, &len) == FALSE) {
+		   continue;
+	   }
+
+	   ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len);
+	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, dummy, 500);
+
+	   nalu_type = h264_frame[0] & 0x1F;
+
+	   if (nalu_type == 1 || nalu_type == 5) {
+		   Sleep((DWORD)(1000.f / params.video_frame_rate));
+	   }
+   }
+   
 	if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS) {
 		printf("Failed to disconnect from ingest %d\n", status_code);
 		return -1;
@@ -185,3 +243,59 @@ if (verbose) {
 
    return 0;
  }
+
+ BOOL get_nalu(FILE *fp, uint8_t *buf, uint32_t *length) {
+	 uint32_t sc = 0;
+	 uint8_t byte;
+	 uint32_t pos = 0;
+	 BOOL got_sc = FALSE;
+
+	 while (!feof(fp)) {
+		 fread(&byte, 1, 1, fp);
+
+		 if (buf != NULL) {
+			 buf[pos] = byte;
+		 }
+
+		 pos++;
+
+		 sc = (sc << 8) | byte;
+
+		 if (sc == 1 || ((sc & 0xFFFFFF) == 1)) {
+
+			 pos -= 3;
+
+			 if (sc == 1) {
+				 pos -= 1;
+			 }
+
+			 got_sc = TRUE;
+			 break;
+		 }
+	 }
+
+	 *length = pos;
+
+	 return got_sc;
+ }
+
+ BOOL get_video_frame(FILE *fp, uint8_t *buf, uint32_t *length) {
+	 BOOL got_sc = FALSE;
+	 uint32_t pos = 0;
+	 uint8_t nalu_type = 0;
+
+	 while (get_nalu(fp, buf, length) == TRUE) {
+		 if (*length == 0) {
+			 continue;
+		 }
+
+		 nalu_type = buf[0] & 0x1F;
+		 printf("Got nalu type %d of size %d\n", nalu_type, *length);
+
+		 return TRUE;
+	 }
+
+	 return FALSE;
+ }
+
+

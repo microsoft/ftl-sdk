@@ -62,6 +62,10 @@ void charon_install_ctrlc_handler() {
   SetConsoleCtrlHandler((PHANDLER_ROUTINE)charon_shutdown_stream, TRUE);
 }
 
+BOOL ctrlc_pressed() {
+	return shutdown_flag;
+}
+
 void charon_loop_until_ctrlc() {
   while (shutdown_flag != 1) {
     Sleep(1000);

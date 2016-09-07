@@ -109,7 +109,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   }  
 
   /* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
-  ftl_stream_video_component_private_common_t *video = &stream_config->video;
+  ftl_video_component_t *video = &stream_config->video;
   /* We're sending video */
   if ((response_code = _ftl_send_command(stream_config, FALSE, "Video: true")) != FTL_INGEST_RESP_OK){
     goto fail;
@@ -127,15 +127,15 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoPayloadType: %d", video->payload_type)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoPayloadType: %d", video->media_component.payload_type)) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoIngestSSRC: %d", video->ssrc)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoIngestSSRC: %d", video->media_component.ssrc)) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  ftl_stream_audio_component_private_common_t *audio = &stream_config->audio;
+  ftl_audio_component_t *audio = &stream_config->audio;
 
   if ((response_code = _ftl_send_command(stream_config, FALSE, "Audio: true")) != FTL_INGEST_RESP_OK){
     goto fail;
@@ -145,11 +145,11 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
     goto fail;
   }    
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "AudioPayloadType: %d", audio->payload_type)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, "AudioPayloadType: %d", audio->media_component.payload_type)) != FTL_INGEST_RESP_OK){
     goto fail;
   }    
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "AudioIngestSSRC: %d", audio->ssrc)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, "AudioIngestSSRC: %d", audio->media_component.ssrc)) != FTL_INGEST_RESP_OK){
     goto fail;
   }                    
 

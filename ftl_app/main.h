@@ -55,3 +55,4 @@
 
 void charon_install_ctrlc_handler();
 void charon_loop_until_ctrlc();
+BOOL ctrlc_pressed();

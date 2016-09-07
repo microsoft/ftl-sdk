@@ -177,12 +177,11 @@ int ftl_close_socket(int sock);
 char * ftl_get_socket_error();
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
+ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
+
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
-int media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt);
-int media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len);
-int media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in);
-int media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int len);
-uint8_t* media_get_empty_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int *buf_len);
+ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf

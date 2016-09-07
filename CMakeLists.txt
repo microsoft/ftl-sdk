@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.6.0)
+cmake_minimum_required (VERSION 3.5.2)
 enable_language(C)
 project(libftl)
 
@@ -9,6 +9,7 @@ add_definitions(-DSTRUCT_TIMESPEC_HAS_TV_SEC)
 add_definitions(-DSTRUCT_TIMESPEC_HAS_TV_NSEC)
 add_definitions(-DHAVE_STRUCT_TIMESPEC)
 find_package(Threads REQUIRED)
+
 #include_directories(${PTHREADS_INCLUDE})
 #set(CMAKE_USE_PTHREADS_INIT true)
 #set(THREADS_USE_PTHREADS_WIN32 true)
@@ -65,7 +66,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.2.3")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32)
+  target_link_libraries(ftl ws2_32 $ENV{THREADS_PTHREADS_LIB}/pthreadVC2.lib)
 endif()
 
 add_executable(ftl_app

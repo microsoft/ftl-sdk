@@ -1,11 +1,39 @@
-cmake_minimum_required (VERSION 3.1)
+cmake_minimum_required (VERSION 3.6.0)
 enable_language(C)
 project(libftl)
 
-
-include_directories(${PTHREAD_INCLUDE_DIR})
-set(THREADS_PREFER_PTHREAD_FLAG ON)
+include_directories(BEFORE $ENV{THREADS_PTHREADS_INCLUDE_DIR})
+include(FindThreads)
+set(CMAKE_THREAD_PREFER_PTHREAD)
+add_definitions(-DSTRUCT_TIMESPEC_HAS_TV_SEC)
+add_definitions(-DSTRUCT_TIMESPEC_HAS_TV_NSEC)
+add_definitions(-DHAVE_STRUCT_TIMESPEC)
 find_package(Threads REQUIRED)
+#include_directories(${PTHREADS_INCLUDE})
+#set(CMAKE_USE_PTHREADS_INIT true)
+#set(THREADS_USE_PTHREADS_WIN32 true)
+
+#set(THREADS_USE_PTHREADS_WIN32 true)
+#find_package(Threads REQUIRED)
+
+#
+#   add_executable(foo foo.cc)
+#   target_link_libraries(foo ${CMAKE_THREAD_LIBS_INIT})
+#include(CheckIncludeFiles)
+#CHECK_INCLUDE_FILE("pthread.h" PTHREAD_TEST)
+
+#if (NOT PTHREAD_TEST)
+#	MESSAGE( STATUS "!!!!pthead header not found!!!!!")
+#endif()
+
+#if (CMAKE_USE_WIN32_THREADS_INIT)
+#	MESSAGE( STATUS "Win32 threads: " $ENV{THREADS_PTHREADS_INCLUDE_DIR} )
+#endif()
+
+
+#if (CMAKE_USE_PTHREADS_INIT)
+#	MESSAGE( STATUS "Pthreads threads: " $ENV{THREADS_PTHREADS_INCLUDE_DIR} )
+#endif()
 
 
 include_directories(libftl)
@@ -37,7 +65,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.2.3")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32 pthread-win32)
+  target_link_libraries(ftl ws2_32)
 endif()
 
 add_executable(ftl_app
@@ -45,6 +73,7 @@ add_executable(ftl_app
                ftl_app/main.h
                ${FTL_PLATFORM_FILES})
 target_link_libraries(ftl_app ftl Threads::Threads ${FTL_PLATFORM_LIBS})
+#target_link_libraries(ftl_app ftl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules

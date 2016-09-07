@@ -30,6 +30,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #ifdef _WIN32
 #include <WS2tcpip.h>
@@ -77,7 +78,7 @@ typedef struct {
 	uint32_t timestamp_step;
 	uint16_t seq_num;
 	//	pthread_mutex_t  packets_mutex;
-	os_sem_t         *send_sem;
+	//os_sem_t         *send_sem;
 	int64_t min_nack_rtt;
 	int64_t max_nack_rtt;
 	int64_t nack_rtt_avg;

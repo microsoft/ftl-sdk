@@ -46,6 +46,7 @@ void usage() {
 
 BOOL get_nalu(FILE *fp, uint8_t *buf, uint32_t *length);
 BOOL get_video_frame(FILE *fp, uint8_t *buf, uint32_t *length);
+BOOL get_audio_frame(FILE *fp, uint8_t *buf, uint32_t *length);
 
 int main(int argc, char** argv) {
    ftl_stream_configuration_t* stream_config = 0;
@@ -59,6 +60,8 @@ int main(int argc, char** argv) {
    char* audio_input = NULL;
    char* stream_key = NULL;
    int c;
+   int audio_bps = 160000;
+   int audio_pps = 50;
 
 int success = 0;
 int verbose = 0;
@@ -74,7 +77,7 @@ else {
 	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
 }
 
-while ((c = getopt(argc, argv, "i:v:s:?")) != -1) {
+while ((c = getopt(argc, argv, "a:i:v:s:?")) != -1) {
 	switch (c) {
 #if 0
 	case 'A':
@@ -114,6 +117,9 @@ while ((c = getopt(argc, argv, "i:v:s:?")) != -1) {
 		break;
 	case 'v':
 		video_input = optarg;
+		break;
+	case 'a':
+		audio_input = optarg;
 		break;
 #if 0
 	case 'w':
@@ -157,8 +163,10 @@ if (verbose) {
 #endif
 
 	FILE *video_fp = NULL;	
+	FILE *audio_fp = NULL;
 	uint32_t len = 0;
 	uint8_t *h264_frame;
+	uint8_t *audio_frame;
 	uint8_t *dummy;
 
 	if (video_input != NULL) {
@@ -181,6 +189,18 @@ if (verbose) {
 	}
 	else {
 		return -1;
+	}
+
+	if (audio_input != NULL) {
+		if ((audio_fp = fopen(audio_input, "rb")) == NULL) {
+			printf("Failed to open video input file %s\n", audio_input);
+			return -1;
+		}
+
+		if ((audio_frame = malloc(1000)) == NULL) {
+			printf("Failed to allocate memory for bitstream\n");
+			return -1;
+		}
 	}
 
 	ftl_init();
@@ -211,9 +231,11 @@ if (verbose) {
 
    while (!ctrlc_pressed()) {
 	   uint8_t nalu_type;
+	   int audio_read_len;
 	   if (feof(video_fp)) {
 		   printf("Restarting Stream\n");
 		   fseek(video_fp, 0, SEEK_SET);
+		   fseek(audio_fp, 0, SEEK_SET);
 		   continue;
 	   }
 
@@ -222,7 +244,20 @@ if (verbose) {
 	   }
 
 	   ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len);
-	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, dummy, 500);
+
+	   if (get_audio_frame(audio_fp, audio_frame, &len) == FALSE) {
+		   continue;
+	   }
+
+	   audio_read_len = audio_bps / audio_pps / 8;
+
+	   audio_frame[0] = 0xFC;
+	   fread(audio_frame + 1, 1, audio_read_len, audio_fp);
+	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, audio_read_len + 1);
+
+	   audio_frame[0] = 0xFC;
+	   fread(audio_frame + 1, 1, audio_read_len, audio_fp);
+	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, audio_read_len + 1);
 
 	   nalu_type = h264_frame[0] & 0x1F;
 
@@ -290,12 +325,123 @@ if (verbose) {
 		 }
 
 		 nalu_type = buf[0] & 0x1F;
-		 printf("Got nalu type %d of size %d\n", nalu_type, *length);
+		 //printf("Got nalu type %d of size %d\n", nalu_type, *length);
 
 		 return TRUE;
 	 }
 
 	 return FALSE;
  }
+
+ BOOL get_ogg_page(FILE *fp, uint8_t *buf, uint32_t *length) {
+	 uint32_t magic_num = 0;
+	 uint8_t byte;
+	 uint32_t pos = 0;
+	 BOOL got_page = FALSE;
+
+	 while (!feof(fp)) {
+		 fread(&byte, 1, 1, fp);
+
+		 if (buf != NULL) {
+			 buf[pos] = byte;
+		 }
+
+		 pos++;
+
+		 magic_num = (magic_num << 8) | byte;
+
+		 if (magic_num == 0x4F676753) {
+
+			 pos -= 4;
+
+			 got_page = TRUE;
+			 break;
+		 }
+	 }
+
+	 *length = pos;
+
+	 return got_page;
+ }
+
+ uint8_t get_8bits(uint8_t **buf, uint32_t *len) {
+	 uint8_t val = 0;
+
+	 val = (*buf)[0];
+
+	 (*buf) += 1;
+
+	 return val;
+ }
+
+ uint16_t get_16bits(uint8_t **buf, uint32_t *len) {
+	 uint16_t val;
+
+	 for (int i = sizeof(uint16_t) - 1; i >= 0; i--) {
+		 val = (val << 8) | (*buf)[i];
+	 }
+
+	 (*buf) += 2;
+
+	 return val;
+ }
+
+ uint32_t get_32bits(uint8_t **buf, uint32_t *len) {
+	 uint32_t val;
+
+	 for (int i = sizeof(uint32_t) - 1; i >= 0; i--) {
+		 val = (val << 8) | (*buf)[i];
+	 }
+
+	 (*buf) += 4;
+
+	 return val;
+ }
+
+ uint64_t get_64bits(uint8_t **buf, uint32_t *len) {
+	 uint64_t val;
+
+	 for (int i = sizeof(uint64_t) - 1; i >= 0; i--) {
+		 val = (val << 8) | (*buf)[i];
+	 }
+
+	 (*buf) += 8;
+
+	 return val;
+ }
+
+ BOOL get_audio_frame(FILE *fp, uint8_t *buf, uint32_t *length) {
+	 BOOL got_sc = FALSE;
+	 uint32_t pos = 0;
+	 uint8_t nalu_type = 0;
+	 uint8_t version, header_type, seg_length, page_segs;
+	 uint64_t granule_pos;
+	 uint32_t bs_serial, page_sn, checksum;
+	 uint8_t tmp[1000], *p;
+
+	 p = tmp;
+
+	 while (get_ogg_page(fp, tmp, length) == TRUE) {
+		 if (*length == 0) {
+			 continue;
+		 }
+
+		 version = get_8bits(&p, length);
+		 header_type = get_8bits(&p, length);
+		 granule_pos = get_64bits(&p, length);
+		 bs_serial = get_32bits(&p, length);
+		 page_sn = get_32bits(&p, length);
+		 checksum = get_32bits(&p, length);
+		 page_segs = get_8bits(&p, length);
+
+		 for (int i = 0; i < page_segs; i++) {
+			 seg_length =  get_8bits(&p, length);
+			 fread(buf, 1, seg_length, fp);
+		 }
+	 }
+
+	 return FALSE;
+ }
+
 
 

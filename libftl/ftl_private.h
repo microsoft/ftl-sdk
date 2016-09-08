@@ -175,6 +175,13 @@ extern char error_message[1000];
 void ftl_init_sockets();
 int ftl_close_socket(int sock);
 char * ftl_get_socket_error();
+ftl_set_socket_recv_timeout(int socket, int ms_timeout);
+
+ftl_set_socket_send_timeout(int socket, int ms_timeout);
+
+ftl_set_socket_enable_keepalive(int socket);
+
+ftl_set_socket_send_buf(int buffer_space);
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);

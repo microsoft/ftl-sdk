@@ -175,7 +175,7 @@ if (verbose) {
 	params.audio_codec = FTL_AUDIO_OPUS;
 	params.ingest_hostname = ingest_location;//"ingest-sea.beam.pro";
 	params.status_callback = NULL;
-	params.video_frame_rate = 24;
+	params.video_frame_rate = 30;
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
 		printf("Failed to create ingest handle %d\n", status_code);
@@ -190,6 +190,7 @@ if (verbose) {
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
+   params.video_frame_rate = 30;
 
    while (!ctrlc_pressed()) {
 	   uint8_t nalu_type;

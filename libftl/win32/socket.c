@@ -63,3 +63,8 @@ ftl_set_socket_enable_keepalive(int socket){
   int keep_alive = 1;
   setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
 }
+
+ftl_set_socket_send_buf(int buffer_space) {
+	int keep_alive = 1;
+	setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
+}

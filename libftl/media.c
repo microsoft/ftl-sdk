@@ -74,7 +74,6 @@ ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *
 	int consumed = 0;
 
 	int remaining = len;
-	int first_fu = 1;
 
 	while (remaining > 0) {
 		uint16_t sn = mc->seq_num;
@@ -84,7 +83,6 @@ ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *
 
 		payload_size = _media_make_audio_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len);
 
-		first_fu = 0;
 		remaining -= payload_size;
 		consumed += payload_size;
 		data += payload_size;

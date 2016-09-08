@@ -10,39 +10,13 @@ add_definitions(-DSTRUCT_TIMESPEC_HAS_TV_NSEC)
 add_definitions(-DHAVE_STRUCT_TIMESPEC)
 find_package(Threads REQUIRED)
 
-#include_directories(${PTHREADS_INCLUDE})
-#set(CMAKE_USE_PTHREADS_INIT true)
-#set(THREADS_USE_PTHREADS_WIN32 true)
-
-#set(THREADS_USE_PTHREADS_WIN32 true)
-#find_package(Threads REQUIRED)
-
-#
-#   add_executable(foo foo.cc)
-#   target_link_libraries(foo ${CMAKE_THREAD_LIBS_INIT})
-#include(CheckIncludeFiles)
-#CHECK_INCLUDE_FILE("pthread.h" PTHREAD_TEST)
-
-#if (NOT PTHREAD_TEST)
-#	MESSAGE( STATUS "!!!!pthead header not found!!!!!")
-#endif()
-
-#if (CMAKE_USE_WIN32_THREADS_INIT)
-#	MESSAGE( STATUS "Win32 threads: " $ENV{THREADS_PTHREADS_INCLUDE_DIR} )
-#endif()
-
-
-#if (CMAKE_USE_PTHREADS_INIT)
-#	MESSAGE( STATUS "Pthreads threads: " $ENV{THREADS_PTHREADS_INCLUDE_DIR} )
-#endif()
-
-
 include_directories(libftl)
 
 if (WIN32)
   set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.c
                             ftl_app/win32/xgetopt.h
-                            ftl_app/win32/ctrlc_handler.c)
+                            ftl_app/win32/ctrlc_handler.c
+							ftl_app/win32/gettimeofday.c)
   set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32)
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c)
 else()

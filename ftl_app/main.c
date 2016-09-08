@@ -26,6 +26,13 @@
 
  #include "main.h"
 
+//#include <pthread.h>
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <WinSock2.h>
+#endif
+
 #define MAX_OGG_PAGE_LEN 30000
 typedef struct {
 	FILE *fp;
@@ -42,6 +49,7 @@ typedef struct {
 	uint32_t checksum;
 	uint8_t seg_len_table[255];
 	uint8_t current_segment;
+	uint8_t packets_in_page;
 }opus_obj_t;
 
 void log_test(ftl_log_severity_t log_level, const char * message) {
@@ -50,7 +58,7 @@ void log_test(ftl_log_severity_t log_level, const char * message) {
 }
 
 void usage() {
-    printf("Usage: charon -h host -c channel_id -a authkey\n\n");
+    printf("Usage: ftl_app -i <ingest uri> -s <stream_key> - v <h264_annex_b_file> -a <opus in ogg container>\n");
     printf("Charon is used to signal to ingest that a FTL stream is online\n");
     printf("\t-A\t\t\tset audio SSRC\n");
     printf("\t-V\t\t\tset video SSRC\n");
@@ -82,7 +90,6 @@ int main(int argc, char** argv) {
    char* audio_input = NULL;
    char* stream_key = NULL;
    int c;
-   int audio_bps = 160000;
    int audio_pps = 50;
 
 int success = 0;
@@ -176,6 +183,7 @@ if (verbose) {
 	params.ingest_hostname = ingest_location;//"ingest-sea.beam.pro";
 	params.status_callback = NULL;
 	params.video_frame_rate = 30;
+	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
 		printf("Failed to create ingest handle %d\n", status_code);
@@ -190,11 +198,19 @@ if (verbose) {
    printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
-   params.video_frame_rate = 30;
+   float video_send_delay = 0;
+   float video_time_step = 1000 / params.video_frame_rate;
+
+   float audio_send_accumulator = video_time_step;
+   float audio_time_step = 1000 / audio_pps;
+   int audio_pkts_sent;
+
+   gettimeofday(&proc_start_tv, NULL);
 
    while (!ctrlc_pressed()) {
 	   uint8_t nalu_type;
 	   int audio_read_len;
+
 	   if (feof(video_fp) || feof(opus_handle.fp)) {
 		   printf("Restarting Stream\n");
 		   fseek(video_fp, 0, SEEK_SET);
@@ -208,35 +224,39 @@ if (verbose) {
 
 	   ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len);
 
-	   if (get_audio_packet(&opus_handle, audio_frame, &len) == FALSE) {
-		   continue;
+	   audio_pkts_sent = 0;
+	   while (audio_send_accumulator > audio_time_step) {
+		   if (get_audio_packet(&opus_handle, audio_frame, &len) == FALSE) {
+			   break;
+		   }
+		   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len);
+		   audio_send_accumulator -= audio_time_step;
+		   audio_pkts_sent++;
 	   }
-	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len);
-
-	   if (get_audio_packet(&opus_handle, audio_frame, &len) == FALSE) {
-		   continue;
-	   }
-	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len);
-
-#if 0
-	   if (get_audio_frame(audio_fp, audio_frame, &len) == FALSE) {
-		   continue;
-	   }
-
-	   audio_read_len = audio_bps / audio_pps / 8;
-
-	   audio_frame[0] = 0xFC;
-	   fread(audio_frame + 1, 1, audio_read_len, audio_fp);
-	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, audio_read_len + 1);
-
-	   audio_frame[0] = 0xFC;
-	   fread(audio_frame + 1, 1, audio_read_len, audio_fp);
-	   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, audio_read_len + 1);
-#endif
+	   	   
 	   nalu_type = h264_frame[0] & 0x1F;
 
+	   /*this wont work if there are multiple nalu's per frame...need to pull out frame number from slice header to be more robust*/
 	   if (nalu_type == 1 || nalu_type == 5) {
-		   Sleep((DWORD)(1000.f / params.video_frame_rate));
+		   gettimeofday(&proc_end_tv, NULL);
+		   timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
+
+		   video_send_delay += video_time_step;
+
+		   video_send_delay -= timeval_to_ms(&proc_delta_tv);
+
+		   if (video_send_delay < 0) {
+			   video_send_delay = 0;
+		   }
+		   else {
+			   Sleep((DWORD)video_send_delay);
+		   }
+
+		   gettimeofday(&proc_start_tv, NULL);
+		   
+		   video_send_delay -= (float)((int)video_send_delay);
+
+		   audio_send_accumulator += video_time_step;
 	   }
    }
    
@@ -440,6 +460,8 @@ if (verbose) {
 			 uint8_t *p = handle->page_buf;
 			 uint32_t bytes_available = pos;
 
+			 handle->packets_in_page = 0;
+
 			 handle->version = get_8bits(&p, &bytes_available);
 			 handle->header_type = get_8bits(&p, &bytes_available);
 			 handle->granule_pos = get_64bits(&p, &bytes_available);
@@ -450,7 +472,12 @@ if (verbose) {
 
 			 for (int i = 0; i < handle->page_segs; i++) {
 				 handle->seg_len_table[i] = get_8bits(&p, &bytes_available);
+				 if (handle->seg_len_table[i] != 255) {
+					 handle->packets_in_page++;
+				 }
 			 }
+
+			 printf("Page %d, pos %ul, page segs %d, packets %d\n", handle->page_sn, handle->granule_pos, handle->page_segs, handle->packets_in_page);
 
 			 handle->consumed = pos - bytes_available;
 			 handle->current_segment = 0;

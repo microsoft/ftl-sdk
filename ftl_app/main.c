@@ -69,6 +69,7 @@ int main(int argc, char** argv) {
    char* video_input = NULL;
    char* audio_input = NULL;
    char* stream_key = NULL;
+   int input_framerate = 30;
    int c;
    int audio_pps = 50;
 
@@ -86,7 +87,7 @@ else {
 	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
 }
 
-while ((c = getopt(argc, argv, "a:i:v:s:?")) != -1) {
+while ((c = getopt(argc, argv, "a:i:v:s:f:?")) != -1) {
 	switch (c) {
 	case 'i':
 		ingest_location = optarg;
@@ -99,6 +100,9 @@ while ((c = getopt(argc, argv, "a:i:v:s:?")) != -1) {
 		break;
 	case 's':
 		stream_key = optarg;
+		break;
+	case 'f':
+		sscanf(optarg, "%d", &input_framerate);
 		break;
 	case '?':
 		usage();
@@ -159,7 +163,7 @@ if (verbose) {
 	params.audio_codec = FTL_AUDIO_OPUS;
 	params.ingest_hostname = ingest_location;
 	params.status_callback = NULL;
-	params.video_frame_rate = 24;
+	params.video_frame_rate = (float)input_framerate;
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
@@ -172,7 +176,7 @@ if (verbose) {
 	   return -1;
 	}
 
-   printf("Stream online!\nYou may now start streaming in OBS+gstreamer\n");
+   printf("Stream online!\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
    float video_send_delay = 0;

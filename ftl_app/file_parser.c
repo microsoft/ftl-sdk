@@ -251,7 +251,7 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length) {
 				 }
 			 }
 
-			 printf("Page %d, pos %ul, page segs %d, packets %d\n", handle->page_sn, handle->granule_pos, handle->page_segs, handle->packets_in_page);
+			 //printf("Page %d, pos %ul, page segs %d, packets %d\n", handle->page_sn, handle->granule_pos, handle->page_segs, handle->packets_in_page);
 
 			 handle->consumed = pos - bytes_available;
 			 handle->current_segment = 0;

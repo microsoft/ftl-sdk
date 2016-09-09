@@ -22,7 +22,6 @@
  * SOFTWARE.
  **/
 
-//-i ingest - sea.beam.pro - s "82585-3s5iskinhxous0czsdmggwq8fd4fyyu5" - v c : \test\sintel.h264 - a c : \test\sintel.opus
 #include "main.h"
 
 #ifdef _WIN32

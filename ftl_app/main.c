@@ -23,34 +23,14 @@
  **/
 
 //-i ingest - sea.beam.pro - s "82585-3s5iskinhxous0czsdmggwq8fd4fyyu5" - v c : \test\sintel.h264 - a c : \test\sintel.opus
-
- #include "main.h"
-
-//#include <pthread.h>
+#include "main.h"
 
 #ifdef _WIN32
 #include <Windows.h>
 #include <WinSock2.h>
+#include "win32/gettimeofday.h"
 #endif
-
-#define MAX_OGG_PAGE_LEN 30000
-typedef struct {
-	FILE *fp;
-	uint8_t *page_buf;
-	int page_len;
-	int consumed;
-	uint8_t version;
-	uint8_t header_type;
-	uint8_t seg_length;
-	uint8_t page_segs;
-	uint64_t granule_pos;
-	uint32_t bs_serial;
-	uint32_t page_sn;
-	uint32_t checksum;
-	uint8_t seg_len_table[255];
-	uint8_t current_segment;
-	uint8_t packets_in_page;
-}opus_obj_t;
+#include "file_parser.h"
 
 void log_test(ftl_log_severity_t log_level, const char * message) {
   fprintf(stderr, "libftl message: %s\n", message);
@@ -149,13 +129,9 @@ if (verbose) {
 	uint8_t *h264_frame;
 	uint8_t *audio_frame;
 	opus_obj_t opus_handle;
+	h264_obj_t h264_handle;
 
 	if (video_input != NULL) {
-		if ((video_fp = fopen(video_input, "rb")) == NULL) {
-			printf("Failed to open video input file %s\n", video_input);
-			return -1;
-		}
-
 		if ((h264_frame = malloc(10000000)) == NULL) {
 			printf("Failed to allocate memory for bitstream\n");
 			return -1;
@@ -172,17 +148,18 @@ if (verbose) {
 	}
 
 	init_audio(&opus_handle, audio_input);
+	init_video(&h264_handle, video_input);
 	ftl_init();
 	ftl_handle_t handle;
 	ftl_ingest_params_t params;
 
 	params.log_func = log_test;
-	params.stream_key = stream_key;//"82585-3s5iskinhxous0czsdmggwq8fd4fyyu5";
+	params.stream_key = stream_key;
 	params.video_codec = FTL_VIDEO_H264;
 	params.audio_codec = FTL_AUDIO_OPUS;
-	params.ingest_hostname = ingest_location;//"ingest-sea.beam.pro";
+	params.ingest_hostname = ingest_location;
 	params.status_callback = NULL;
-	params.video_frame_rate = 30;
+	params.video_frame_rate = 24;
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
@@ -211,14 +188,14 @@ if (verbose) {
 	   uint8_t nalu_type;
 	   int audio_read_len;
 
-	   if (feof(video_fp) || feof(opus_handle.fp)) {
+	   if (feof(h264_handle.fp) || feof(opus_handle.fp)) {
 		   printf("Restarting Stream\n");
-		   fseek(video_fp, 0, SEEK_SET);
+		   reset_video(&h264_handle);
 		   reset_audio(&opus_handle);
 		   continue;
 	   }
 
-	   if (get_video_frame(video_fp, h264_frame, &len) == FALSE) {
+	   if (get_video_frame(&h264_handle, h264_frame, &len) == FALSE) {
 		   continue;
 	   }
 
@@ -272,278 +249,3 @@ if (verbose) {
 
    return 0;
  }
-
- BOOL get_nalu(FILE *fp, uint8_t *buf, uint32_t *length) {
-	 uint32_t sc = 0;
-	 uint8_t byte;
-	 uint32_t pos = 0;
-	 BOOL got_sc = FALSE;
-
-	 while (!feof(fp)) {
-		 fread(&byte, 1, 1, fp);
-
-		 if (buf != NULL) {
-			 buf[pos] = byte;
-		 }
-
-		 pos++;
-
-		 sc = (sc << 8) | byte;
-
-		 if (sc == 1 || ((sc & 0xFFFFFF) == 1)) {
-
-			 pos -= 3;
-
-			 if (sc == 1) {
-				 pos -= 1;
-			 }
-
-			 got_sc = TRUE;
-			 break;
-		 }
-	 }
-
-	 *length = pos;
-
-	 return got_sc;
- }
-
- BOOL get_video_frame(FILE *fp, uint8_t *buf, uint32_t *length) {
-	 BOOL got_sc = FALSE;
-	 uint32_t pos = 0;
-	 uint8_t nalu_type = 0;
-
-	 while (get_nalu(fp, buf, length) == TRUE) {
-		 if (*length == 0) {
-			 continue;
-		 }
-
-		 nalu_type = buf[0] & 0x1F;
-		 //printf("Got nalu type %d of size %d\n", nalu_type, *length);
-
-		 return TRUE;
-	 }
-
-	 return FALSE;
- }
-
- uint8_t get_8bits(uint8_t **buf, uint32_t *len) {
-	 uint8_t val = 0;
-	 uint32_t bytes = sizeof(uint8_t);
-
-	 if (*len >= bytes) {
-		 *len -= bytes;
-	 }
-
-	 val = (*buf)[0];
-
-	 (*buf) += bytes;
-
-	 return val;
- }
-
- uint16_t get_16bits(uint8_t **buf, uint32_t *len) {
-	 uint16_t val;
-	 uint32_t bytes = sizeof(uint16_t);
-
-	 if (*len >= bytes) {
-		 *len -= bytes;
-	 }
-
-	 for (int i = sizeof(uint16_t) - 1; i >= 0; i--) {
-		 val = (val << 8) | (*buf)[i];
-	 }
-
-	 (*buf) += bytes;
-
-	 return val;
- }
-
- uint32_t get_32bits(uint8_t **buf, uint32_t *len) {
-	 uint32_t val;
-	 uint32_t bytes = sizeof(uint32_t);
-
-	 if (*len >= bytes) {
-		 *len -= bytes;
-	 }
-
-	 for (int i = bytes - 1; i >= 0; i--) {
-		 val = (val << 8) | (*buf)[i];
-	 }
-
-	 (*buf) += bytes;
-
-	 return val;
- }
-
- uint64_t get_64bits(uint8_t **buf, uint32_t *len) {
-	 uint64_t val;
-	 uint32_t bytes = sizeof(uint64_t);
-
-	 if (*len >= bytes) {
-		 *len -= bytes;
-	 }
-
-	 for (int i = bytes - 1; i >= 0; i--) {
-		 val = (val << 8) | (*buf)[i];
-	 }
-
-	 (*buf) += bytes;
-
-	 return val;
- }
-
-#if 0
- BOOL get_audio_frame(FILE *fp, uint8_t *buf, uint32_t *length) {
-	 BOOL got_sc = FALSE;
-	 uint32_t pos = 0;
-	 uint8_t nalu_type = 0;
-	 uint8_t version, header_type, seg_length, page_segs;
-	 uint64_t granule_pos;
-	 uint32_t bs_serial, page_sn, checksum;
-	 uint8_t tmp[1000], *p;
-
-	 get_ogg_page()
-
-	 p = tmp;
-
-	 while (get_ogg_page(fp, tmp, length) == TRUE) {
-		 if (*length == 0) {
-			 continue;
-		 }
-
-		 version = get_8bits(&p, length);
-		 header_type = get_8bits(&p, length);
-		 granule_pos = get_64bits(&p, length);
-		 bs_serial = get_32bits(&p, length);
-		 page_sn = get_32bits(&p, length);
-		 checksum = get_32bits(&p, length);
-		 page_segs = get_8bits(&p, length);
-
-		 for (int i = 0; i < page_segs; i++) {
-			 seg_length =  get_8bits(&p, length);
-			 fread(buf, 1, seg_length, fp);
-		 }
-	 }
-
-	 return FALSE;
- }
-#endif
-
- BOOL get_ogg_page(opus_obj_t *handle) {
-	 uint32_t magic_num = 0;
-	 uint8_t byte;
-	 uint32_t pos = 0;
-	 BOOL got_page = FALSE;
-
-	 while (!feof(handle->fp)) {
-		 fread(&byte, 1, 1, handle->fp);
-
-		 handle->page_buf[pos] = byte;
-		 pos++;
-
-		 if (pos >= MAX_OGG_PAGE_LEN) {
-			 printf("Error page size exceeds max\n");
-			 exit(-1);
-		 }
-
-		 magic_num = (magic_num << 8) | byte;
-
-		 if (magic_num == 0x4F676753) {
-
-			 pos -= 4;
-
-			 if (pos == 0) {
-				 continue;
-			 }
-
-			 uint8_t *p = handle->page_buf;
-			 uint32_t bytes_available = pos;
-
-			 handle->packets_in_page = 0;
-
-			 handle->version = get_8bits(&p, &bytes_available);
-			 handle->header_type = get_8bits(&p, &bytes_available);
-			 handle->granule_pos = get_64bits(&p, &bytes_available);
-			 handle->bs_serial = get_32bits(&p, &bytes_available);
-			 handle->page_sn = get_32bits(&p, &bytes_available);
-			 handle->checksum = get_32bits(&p, &bytes_available);
-			 handle->page_segs = get_8bits(&p, &bytes_available);
-
-			 for (int i = 0; i < handle->page_segs; i++) {
-				 handle->seg_len_table[i] = get_8bits(&p, &bytes_available);
-				 if (handle->seg_len_table[i] != 255) {
-					 handle->packets_in_page++;
-				 }
-			 }
-
-			 printf("Page %d, pos %ul, page segs %d, packets %d\n", handle->page_sn, handle->granule_pos, handle->page_segs, handle->packets_in_page);
-
-			 handle->consumed = pos - bytes_available;
-			 handle->current_segment = 0;
-
-			 got_page = TRUE;
-			 break;
-		 }
-	 }
-
-	 handle->page_len = pos;
-
-	 return got_page;
- }
-
- BOOL init_audio(opus_obj_t *handle, const char *audio_file) {
-
-
-	 if (audio_file == NULL) {
-		 return FALSE;
-	 }
-
-	if ((handle->fp = fopen(audio_file, "rb")) == NULL) {
-		return FALSE;
-	}
-	
-	if ((handle->page_buf = malloc(MAX_OGG_PAGE_LEN)) == NULL) {
-		return FALSE;
-	}
-
-	handle->current_segment = 0;
-	handle->consumed = 0;
-	handle->page_len = 0;
- }
-
- BOOL reset_audio(opus_obj_t *handle) {
-	 fseek(handle->fp, 0, SEEK_SET);
-
-	 handle->consumed = 0;
-	 handle->page_len = 0;
-
-	 return TRUE;
- }
-
- BOOL get_audio_packet(opus_obj_t *handle, uint8_t *buf, uint32_t *length) {
-
-	*length = 0;
-
-	if (handle->consumed >= handle->page_len) {
-		if (get_ogg_page(handle) != TRUE) {
-			return FALSE;
-		}
-	}
-
-	int seg_len;
-
-	do {
-		seg_len = handle->seg_len_table[handle->current_segment];
-		memcpy(buf, handle->page_buf + handle->consumed, seg_len);
-		buf += seg_len;
-		*length += seg_len;
-		handle->consumed += seg_len;
-		handle->current_segment++;
-	} while (seg_len == 255);
-
-	return TRUE;
- }
-
-
-

@@ -16,7 +16,8 @@ if (WIN32)
   set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.c
                             ftl_app/win32/xgetopt.h
                             ftl_app/win32/ctrlc_handler.c
-							ftl_app/win32/gettimeofday.c)
+							ftl_app/win32/gettimeofday.c
+							ftl_app/win32/gettimeofday.h)
   set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32)
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c)
 else()
@@ -46,6 +47,8 @@ endif()
 add_executable(ftl_app
                ftl_app/main.c
                ftl_app/main.h
+               ftl_app/file_parser.c
+               ftl_app/file_parser.h			   
                ${FTL_PLATFORM_FILES})
 target_link_libraries(ftl_app ftl Threads::Threads ${FTL_PLATFORM_LIBS})
 #target_link_libraries(ftl_app ftl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})

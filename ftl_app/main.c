@@ -164,6 +164,7 @@ if (verbose) {
 	params.status_callback = NULL;
 	params.video_frame_rate = (float)input_framerate;
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
+	struct timeval profile_start, profile_stop, profile_delta;
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
 		printf("Failed to create ingest handle %d\n", status_code);
@@ -178,7 +179,7 @@ if (verbose) {
    printf("Stream online!\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
-   float video_send_delay = 0;
+   float video_send_delay = 0, actual_sleep;
    float video_time_step = 1000 / params.video_frame_rate;
 
    float audio_send_accumulator = video_time_step;
@@ -225,16 +226,21 @@ if (verbose) {
 
 		   video_send_delay -= timeval_to_ms(&proc_delta_tv);
 
-		   if (video_send_delay < 0) {
-			   video_send_delay = 0;
+		   if (video_send_delay > 0){
+			   gettimeofday(&profile_start, NULL);
+			   Sleep((DWORD)video_send_delay);
+			   gettimeofday(&profile_stop, NULL);
+			   timeval_subtract(&profile_delta, &profile_stop, &profile_start);
+			   actual_sleep = timeval_to_ms(&profile_delta);
+			   printf("Requested Sleep %f ms, actual %f ms\n", video_send_delay, actual_sleep);
 		   }
 		   else {
-			   Sleep((DWORD)video_send_delay);
+			   actual_sleep = 0;
 		   }
 
+		   video_send_delay -= actual_sleep;
+
 		   gettimeofday(&proc_start_tv, NULL);
-		   
-		   video_send_delay -= (float)((int)video_send_delay);
 
 		   audio_send_accumulator += video_time_step;
 	   }

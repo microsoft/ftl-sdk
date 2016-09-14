@@ -232,7 +232,7 @@ if (verbose) {
 			   gettimeofday(&profile_stop, NULL);
 			   timeval_subtract(&profile_delta, &profile_stop, &profile_start);
 			   actual_sleep = timeval_to_ms(&profile_delta);
-			   printf("Requested Sleep %f ms, actual %f ms\n", video_send_delay, actual_sleep);
+			   //printf("Requested Sleep %f ms, actual %f ms\n", video_send_delay, actual_sleep);
 		   }
 		   else {
 			   actual_sleep = 0;

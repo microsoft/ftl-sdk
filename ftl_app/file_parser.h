@@ -1,4 +1,4 @@
-#define MAX_OGG_PAGE_LEN 30000
+#define MAX_OGG_PAGE_LEN 100000
 
 
 typedef struct {

@@ -30,11 +30,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <WinSock2.h>
+#else
+#include <pthread.h>
 #endif
 
 #ifndef _WIN32
@@ -51,12 +52,12 @@
 #define AUDIO_PTYPE 97
 #define SOCKET_RECV_TIMEOUT_MS 500
 #define SOCKET_SEND_TIMEOUT_MS 500
-#define MAX_PACKET_BUFFER 3000  //Max length of buffer
+#define MAX_PACKET_BUFFER 1500  //Max length of buffer
 #define MAX_MTU 1392
 #define FTL_UDP_MEDIA_PORT 8082   //The port on which to listen for incoming data
 #define RTP_HEADER_BASE_LEN 12
 #define RTP_FUA_HEADER_LEN 2
-#define NACK_RB_SIZE 1024
+#define NACK_RB_SIZE 10240
 #define NACK_RTT_AVG_SECONDS 5
 /**
  * This configuration structure handles basic information for a struct such
@@ -68,7 +69,11 @@ typedef struct {
 	int len;
 	uint64_t insert_ns;
 	int sn;
+#ifdef _WIN32
+	HANDLE mutex;
+#else
 	pthread_mutex_t mutex;
+#endif
 }nack_slot_t;
 
 typedef struct {
@@ -77,8 +82,6 @@ typedef struct {
 	uint32_t timestamp;
 	uint32_t timestamp_step;
 	uint16_t seq_num;
-	//	pthread_mutex_t  packets_mutex;
-	//os_sem_t         *send_sem;
 	int64_t min_nack_rtt;
 	int64_t max_nack_rtt;
 	int64_t nack_rtt_avg;
@@ -105,7 +108,12 @@ typedef struct {
 	SOCKET media_socket;
 	int assigned_port;
 	BOOL recv_thread_running;
+#ifdef _WIN32
+	HANDLE recv_thread_handle;
+	DWORD recv_thread_id;
+#else
 	pthread_t recv_thread;
+#endif
 	int max_mtu;
 } ftl_media_config_t;
 

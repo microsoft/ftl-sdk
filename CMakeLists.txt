@@ -2,12 +2,6 @@ cmake_minimum_required (VERSION 3.5.2)
 enable_language(C)
 project(libftl)
 
-include_directories(BEFORE $ENV{THREADS_PTHREADS_INCLUDE_DIR})
-include(FindThreads)
-set(CMAKE_THREAD_PREFER_PTHREAD)
-add_definitions(-DSTRUCT_TIMESPEC_HAS_TV_SEC)
-add_definitions(-DSTRUCT_TIMESPEC_HAS_TV_NSEC)
-add_definitions(-DHAVE_STRUCT_TIMESPEC)
 find_package(Threads REQUIRED)
 
 include_directories(libftl)
@@ -18,7 +12,7 @@ if (WIN32)
                             ftl_app/win32/ctrlc_handler.c
 							ftl_app/win32/gettimeofday.c
 							ftl_app/win32/gettimeofday.h)
-  set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32)
+  set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c)
 else()
   set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
@@ -41,7 +35,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.2.3")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32 $ENV{THREADS_PTHREADS_LIB}/pthreadVC2.lib)
+  target_link_libraries(ftl ws2_32)
 endif()
 
 add_executable(ftl_app

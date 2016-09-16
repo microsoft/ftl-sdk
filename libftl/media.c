@@ -35,7 +35,11 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	media->server_addr.sin_port = htons(media->assigned_port);
 
 	media->recv_thread_running = TRUE;
+#ifdef _WIN32
+	if( (media->recv_thread_handle = CreateThread(NULL,	0, recv_thread, ftl, 0, &media->recv_thread_id)) == NULL){
+#else
 	if ((pthread_create(&media->recv_thread, NULL, recv_thread, ftl)) != 0) {
+#endif
 		return FTL_MALLOC_FAILURE;
 	}
 
@@ -139,8 +143,12 @@ static int _nack_init(ftl_media_component_common_t *media) {
 		}
 
 		nack_slot_t *slot = media->nack_slots[i];
-
+		
+#ifdef _WIN32
+		if ((slot->mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
+#else
 		if (pthread_mutex_init(&slot->mutex, NULL) != 0) {
+#endif
 			FTL_LOG(FTL_LOG_ERROR, "Failed to allocate memory for nack buffer\n");
 			return FTL_MALLOC_FAILURE;
 		}
@@ -160,7 +168,12 @@ int _nack_destroy(ftl_media_component_common_t *media) {
 
 	for (int i = 0; i < NACK_RB_SIZE; i++) {
 		if (media->nack_slots[i] != NULL) {
+#ifdef _WIN32
+			CloseHandle(media->nack_slots[i]->mutex);
+#else
 			pthread_mutex_destroy(&media->nack_slots[i]->mutex);
+
+#endif
 			free(media->nack_slots[i]);
 			media->nack_slots[i] = NULL;
 		}
@@ -199,7 +212,11 @@ static uint8_t* _media_get_empty_packet(ftl_stream_configuration_private_t *ftl,
 	/*map sequence number to slot*/
 	nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
 
+#ifdef _WIN32
+	WaitForSingleObject(slot->mutex, INFINITE);
+#else
 	pthread_mutex_lock(&slot->mutex);
+#endif
 
 	*buf_len = sizeof(slot->packet);
 	return slot->packet;
@@ -226,7 +243,11 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t 
 		FTL_LOG(FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
 	}
 
+#ifdef _WIN32
+	ReleaseMutex(slot->mutex);
+#else
 	pthread_mutex_unlock(&slot->mutex);
+#endif
 
 	return tx_len;
 }
@@ -244,11 +265,19 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	/*map sequence number to slot*/
 	nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
 
+#ifdef _WIN32
+	WaitForSingleObject(slot->mutex, INFINITE);
+#else
 	pthread_mutex_lock(&slot->mutex);
+#endif
 
 	if (slot->sn != sn) {
 		FTL_LOG(FTL_LOG_WARN, "[%d] expected sn %d in slot but found %d...discarding retransmit request\n", ssrc, sn, slot->sn);
+#ifdef _WIN32
+		ReleaseMutex(slot->mutex);
+#else
 		pthread_mutex_unlock(&slot->mutex);
+#endif
 		return 0;
 	}
 
@@ -365,13 +394,6 @@ static void *recv_thread(void *data)
 	}
 
 #if 0
-#ifdef _WIN32
-	ret = ioctlsocket(stream->sb_socket, FIONREAD,
-		(u_long*)&recv_size);
-#else
-	ret = ioctl(stream->sb_socket, FIONREAD, &recv_size);
-#endif
-
 	if (ret >= 0 && recv_size > 0) {
 		if (!discard_recv_data(stream, (size_t)recv_size))
 			return -1;
@@ -435,6 +457,8 @@ static void *recv_thread(void *data)
 			}
 		}
 	}
+
+	free(buf);
 
 	FTL_LOG(FTL_LOG_INFO, "Exited Recv Thread\n");
 

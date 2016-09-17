@@ -186,7 +186,7 @@ FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle);
 FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname);
 FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, const char *stream_key);
 
-FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len);
+FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame);
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 

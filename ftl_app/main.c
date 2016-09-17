@@ -203,14 +203,14 @@ if (verbose) {
 		   continue;
 	   }
 
-	   ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len);
+	   ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len, 1);
 
 	   audio_pkts_sent = 0;
 	   while (audio_send_accumulator > audio_time_step) {
 		   if (get_audio_packet(&opus_handle, audio_frame, &len) == FALSE) {
 			   break;
 		   }
-		   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len);
+		   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
 		   audio_send_accumulator -= audio_time_step;
 		   audio_pkts_sent++;
 	   }

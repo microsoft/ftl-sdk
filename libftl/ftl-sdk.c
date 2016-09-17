@@ -105,7 +105,7 @@ FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, cons
 	return FTL_SUCCESS;
 }
 
-FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len) {
+FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
 
@@ -113,7 +113,7 @@ FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_t
 		media_send_audio(ftl, data, len);
 	}
 	else if (media_type == FTL_VIDEO_DATA) {
-		media_send_video(ftl, data, len);
+		media_send_video(ftl, data, len, end_of_frame);
 	}
 	else {
 		return FTL_UNSUPPORTED_MEDIA_TYPE;

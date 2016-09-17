@@ -195,7 +195,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
-ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
 ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900

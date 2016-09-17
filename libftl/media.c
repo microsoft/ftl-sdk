@@ -97,7 +97,7 @@ ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *
 	return FTL_SUCCESS;
 }
 
-ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len){
+ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame){
 	ftl_media_component_common_t *mc = &ftl->video.media_component;
 	uint8_t nalu_type = 0;
 
@@ -124,7 +124,7 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 		data += payload_size;
 
 		/*if all data has been consumed set marker bit*/
-		if (remaining <= 0 && (nalu_type == 1 || nalu_type == 5)) {
+		if (remaining <= 0 && end_of_frame) { 
 			_media_set_marker_bit(mc, pkt_buf);
 		}
 
@@ -296,7 +296,7 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 	ftl_media_component_common_t *mc = &video->media_component;
 
 	sbit = first_pkt ? 1 : 0;
-	ebit = (in_len + RTP_HEADER_BASE_LEN + RTP_FUA_HEADER_LEN) < ftl->media.max_mtu;
+	ebit = (in_len + RTP_HEADER_BASE_LEN + RTP_FUA_HEADER_LEN) <= ftl->media.max_mtu;
 
 	uint32_t rtp_header;
 
@@ -323,7 +323,7 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 			in_len--;
 		}
 
-		out[0] = video->fua_nalu_type & 0x60 | 28;
+		out[0] = (video->fua_nalu_type & 0x60) | 28;
 		out[1] = (sbit << 7) | (ebit << 6) | (video->fua_nalu_type & 0x1F);
 
 		out += 2;

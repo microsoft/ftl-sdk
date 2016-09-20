@@ -182,7 +182,13 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
 
 	if (stream_config->connected) {
-		if ((response_code = _ftl_send_command(stream_config, TRUE, "DISCONNECT %d %s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
+		/*TODO: we dont need a key to disconnect from a tcp connection*/
+		if (!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, stream_config->hmacBuffer)) {
+			FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
+			response_code = FTL_INTERNAL_ERROR;
+		}
+
+		if ((response_code = _ftl_send_command(stream_config, TRUE, "DISCONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d\n", response_code);
 			return response_code;
 		}

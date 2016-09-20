@@ -185,6 +185,7 @@ if (verbose) {
    float audio_send_accumulator = video_time_step;
    float audio_time_step = 1000 / audio_pps;
    int audio_pkts_sent;
+   int end_of_frame;
 
    gettimeofday(&proc_start_tv, NULL);
 
@@ -199,11 +200,11 @@ if (verbose) {
 		   continue;
 	   }
 
-	   if (get_video_frame(&h264_handle, h264_frame, &len) == FALSE) {
+	   if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == FALSE) {
 		   continue;
 	   }
 
-	   ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len, 1);
+	   ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len, end_of_frame);
 
 	   audio_pkts_sent = 0;
 	   while (audio_send_accumulator > audio_time_step) {

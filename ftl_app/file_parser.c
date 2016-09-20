@@ -29,7 +29,7 @@ BOOL reset_video(h264_obj_t *handle) {
 	return TRUE;
 }
 
-BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length) {
+BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get_video_frame) {
 	 BOOL got_sc = FALSE;
 	 uint32_t pos = 0;
 	 uint8_t nalu_type = 0;
@@ -41,6 +41,11 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length) {
 
 		 nalu_type = buf[0] & 0x1F;
 		 //printf("Got nalu type %d of size %d\n", nalu_type, *length);
+		 *get_video_frame = 0;
+		 if (nalu_type == 1 || nalu_type == 5)
+		 {
+			 *get_video_frame = 1;
+		 }
 
 		 return TRUE;
 	 }

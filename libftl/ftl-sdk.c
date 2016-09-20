@@ -60,6 +60,8 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl_cfg->video.width = 1280;
   ftl_cfg->video.height = 720;
 
+  ftl_register_log_handler(params->log_func);
+
   ftl_handle->private = ftl_cfg;
   return ret_status;
 

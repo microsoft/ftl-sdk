@@ -155,7 +155,7 @@ static int _nack_init(ftl_media_component_common_t *media) {
 
 		slot->len = 0;
 		slot->sn = -1;
-		slot->insert_ns = 0;
+		//slot->insert_time = 0;
 	}
 
 	media->nack_slots_initalized = TRUE;
@@ -236,7 +236,7 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t 
 
 	slot->len = len;
 	slot->sn = sn;
-	slot->insert_ns = 0;//os_gettime_ns();
+	gettimeofday(&slot->insert_time, NULL);
 
 	if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
 	{
@@ -281,10 +281,14 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 		return 0;
 	}
 
-	uint64_t req_delay = 0;//os_gettime_ns() - slot->insert_ns;
+	int req_delay = 0;
+	struct timeval delta, now;
+	gettimeofday(&now, NULL);
+	timeval_subtract(&delta, &now, &slot->insert_time);
+	req_delay = timeval_to_ms(&delta);
 
 	tx_len = _media_send_packet(ftl, ssrc, sn, slot->len);
-	FTL_LOG(FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay / 1000000);
+	FTL_LOG(FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
 
 	return tx_len;
 }
@@ -387,6 +391,12 @@ static void *recv_thread(void *data)
 	ftl_media_config_t *media = &ftl->media;
 	int ret;
 	unsigned char *buf;
+
+#ifdef _WIN32
+	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
+		FTL_LOG(FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
+	}
+#endif
 
 	if ((buf = (unsigned char*)malloc(MAX_PACKET_BUFFER)) == NULL) {
 		FTL_LOG(FTL_LOG_ERROR, "Failed to allocate recv buffer\n");

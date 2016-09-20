@@ -34,6 +34,7 @@
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <WinSock2.h>
+#include "win32\gettimeofday.h"
 #else
 #include <pthread.h>
 #endif
@@ -67,7 +68,7 @@
 typedef struct {
 	uint8_t packet[MAX_PACKET_BUFFER];
 	int len;
-	uint64_t insert_ns;
+	struct timeval insert_time;
 	int sn;
 #ifdef _WIN32
 	HANDLE mutex;

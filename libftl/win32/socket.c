@@ -30,7 +30,7 @@ void ftl_init_sockets() {
   WSAStartup(MAKEWORD(2, 2), &wsaData);
 }
 
-int ftl_close_socket(int sock) {
+int ftl_close_socket(SOCKET sock) {
   return closesocket(sock);
 }
 
@@ -51,20 +51,20 @@ char * ftl_get_socket_error() {
   return error_message;
 }
 
-ftl_set_socket_recv_timeout(int socket, int ms_timeout){
-  setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
+int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout){
+	return setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
 }
 
-ftl_set_socket_send_timeout(int socket, int ms_timeout){
-  setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
+int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout){
+	return setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
 }
 
-ftl_set_socket_enable_keepalive(int socket){
+int ftl_set_socket_enable_keepalive(SOCKET socket){
   int keep_alive = 1;
-  setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
+  return setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
 }
 
-ftl_set_socket_send_buf(int buffer_space) {
+int ftl_set_socket_send_buf(SOCKET socket, int buffer_space) {
 	int keep_alive = 1;
-	setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
+	return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }

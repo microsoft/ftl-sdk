@@ -75,7 +75,7 @@ unsigned char decode_hex_char(char c) {
     return 0;
 }
 
-int recv_all(int sock, char * buf, int buflen, const char line_terminator) {
+int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
     int pos = 0;
     int n;
     int bytes_recd = 0;
@@ -97,7 +97,7 @@ int recv_all(int sock, char * buf, int buflen, const char line_terminator) {
     return bytes_recd;
 }
 
-int ftl_get_hmac(int sock, char * auth_key, char * dst) {
+int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst) {
     char buf[2048];
     int string_len;
     int response_code;

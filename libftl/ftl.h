@@ -64,6 +64,8 @@ typedef enum {
   FTL_OLD_VERSION, /**< libftl needs to be updated */
   FTL_BAD_OR_INVALID_STREAM_KEY,
   FTL_UNSUPPORTED_MEDIA_TYPE,
+  FTL_ALREADY_CONNECTED,
+  FTL_UNKNOWN_ERROR_CODE
 } ftl_status_t;
 
 typedef enum {

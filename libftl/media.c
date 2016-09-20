@@ -2,7 +2,11 @@
 #include "ftl.h"
 #include "ftl_private.h"
 
+#ifdef _WIN32
+static DWORD WINAPI recv_thread(LPVOID data);
+#else
 static void *recv_thread(void *data);
+#endif
 static int _nack_init(ftl_media_component_common_t *media);
 static ftl_media_component_common_t *_media_lookup(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt);
@@ -385,7 +389,11 @@ static int _media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in) 
 
 
 /*handles rtcp packets from ingest including lost packet retransmission requests (nack)*/
+#ifdef _WIN32
+static DWORD WINAPI recv_thread(LPVOID data)
+#else
 static void *recv_thread(void *data)
+#endif
 {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
 	ftl_media_config_t *media = &ftl->media;

@@ -51,8 +51,8 @@
 #define MAX_KEY_LEN 100
 #define VIDEO_PTYPE 96
 #define AUDIO_PTYPE 97
-#define SOCKET_RECV_TIMEOUT_MS 500
-#define SOCKET_SEND_TIMEOUT_MS 500
+#define SOCKET_RECV_TIMEOUT_MS 1000
+#define SOCKET_SEND_TIMEOUT_MS 1000
 #define MAX_PACKET_BUFFER 1500  //Max length of buffer
 #define MAX_MTU 1392
 #define FTL_UDP_MEDIA_PORT 8082   //The port on which to listen for incoming data
@@ -60,6 +60,10 @@
 #define RTP_FUA_HEADER_LEN 2
 #define NACK_RB_SIZE 10240
 #define NACK_RTT_AVG_SECONDS 5
+
+#ifndef _WIN32
+typdef SOCKET int
+#endif
 /**
  * This configuration structure handles basic information for a struct such
  * as the authetication keys and other similar information. It's members are
@@ -119,12 +123,18 @@ typedef struct {
 } ftl_media_config_t;
 
 typedef struct {
-  int ingest_socket;
+  SOCKET ingest_socket;
   int connected;
   char ingest_ip[16];//ipv4 only
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];
+#ifdef _WIN32
+  HANDLE connection_thread_handle;
+  DWORD connection_thread_id;
+#else
+  pthread_t connection_thread;
+#endif
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
@@ -169,9 +179,9 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec);
  * Functions related to the charon prootocol itself
  **/
 
-int recv_all(int sock, char * buf, int buflen, const char line_terminator);
+int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator);
 
-int ftl_get_hmac(int sock, char * auth_key, char * dst);
+int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst);
 ftl_response_code_t ftl_read_response_code(const char * response_str);
 
 /**
@@ -182,15 +192,12 @@ ftl_response_code_t ftl_read_response_code(const char * response_str);
 extern char error_message[1000];
 
 void ftl_init_sockets();
-int ftl_close_socket(int sock);
+int ftl_close_socket(SOCKET sock);
 char * ftl_get_socket_error();
-ftl_set_socket_recv_timeout(int socket, int ms_timeout);
-
-ftl_set_socket_send_timeout(int socket, int ms_timeout);
-
-ftl_set_socket_enable_keepalive(int socket);
-
-ftl_set_socket_send_buf(int buffer_space);
+int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout);
+int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
+int ftl_set_socket_enable_keepalive(SOCKET socket);
+int ftl_set_socket_send_buf(SOCKET socket, int buffer_space);
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);

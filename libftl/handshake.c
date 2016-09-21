@@ -212,6 +212,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
 
 	if (stream_config->connected) {
+		stream_config->connected = 0;
 		/*TODO: we dont need a key to disconnect from a tcp connection*/
 		if (!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, stream_config->hmacBuffer)) {
 			FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
@@ -222,17 +223,13 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 			FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d\n", response_code);
 			return response_code;
 		}
-
-		stream_config->connected = 0;
-
-		if (stream_config->ingest_socket <= 0) {
-			ftl_close_socket(stream_config->ingest_socket);
-		}
-
-		return FTL_SUCCESS;
 	}
 
-	return FTL_NOT_ACTIVE_STREAM;
+	if (stream_config->ingest_socket > 0) {
+		ftl_close_socket(stream_config->ingest_socket);
+	}
+
+	return FTL_SUCCESS;
 }
 
 static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, const char *cmd_fmt, ...){
@@ -312,19 +309,29 @@ static void *connection_status_thread(void *data)
 
 		int err = recv(ftl->ingest_socket, &buf, sizeof(buf), MSG_PEEK);
 
-		if (err == 0) {
+		if (err == 0 && ftl->connected) {
+			ftl_status_t status_code;
+
+			ftl->connected = 0;
+			ftl->ready_for_media = 0;
+
+			FTL_LOG(FTL_LOG_ERROR, "ingest connection has dropped: %s\n", ftl_get_socket_error());
+			if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
+				FTL_LOG(FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
+			}
+
+			if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
+				FTL_LOG(FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
+			}
+
 			ftl_status_msg_t status;
 
-			status.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
+			status.type = FTL_STATUS_EVENT;
 			status.msg.event.reason = FTL_STATUS_EVENT_REASON_UNKNOWN;
 			status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
 
 			enqueue_status_msg(ftl, &status);
-
-			FTL_LOG(FTL_LOG_ERROR, "ingest connection has dropped: %s\n", ftl_get_socket_error());
-			ftl->connected = 0;
 			break;
-			//TODO add message to callback status queue
 		}
 
 	}

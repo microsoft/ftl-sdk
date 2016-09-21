@@ -53,9 +53,12 @@ void usage() {
 
 #ifdef _WIN32
 DWORD WINAPI ftl_status_thread(LPVOID data);
+HANDLE mutex;
 #else
 static void *ftl_status_thread(void *data);
+pthread_mutex_t mutex;
 #endif
+
 
 int main(int argc, char** argv) {
    ftl_stream_configuration_t* stream_config = 0;
@@ -165,8 +168,13 @@ if (verbose) {
 	params.video_frame_rate = (float)input_framerate;
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 	struct timeval profile_start, profile_stop, profile_delta;
+#ifdef _WIN32
 	HANDLE status_thread_handle;
+	HANDLE mutex;
 	DWORD status_thread_id;
+#else
+	//TODO linux
+#endif
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
 		printf("Failed to create ingest handle %d\n", status_code);
@@ -178,7 +186,16 @@ if (verbose) {
 	   return -1;
 	}
 
-#if 0
+#ifdef _WIN32
+   if ((mutex = CreateMutex(NULL, FALSE, NULL)) == NULL)
+#else
+   if (pthread_mutex_init(mutex, NULL) != 0)
+#endif
+   {
+	   printf("Failed to create mutex\n");
+	   return -1;
+   }
+
 #ifdef _WIN32
    if ((status_thread_handle = CreateThread(NULL, 0, ftl_status_thread, &handle, 0, &status_thread_id)) == NULL) {
 #else
@@ -186,7 +203,6 @@ if (verbose) {
 #endif
 	   return FTL_MALLOC_FAILURE;
    }
-#endif
 
    printf("Stream online!\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
@@ -223,6 +239,7 @@ if (verbose) {
 		   if (get_audio_packet(&opus_handle, audio_frame, &len) == FALSE) {
 			   break;
 		   }
+
 		   ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
 		   audio_send_accumulator -= audio_time_step;
 		   audio_pkts_sent++;
@@ -280,10 +297,24 @@ if (verbose) {
  {
 	 ftl_handle_t *handle = (ftl_handle_t*)data;
 	 ftl_status_msg_t status;
+	 ftl_status_t status_code;
 
 	 while (1) {
 		 ftl_ingest_get_status(handle, &status, INFINITE);
-
-		 printf("Status:  Got Status message of type %d\n", status.type);
+		 
+		 if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED) {
+			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);
+			 //attempt reconnection
+			 Sleep(500);
+			 printf("Reconnecting to Ingest\n");
+			 if ((status_code = ftl_ingest_connect(handle)) != FTL_SUCCESS) {
+				 printf("Failed to connect to ingest %d\n", status_code);
+				 return -1;
+			 }
+			 printf("Done\n");
+		 }
+		 else {
+			 printf("Status:  Got Status message of type %d\n", status.type);
+		 }
 	 }
  }

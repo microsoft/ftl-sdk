@@ -145,6 +145,7 @@ typedef struct {
 typedef struct {
   SOCKET ingest_socket;
   int connected;
+  int ready_for_media;
   char ingest_ip[16];//ipv4 only
   uint32_t channel_id;
   char *key;
@@ -230,6 +231,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
+ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
 ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
 

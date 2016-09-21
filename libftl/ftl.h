@@ -64,6 +64,7 @@ typedef enum {
   FTL_OLD_VERSION, /**< libftl needs to be updated */
   FTL_BAD_OR_INVALID_STREAM_KEY,
   FTL_UNSUPPORTED_MEDIA_TYPE,
+  FTL_NOT_CONNECTED,
   FTL_ALREADY_CONNECTED,
   FTL_UNKNOWN_ERROR_CODE,
   FTL_STATUS_TIMEOUT
@@ -205,7 +206,7 @@ typedef struct {
 
  /*status messages*/
  typedef struct {
-	 int type;
+	 ftl_status_types_t type;
 	 union {
 		 ftl_status_event_msg_t event;
 		 ftl_packet_stats_msg_t pkt_stats;

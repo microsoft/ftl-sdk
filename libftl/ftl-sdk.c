@@ -28,6 +28,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl_cfg->connected = 0;
+  ftl_cfg->ready_for_media = 0;
 
   ftl_cfg->key = NULL;
   if( (ftl_cfg->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
@@ -112,6 +113,8 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
 	  return status;
   }
 
+  ftl_cfg->ready_for_media = 1;
+
   return status;
 }
 
@@ -139,6 +142,10 @@ FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_t
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
 
+	if (!ftl->ready_for_media) {
+		return FTL_NOT_CONNECTED;
+	}
+
 	if (media_type == FTL_AUDIO_DATA) {
 		media_send_audio(ftl, data, len);
 	}
@@ -156,7 +163,15 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
 	ftl_status_t status;
 
-	status = _ingest_disconnect(ftl_cfg);
+	ftl_cfg->ready_for_media = 0;
+
+	if ((status = _ingest_disconnect(ftl_cfg)) != FTL_SUCCESS) {
+		FTL_LOG(FTL_LOG_ERROR, "Disconnect failed with error %d\n", status);
+	}
+
+	if ((status = media_destroy(ftl_cfg)) != FTL_SUCCESS) {
+		FTL_LOG(FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status);
+	}
 
 	return FTL_SUCCESS;
 }

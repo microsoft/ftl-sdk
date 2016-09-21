@@ -58,7 +58,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	video_comp->timestamp = 0; //TODO: should start at a random value
-	video_comp->timestamp_step = (uint32_t)(90000.f / ftl->video.frame_rate);
+	video_comp->timestamp_step = (uint32_t)(90000.f / ftl->video.frame_rate); //TODO: FIX THIS, wont work if 90K/x isnt evenly divisible, need to handle rounding error
 	gettimeofday(&video_comp->stats, NULL);
 
 	ftl_media_component_common_t *audio_comp = &ftl->audio.media_component;
@@ -69,10 +69,43 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	audio_comp->timestamp = 0;
-	audio_comp->timestamp_step = 48000 / 50;
+	audio_comp->timestamp_step = 48000 / 50; //TODO: dont assume the step size for audio
 
 	gettimeofday(&audio_comp->stats, NULL);
 
+	return status;
+}
+
+ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
+	ftl_media_config_t *media = &ftl->media;
+	struct hostent *server = NULL;
+	ftl_status_t status = FTL_SUCCESS;
+
+	ftl_close_socket(media->media_socket);
+
+	media->recv_thread_running = FALSE;
+#ifdef _WIN32
+	WaitForSingleObject(media->recv_thread_id, INFINITE);
+#else
+	pthread_join(media->recv_thread, NULL);
+#endif
+
+	media->max_mtu = 0;
+
+	ftl_media_component_common_t *video_comp = &ftl->video.media_component;
+
+	_nack_destroy(video_comp);
+
+	video_comp->timestamp = 0; //TODO: should start at a random value
+	video_comp->timestamp_step = 0;
+
+	ftl_media_component_common_t *audio_comp = &ftl->audio.media_component;
+
+	_nack_destroy(audio_comp);
+
+	audio_comp->timestamp = 0;
+	audio_comp->timestamp_step = 0;
+	
 	return status;
 }
 

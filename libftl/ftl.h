@@ -181,7 +181,8 @@ typedef struct {
  typedef enum {
 	 FTL_STATUS_EVENT_REASON_NONE,
 	 FTL_STATUS_EVENT_REASON_NO_MEDIA,
-	 FTL_STATUS_EVENT_REASON_UNKNOWN
+	 FTL_STATUS_EVENT_REASON_API_REQUEST,
+	 FTL_STATUS_EVENT_REASON_UNKNOWN,
  } ftl_status_event_reasons_t;
 
  typedef struct {

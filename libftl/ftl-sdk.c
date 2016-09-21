@@ -161,17 +161,25 @@ FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_t
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
-	ftl_status_t status;
+	ftl_status_t status_code;
 
 	ftl_cfg->ready_for_media = 0;
 
-	if ((status = _ingest_disconnect(ftl_cfg)) != FTL_SUCCESS) {
-		FTL_LOG(FTL_LOG_ERROR, "Disconnect failed with error %d\n", status);
+	if ((status_code = _ingest_disconnect(ftl_cfg)) != FTL_SUCCESS) {
+		FTL_LOG(FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
 	}
 
-	if ((status = media_destroy(ftl_cfg)) != FTL_SUCCESS) {
-		FTL_LOG(FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status);
+	if ((status_code = media_destroy(ftl_cfg)) != FTL_SUCCESS) {
+		FTL_LOG(FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
 	}
+
+	ftl_status_msg_t status;
+
+	status.type = FTL_STATUS_EVENT;
+	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
+	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
+
+	enqueue_status_msg(ftl_cfg, &status);
 
 	return FTL_SUCCESS;
 }

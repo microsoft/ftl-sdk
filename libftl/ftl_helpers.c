@@ -162,3 +162,88 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec) {
   // Should be never reached
   return "";
 }
+
+int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg) {
+	status_queue_elmt_t *elmt;
+#ifdef _WIN32
+	WaitForSingleObject(ftl->status_q.mutex, INFINITE);
+#else
+	pthread_mutex_lock(&ftl->status_q.mutex);
+#endif
+
+	if ( (elmt = (status_queue_elmt_t*)malloc(sizeof(status_queue_elmt_t))) == NULL) {
+		FTL_LOG(FTL_LOG_ERROR, "Unable to allocate status msg");
+	}
+
+	memcpy(&elmt->stats_msg, stats_msg, sizeof(status_queue_elmt_t));
+	elmt->next = NULL;
+
+	if (ftl->status_q.head == NULL) {
+		ftl->status_q.head = elmt;
+	}
+	else {
+		status_queue_elmt_t *tail = ftl->status_q.head;
+
+		do {
+			if (tail->next == NULL) {
+				tail->next = elmt;
+				break;
+			}
+			tail = tail->next;
+		} while (tail != NULL);
+	}
+
+	/*if queue is full remove head*/
+	if (ftl->status_q.count >= MAX_STATUS_MESSAGE_QUEUED) {
+		elmt = ftl->status_q.head;
+		ftl->status_q.head = elmt->next;
+		free(elmt);
+		FTL_LOG(FTL_LOG_ERROR, "Status queue was full with %d msgs, removed head", ftl->status_q.count);
+	}
+	else {
+		ftl->status_q.count++;
+#ifdef _WIN32
+		ReleaseSemaphore(ftl->status_q.sem, 1, NULL);
+#else
+		//TODO: do non-windows
+#endif
+	}
+
+#ifdef _WIN32
+	ReleaseMutex(ftl->status_q.mutex);
+#else
+	pthread_mutex_unlock(&ftl->status_q.mutex);
+#endif
+	return 0;
+}
+
+int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout) {
+	status_queue_elmt_t *elmt;
+	int retval = -1;
+#ifdef _WIN32
+	HANDLE handles[] = { ftl->status_q.mutex, ftl->status_q.sem };
+	WaitForMultipleObjects(sizeof(handles) / sizeof(handles[0]), handles, TRUE, INFINITE);
+#else
+	//TODO: do non-windows
+#endif
+
+	if (ftl->status_q.head != NULL) {
+		elmt = ftl->status_q.head;
+		memcpy(stats_msg, &elmt->stats_msg, sizeof(status_queue_elmt_t));
+		ftl->status_q.head = elmt->next;
+		free(elmt);
+		ftl->status_q.count--;
+		retval = 0;
+	}
+	else {
+		FTL_LOG(FTL_LOG_ERROR, "ERROR: dequeue_status_msg had not messages");
+	}
+
+#ifdef _WIN32
+	ReleaseMutex(ftl->status_q.mutex);
+#else
+	pthread_mutex_unlock(&ftl->status_q.mutex);
+#endif
+
+	return retval;
+}

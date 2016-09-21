@@ -59,6 +59,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	video_comp->timestamp = 0; //TODO: should start at a random value
 	video_comp->timestamp_step = (uint32_t)(90000.f / ftl->video.frame_rate);
+	gettimeofday(&video_comp->stats, NULL);
 
 	ftl_media_component_common_t *audio_comp = &ftl->audio.media_component;
 	audio_comp->nack_slots_initalized = FALSE;
@@ -69,6 +70,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	audio_comp->timestamp = 0;
 	audio_comp->timestamp_step = 48000 / 50;
+
+	gettimeofday(&audio_comp->stats, NULL);
 
 	return status;
 }
@@ -135,6 +138,25 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 		_media_send_packet(ftl, ssrc, sn, pkt_len);
 	}
 
+	struct timeval now, delta;
+	gettimeofday(&now, NULL);
+	timeval_subtract(&delta, &now, &mc->stats);
+	float stats_interval = timeval_to_ms(&delta);
+
+	if (stats_interval > 5000) {
+		ftl_status_msg_t status;
+
+		mc->stats = now;
+
+		status.msg.video_stats.average_fps = 60;
+		status.msg.video_stats.bytes_sent = 1234;
+		status.msg.video_stats.frames_sent = 600;
+
+		status.type = FTL_STATUS_VIDEO;
+
+		enqueue_status_msg(ftl, &status);
+	}
+
 	return FTL_SUCCESS;
 }
 
@@ -176,7 +198,6 @@ int _nack_destroy(ftl_media_component_common_t *media) {
 			CloseHandle(media->nack_slots[i]->mutex);
 #else
 			pthread_mutex_destroy(&media->nack_slots[i]->mutex);
-
 #endif
 			free(media->nack_slots[i]);
 			media->nack_slots[i] = NULL;

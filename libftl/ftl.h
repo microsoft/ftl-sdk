@@ -65,7 +65,8 @@ typedef enum {
   FTL_BAD_OR_INVALID_STREAM_KEY,
   FTL_UNSUPPORTED_MEDIA_TYPE,
   FTL_ALREADY_CONNECTED,
-  FTL_UNKNOWN_ERROR_CODE
+  FTL_UNKNOWN_ERROR_CODE,
+  FTL_STATUS_TIMEOUT
 } ftl_status_t;
 
 typedef enum {
@@ -158,8 +159,59 @@ typedef struct {
  } ftl_ingest_params_t;
 
  typedef struct {
-  void* private;
+	 void* private;
  } ftl_handle_t;
+
+ typedef enum {
+	 FTL_STATUS_NONE,
+	 FTL_STATUS_EVENT,
+	 FTL_STATUS_VIDEO_PACKETS,
+	 FTL_STATUS_AUDIO_PACKETS,
+	 FTL_STATUS_VIDEO,
+	 FTL_STATUS_AUDIO
+ } ftl_status_types_t;
+
+ typedef enum {
+	 FTL_STATUS_EVENT_TYPE_UNKNOWN,
+	 FTL_STATUS_EVENT_TYPE_CONNECTED,
+	 FTL_STATUS_EVENT_TYPE_DISCONNECTED
+ } ftl_status_event_types_t;
+
+ typedef enum {
+	 FTL_STATUS_EVENT_REASON_NONE,
+	 FTL_STATUS_EVENT_REASON_NO_MEDIA,
+	 FTL_STATUS_EVENT_REASON_UNKNOWN
+ } ftl_status_event_reasons_t;
+
+ typedef struct {
+	 ftl_status_event_types_t type;
+	 ftl_status_event_reasons_t reason;
+ }ftl_status_event_msg_t;
+
+ typedef struct {
+	 int received;
+	 int lost;
+	 int recovered;
+	 int late;
+	 int average_pps;//average packets per second
+ }ftl_packet_stats_msg_t;
+
+ typedef struct {
+	 int frames_sent;
+	 int bytes_sent;
+	 int average_fps;
+	 int max_frame_size;
+ }ftl_video_frame_stats_msg_t;
+
+ /*status messages*/
+ typedef struct {
+	 int type;
+	 union {
+		 ftl_status_event_msg_t event;
+		 ftl_packet_stats_msg_t pkt_stats;
+		 ftl_video_frame_stats_msg_t video_stats;
+	 } msg;
+ }ftl_status_msg_t;
 
 /*!
  * \ingroup ftl_public
@@ -183,7 +235,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 
-FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle);
+FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout);
 
 FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname);
 FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, const char *stream_key);

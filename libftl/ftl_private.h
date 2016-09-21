@@ -60,10 +60,29 @@
 #define RTP_FUA_HEADER_LEN 2
 #define NACK_RB_SIZE 10240
 #define NACK_RTT_AVG_SECONDS 5
+#define MAX_STATUS_MESSAGE_QUEUED 10
 
 #ifndef _WIN32
 typdef SOCKET int
 #endif
+
+/*status message queue*/
+typedef struct _status_queue_t {
+	ftl_status_msg_t stats_msg;
+	struct _status_queue_t *next;
+}status_queue_elmt_t;
+
+typedef struct {
+	status_queue_elmt_t *head;
+	int count;
+#ifdef _WIN32
+	HANDLE mutex;
+	HANDLE sem;
+#else
+	pthread_mutex_t mutex;
+#endif
+}status_queue_t;
+
 /**
  * This configuration structure handles basic information for a struct such
  * as the authetication keys and other similar information. It's members are
@@ -92,6 +111,7 @@ typedef struct {
 	int64_t nack_rtt_avg;
 	BOOL nack_slots_initalized;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
+	struct timeval stats;
 }ftl_media_component_common_t;
 
 typedef struct {
@@ -138,7 +158,12 @@ typedef struct {
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
+
+  status_queue_t status_q;
+
 }  ftl_stream_configuration_private_t;
+
+
 
 /**
  * Charon always responses with a three digit response code after each command
@@ -198,6 +223,8 @@ int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_enable_keepalive(SOCKET socket);
 int ftl_set_socket_send_buf(SOCKET socket, int buffer_space);
+int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
+int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);

@@ -313,6 +313,14 @@ static void *connection_status_thread(void *data)
 		int err = recv(ftl->ingest_socket, &buf, sizeof(buf), MSG_PEEK);
 
 		if (err == 0) {
+			ftl_status_msg_t status;
+
+			status.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
+			status.msg.event.reason = FTL_STATUS_EVENT_REASON_UNKNOWN;
+			status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
+
+			enqueue_status_msg(ftl, &status);
+
 			FTL_LOG(FTL_LOG_ERROR, "ingest connection has dropped: %s\n", ftl_get_socket_error());
 			ftl->connected = 0;
 			break;

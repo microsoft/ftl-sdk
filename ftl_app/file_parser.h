@@ -27,7 +27,6 @@ typedef struct {
 BOOL init_video(h264_obj_t *handle, const char *video_file);
 BOOL reset_video(h264_obj_t *handle);
 BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *end_of_frame);
-
 BOOL init_audio(opus_obj_t *handle, const char *audio_file);
 BOOL reset_audio(opus_obj_t *handle);
 BOOL get_audio_packet(opus_obj_t *handle, uint8_t *buf, uint32_t *length);

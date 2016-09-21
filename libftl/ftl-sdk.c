@@ -60,7 +60,29 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl_cfg->video.width = 1280;
   ftl_cfg->video.height = 720;
 
+
   ftl_register_log_handler(params->log_func);
+
+  ftl_cfg->status_q.count = 0;
+  ftl_cfg->status_q.head = NULL;
+
+#ifdef _WIN32
+  if ((ftl_cfg->status_q.mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
+#else
+  if (pthread_mutex_init(&ftl_cfg->status_q.mutex, NULL) != 0) {
+#endif
+	  FTL_LOG(FTL_LOG_ERROR, "Failed to create status queue mutex\n");
+	  return FTL_MALLOC_FAILURE;
+  }
+
+#ifdef _WIN32
+  if ((ftl_cfg->status_q.sem = CreateSemaphore(NULL, 0, MAX_STATUS_MESSAGE_QUEUED, NULL)) == NULL) {
+#else
+  ftl_cfg->status_q.sem
+#endif
+	  FTL_LOG(FTL_LOG_ERROR, "Failed to allocate create status queue semaphore\n");
+	  return FTL_MALLOC_FAILURE;
+  }
 
   ftl_handle->private = ftl_cfg;
   return ret_status;
@@ -93,9 +115,15 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   return status;
 }
 
-FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle) {
+FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout) {
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_status_t status = FTL_SUCCESS;
 
-	return FTL_SUCCESS;
+	if (dequeue_status_msg(ftl, msg, ms_timeout) < 0) {
+		status = FTL_STATUS_TIMEOUT;
+	}
+
+	return status;
 }
 
 FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname) {

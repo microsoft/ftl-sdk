@@ -51,11 +51,11 @@ void usage() {
     exit (0);
 }
 
-BOOL get_nalu(FILE *fp, uint8_t *buf, uint32_t *length);
-BOOL get_video_frame(FILE *fp, uint8_t *buf, uint32_t *length);
-BOOL init_audio(opus_obj_t *handle, const char *audio_file);
-BOOL get_audio_packet(opus_obj_t *handle, uint8_t *buf, uint32_t *length);
-BOOL reset_audio(opus_obj_t *handle);
+#ifdef _WIN32
+DWORD WINAPI ftl_status_thread(LPVOID data);
+#else
+static void *ftl_status_thread(void *data);
+#endif
 
 int main(int argc, char** argv) {
    ftl_stream_configuration_t* stream_config = 0;
@@ -165,6 +165,8 @@ if (verbose) {
 	params.video_frame_rate = (float)input_framerate;
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 	struct timeval profile_start, profile_stop, profile_delta;
+	HANDLE status_thread_handle;
+	DWORD status_thread_id;
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
 		printf("Failed to create ingest handle %d\n", status_code);
@@ -175,6 +177,16 @@ if (verbose) {
 	   printf("Failed to connect to ingest %d\n", status_code);
 	   return -1;
 	}
+
+#if 0
+#ifdef _WIN32
+   if ((status_thread_handle = CreateThread(NULL, 0, ftl_status_thread, &handle, 0, &status_thread_id)) == NULL) {
+#else
+   if ((pthread_create(&media->recv_thread, NULL, recv_thread, ftl)) != 0) {
+#endif
+	   return FTL_MALLOC_FAILURE;
+   }
+#endif
 
    printf("Stream online!\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
@@ -258,4 +270,20 @@ if (verbose) {
    }
 
    return 0;
+ }
+
+#ifdef _WIN32
+ DWORD WINAPI ftl_status_thread(LPVOID data)
+#else
+ static void *ftl_status_thread(void *data)
+#endif
+ {
+	 ftl_handle_t *handle = (ftl_handle_t*)data;
+	 ftl_status_msg_t status;
+
+	 while (1) {
+		 ftl_ingest_get_status(handle, &status, INFINITE);
+
+		 printf("Status:  Got Status message of type %d\n", status.type);
+	 }
  }

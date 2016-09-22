@@ -122,11 +122,7 @@ FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
 	ftl_status_t status = FTL_SUCCESS;
 
-	if (dequeue_status_msg(ftl, msg, ms_timeout) < 0) {
-		status = FTL_STATUS_TIMEOUT;
-	}
-
-	return status;
+	return dequeue_status_msg(ftl, msg, ms_timeout);
 }
 
 FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname) {
@@ -185,15 +181,40 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 }
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
-	ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
 	ftl_status_t status = FTL_SUCCESS;
 
-	if (ftl_cfg != NULL) {
-		if (ftl_cfg->key != NULL) {
-			free(ftl_cfg->key);
+	if (ftl != NULL) {
+
+#ifdef _WIN32
+		WaitForSingleObject(ftl->status_q.mutex, INFINITE);
+#else
+		pthread_mutex_lock(&ftl->status_q.mutex);
+#endif
+
+		status_queue_elmt_t *elmt;
+
+		while (ftl->status_q.head != NULL) {
+			elmt = ftl->status_q.head;
+			ftl->status_q.head = elmt->next;
+			free(elmt);
+			ftl->status_q.count--;
 		}
 
-		free(ftl_cfg);
+#ifdef _WIN32
+		ReleaseMutex(ftl->status_q.mutex);
+		CloseHandle(ftl->status_q.mutex);
+		CloseHandle(ftl->status_q.sem);
+#else
+		pthread_mutex_unlock(&ftl->status_q.mutex);
+		pthread_mutex_destroy(&ftl->status_q.mutex);
+#endif
+
+		if (ftl->key != NULL) {
+			free(ftl->key);
+		}
+
+		free(ftl);
 	}
 
 	return status;

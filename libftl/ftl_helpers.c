@@ -220,6 +220,10 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout) {
 	status_queue_elmt_t *elmt;
 	int retval = -1;
+
+	if (!ftl->connected) {
+		return retval;
+	}
 #ifdef _WIN32
 	HANDLE handles[] = { ftl->status_q.mutex, ftl->status_q.sem };
 	WaitForMultipleObjects(sizeof(handles) / sizeof(handles[0]), handles, TRUE, INFINITE);
@@ -229,7 +233,7 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 
 	if (ftl->status_q.head != NULL) {
 		elmt = ftl->status_q.head;
-		memcpy(stats_msg, &elmt->stats_msg, sizeof(status_queue_elmt_t));
+		memcpy(stats_msg, &elmt->stats_msg, sizeof(elmt->stats_msg));
 		ftl->status_q.head = elmt->next;
 		free(elmt);
 		ftl->status_q.count--;

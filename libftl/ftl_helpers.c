@@ -88,6 +88,9 @@ int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
             FTL_LOG(FTL_LOG_ERROR, "socket error while receiving: %s", error);
             return n;
         }
+		else if (n == 0) {
+			return 0;
+		}
         
         buf += n;
         buflen -= n;

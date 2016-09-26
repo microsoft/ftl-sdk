@@ -221,7 +221,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 
 		if ((response_code = _ftl_send_command(stream_config, TRUE, "DISCONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d\n", response_code);
-			return response_code;
+			response_code = response_code;
 		}
 	}
 

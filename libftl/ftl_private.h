@@ -209,6 +209,7 @@ int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator);
 
 int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst);
 ftl_response_code_t ftl_read_response_code(const char * response_str);
+int ftl_read_media_port(const char *response_str);
 
 /**
  * Platform abstractions

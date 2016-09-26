@@ -32,7 +32,7 @@ DWORD WINAPI connection_status_thread(LPVOID data);
 static void *connection_status_thread(void *data);
 #endif
 
-static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, const char *cmd_fmt, ...);
+static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...);
 ftl_status_t _log_response(int response_code);
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) {
@@ -52,6 +52,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
 
   int ingest_port = INGEST_PORT;
   char ingest_port_str[10];
+  char response[MAX_INGEST_COMMAND_LEN];
 
   if (stream_config->connected) {
 	  return FTL_ALREADY_CONNECTED;
@@ -117,14 +118,14 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
     goto fail;    
   }
 
-  if ( (response_code = _ftl_send_command(stream_config, TRUE, "CONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
+  if ( (response_code = _ftl_send_command(stream_config, TRUE, response, sizeof(response), "CONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
     FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d", response_code);
     response_code = FTL_STREAM_REJECTED;
     goto fail;
   }
 
   /* We always send our version component first */
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "ProtocolVersion: %d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "ProtocolVersion: %d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR)) != FTL_INGEST_RESP_OK){
     response_code = FTL_OLD_VERSION;
     goto fail;
   }  
@@ -132,59 +133,64 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   /* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
   ftl_video_component_t *video = &stream_config->video;
   /* We're sending video */
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "Video: true")) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "Video: true")) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoCodec: %s", ftl_video_codec_to_string(video->codec))) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "VideoCodec: %s", ftl_video_codec_to_string(video->codec))) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoHeight: %d", video->height)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "VideoHeight: %d", video->height)) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoWidth: %d", video->width)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "VideoWidth: %d", video->width)) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoPayloadType: %d", video->media_component.payload_type)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "VideoPayloadType: %d", video->media_component.payload_type)) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "VideoIngestSSRC: %d", video->media_component.ssrc)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "VideoIngestSSRC: %d", video->media_component.ssrc)) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
   ftl_audio_component_t *audio = &stream_config->audio;
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "Audio: true")) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "Audio: true")) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "AudioCodec: %s", ftl_audio_codec_to_string(audio->codec))) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "AudioCodec: %s", ftl_audio_codec_to_string(audio->codec))) != FTL_INGEST_RESP_OK){
     goto fail;
   }    
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "AudioPayloadType: %d", audio->media_component.payload_type)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "AudioPayloadType: %d", audio->media_component.payload_type)) != FTL_INGEST_RESP_OK){
     goto fail;
   }    
 
-  if ((response_code = _ftl_send_command(stream_config, FALSE, "AudioIngestSSRC: %d", audio->media_component.ssrc)) != FTL_INGEST_RESP_OK){
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "AudioIngestSSRC: %d", audio->media_component.ssrc)) != FTL_INGEST_RESP_OK){
     goto fail;
   }                    
 
-  if ( (response_code = _ftl_send_command(stream_config, TRUE, ".")) != FTL_INGEST_RESP_OK){
+  if ( (response_code = _ftl_send_command(stream_config, TRUE, response, sizeof(response), ".")) != FTL_INGEST_RESP_OK){
     goto fail;
   }
 
-  if (response_code != FTL_INGEST_RESP_OK) {
-    FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d", response_code);
-    goto fail;
-  } 
+  /*see if there is a port specified otherwise use default*/
+  int port = ftl_read_media_port(response);
 
-  // We're good to go, set the connected status to TRUE, and save the socket
-  stream_config->media.assigned_port = FTL_UDP_MEDIA_PORT; //TODO: receive this from the server
+  if (port < 0) {
+	  stream_config->media.assigned_port = FTL_UDP_MEDIA_PORT; //TODO: receive this from the server
+  }
+  else {
+	  stream_config->media.assigned_port = port;
+  }
+
+  FTL_LOG(FTL_LOG_INFO, "Successfully connected to ingest.  Media will be sent to port %d\n", stream_config->media.assigned_port);
+
   stream_config->connected = 1;
   
 #ifdef _WIN32
@@ -210,6 +216,7 @@ fail:
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config) {
 
 	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
+	char response[MAX_INGEST_COMMAND_LEN];
 
 	if (stream_config->connected) {
 		stream_config->connected = 0;
@@ -219,7 +226,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 			response_code = FTL_INTERNAL_ERROR;
 		}
 
-		if ((response_code = _ftl_send_command(stream_config, TRUE, "DISCONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
+		if ((response_code = _ftl_send_command(stream_config, TRUE, response, sizeof(response), "DISCONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d\n", response_code);
 			response_code = response_code;
 		}
@@ -232,7 +239,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 	return FTL_SUCCESS;
 }
 
-static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, const char *cmd_fmt, ...){
+static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...){
   int resp_code = FTL_INGEST_RESP_OK;
   va_list valist;
   double sum = 0.0;
@@ -241,14 +248,15 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
   int buflen = MAX_INGEST_COMMAND_LEN * sizeof(char);
   char *format = NULL;
 
+
   if( (buf = (char*)malloc(buflen)) == NULL){
     resp_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
-	goto fail;
+	goto cleanup;
   }
 
   if( (format = (char*)malloc(strlen(cmd_fmt) + 5)) == NULL){
     resp_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
-	goto fail;
+	goto cleanup;
   }
 
   sprintf(format, "%s\r\n\r\n", cmd_fmt);
@@ -263,26 +271,24 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
 
   if ( len < 0 || len >= buflen){
     resp_code = FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR; 
-    goto fail;
+    goto cleanup;
   }
 
   send(ftl_cfg->ingest_socket, buf, len, 0);
 
   if (need_response) {
-    memset(buf, 0, buflen);
-    len = recv_all(ftl_cfg->ingest_socket, buf, buflen, '\n');
+    memset(response_buf, 0, response_len);
+    len = recv_all(ftl_cfg->ingest_socket, response_buf, response_len, '\n');
 
     if (len < 0) {
       FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response of %d\n", len);
       return FTL_INTERNAL_ERROR;
     }
 
-    resp_code = ftl_read_response_code(buf);
+    resp_code = ftl_read_response_code(response_buf);
   }
-
-  return resp_code;
-
-fail:
+  
+cleanup:
   if(buf != NULL){
     free(buf);
   }

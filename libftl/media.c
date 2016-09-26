@@ -8,6 +8,7 @@ static DWORD WINAPI recv_thread(LPVOID data);
 static void *recv_thread(void *data);
 #endif
 static int _nack_init(ftl_media_component_common_t *media);
+static int _nack_destroy(ftl_media_component_common_t *media);
 static ftl_media_component_common_t *_media_lookup(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt);
 static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len);
@@ -223,7 +224,7 @@ static int _nack_init(ftl_media_component_common_t *media) {
 	return FTL_SUCCESS;
 }
 
-int _nack_destroy(ftl_media_component_common_t *media) {
+static int _nack_destroy(ftl_media_component_common_t *media) {
 
 	for (int i = 0; i < NACK_RB_SIZE; i++) {
 		if (media->nack_slots[i] != NULL) {

@@ -60,6 +60,16 @@ ftl_response_code_t ftl_read_response_code(const char * response_str) {
    return FTL_INGEST_RESP_UNKNOWN;
  }
 
+int ftl_read_media_port(const char *response_str) {
+	int port = -1;
+
+	if ((sscanf(response_str, "%*[^.]. Use UDP port %d\n", &port)) != 1) {
+		return -1;
+	}
+
+	return port;
+}
+
 unsigned char decode_hex_char(char c) {
     if (c >= '0' && c <= '9') {
         return c - '0';
@@ -96,6 +106,8 @@ int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
         buflen -= n;
         bytes_recd += n;
     } while(buf[-1] != line_terminator);
+
+	buf[bytes_recd] = '\0';
 
     return bytes_recd;
 }

@@ -61,6 +61,7 @@
 #define NACK_RB_SIZE 10240
 #define NACK_RTT_AVG_SECONDS 5
 #define MAX_STATUS_MESSAGE_QUEUED 10
+#define MAX_FRAME_SIZE_ELEMENTS 3
 
 #ifndef _WIN32
 typdef SOCKET int
@@ -92,6 +93,7 @@ typedef struct {
 	uint8_t packet[MAX_PACKET_BUFFER];
 	int len;
 	struct timeval insert_time;
+	struct timeval xmit_time;
 	int sn;
 #ifdef _WIN32
 	HANDLE mutex;
@@ -99,6 +101,13 @@ typedef struct {
 	pthread_mutex_t mutex;
 #endif
 }nack_slot_t;
+
+typedef struct _frame_size {
+	int frame_number;
+	int first_sn;
+	int total_packets;
+	int total_bytes;
+}frame_size_t;
 
 typedef struct {
 	uint8_t payload_type;
@@ -110,8 +119,18 @@ typedef struct {
 	int64_t max_nack_rtt;
 	int64_t nack_rtt_avg;
 	BOOL nack_slots_initalized;
+	int producer;
+	int consumer;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
 	struct timeval stats;
+	frame_size_t frames[MAX_FRAME_SIZE_ELEMENTS];
+#ifdef _WIN32
+	HANDLE send_frame_sem;
+#else
+	 send_frame_sem;
+#endif
+	int frame_read_idx;
+	int frame_write_idx;
 }ftl_media_component_common_t;
 
 typedef struct {
@@ -123,6 +142,8 @@ typedef struct {
   ftl_video_codec_t codec;
   uint32_t height;
   uint32_t width;
+  int frame_rate_num;
+  int frame_rate_den;
   float frame_rate;
   uint8_t fua_nalu_type;
   ftl_media_component_common_t media_component;
@@ -133,11 +154,15 @@ typedef struct {
 	SOCKET media_socket;
 	int assigned_port;
 	BOOL recv_thread_running;
+	BOOL send_thread_running;
 #ifdef _WIN32
 	HANDLE recv_thread_handle;
 	DWORD recv_thread_id;
+	HANDLE send_thread_handle;
+	DWORD send_thread_id;
 #else
-	pthread_t recv_thread;
+	pthread_t send_thread;
+	pthread_t send_thread;
 #endif
 	int max_mtu;
 } ftl_media_config_t;

@@ -4,8 +4,10 @@
 
 #ifdef _WIN32
 static DWORD WINAPI recv_thread(LPVOID data);
+static DWORD WINAPI send_thread(LPVOID data);
 #else
 static void *recv_thread(void *data);
+static void *send_thread(void *data);
 #endif
 static int _nack_init(ftl_media_component_common_t *media);
 static int _nack_destroy(ftl_media_component_common_t *media);
@@ -15,12 +17,18 @@ static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl,
 static int _media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in);
 static int _media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int len);
 uint8_t* _media_get_empty_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int *buf_len);
+static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot);
+static int _media_queue_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int len);
+static int _lock_slot(nack_slot_t *slot);
+static int _unlock_slot(nack_slot_t *slot);
+void init_frame(frame_size_t *frame);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	ftl_media_config_t *media = &ftl->media;
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
+	int i, idx;
 
 	//Create a socket
 	if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
@@ -39,42 +47,71 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	memcpy((char *)&media->server_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
 	media->server_addr.sin_port = htons(media->assigned_port);
 
+	media->max_mtu = MAX_MTU;
+
+	ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
+	ftl_media_component_common_t *comp;
+
+	for (idx = 0; idx < sizeof(media_comp) / sizeof(media_comp[0]); idx++) {
+
+		comp = media_comp[idx];
+
+		comp->nack_slots_initalized = FALSE;
+
+		if ((status = _nack_init(comp)) != FTL_SUCCESS) {
+			return status;
+		}
+
+		comp->timestamp = 0; //TODO: should start at a random value
+		gettimeofday(&comp->stats, NULL);
+		comp->frame_read_idx = 0;
+		comp->frame_write_idx = 0;
+		comp->producer = 0;
+		comp->consumer = 0;
+
+		for (i = 0; i < MAX_FRAME_SIZE_ELEMENTS; i++) {
+			init_frame(&comp->frames[i]);
+		}
+
+#ifdef _WIN32
+		if ((comp->send_frame_sem = CreateSemaphore(NULL, 0, MAX_FRAME_SIZE_ELEMENTS, NULL)) == NULL) {
+#else
+		comp->send_frame_sem
+#endif
+			FTL_LOG(FTL_LOG_ERROR, "Failed to allocate create status queue semaphore\n");
+			return FTL_MALLOC_FAILURE;
+		}
+	}
+
+	ftl->video.media_component.timestamp_step = (uint32_t)(90000.f / ftl->video.frame_rate);
+	ftl->audio.media_component.timestamp_step = 48000 / 50; //TODO: dont assume the step size for audio
+
 	media->recv_thread_running = TRUE;
 #ifdef _WIN32
-	if( (media->recv_thread_handle = CreateThread(NULL,	0, recv_thread, ftl, 0, &media->recv_thread_id)) == NULL){
+	if ((media->recv_thread_handle = CreateThread(NULL, 0, recv_thread, ftl, 0, &media->recv_thread_id)) == NULL) {
 #else
 	if ((pthread_create(&media->recv_thread, NULL, recv_thread, ftl)) != 0) {
 #endif
 		return FTL_MALLOC_FAILURE;
 	}
 
-	media->max_mtu = MAX_MTU;
-
-	ftl_media_component_common_t *video_comp = &ftl->video.media_component;
-
-	video_comp->nack_slots_initalized = FALSE;
-
-	if( (status = _nack_init(video_comp)) != FTL_SUCCESS) {
-		return status;
+	media->send_thread_running = TRUE;
+#ifdef _WIN32
+	if ((media->send_thread_handle = CreateThread(NULL, 0, send_thread, ftl, 0, &media->send_thread_id)) == NULL) {
+#else
+	if ((pthread_create(&media->send_thread, NULL, send_thread, ftl)) != 0) {
+#endif
+		return FTL_MALLOC_FAILURE;
 	}
-
-	video_comp->timestamp = 0; //TODO: should start at a random value
-	video_comp->timestamp_step = (uint32_t)(90000.f / ftl->video.frame_rate); //TODO: FIX THIS, wont work if 90K/x isnt evenly divisible, need to handle rounding error
-	gettimeofday(&video_comp->stats, NULL);
-
-	ftl_media_component_common_t *audio_comp = &ftl->audio.media_component;
-	audio_comp->nack_slots_initalized = FALSE;
-
-	if ((status = _nack_init(audio_comp)) != FTL_SUCCESS) {
-		return status;
-	}
-
-	audio_comp->timestamp = 0;
-	audio_comp->timestamp_step = 48000 / 50; //TODO: dont assume the step size for audio
-
-	gettimeofday(&audio_comp->stats, NULL);
 
 	return status;
+}
+
+void init_frame(frame_size_t *frame) {
+	frame->first_sn = -1;
+	frame->frame_number = 0;
+	frame->total_bytes = 0;
+	frame->total_packets = 0;
 }
 
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
@@ -86,9 +123,20 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 
 	media->recv_thread_running = FALSE;
 #ifdef _WIN32
-	WaitForSingleObject(media->recv_thread_id, INFINITE);
+	WaitForSingleObject(media->recv_thread_handle, INFINITE);
+	CloseHandle(media->recv_thread_handle);
 #else
 	pthread_join(media->recv_thread, NULL);
+#endif
+
+	media->send_thread_running = FALSE;
+#ifdef _WIN32
+	ReleaseSemaphore(ftl->audio.media_component.send_frame_sem, 1, NULL);
+	WaitForSingleObject(media->send_thread_handle, INFINITE);
+	CloseHandle(media->send_thread_handle);
+	CloseHandle(ftl->audio.media_component.send_frame_sem);
+#else
+	pthread_join(media->send_thread, NULL);
 #endif
 
 	media->max_mtu = 0;
@@ -108,6 +156,25 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	audio_comp->timestamp_step = 0;
 	
 	return status;
+}
+
+static int _lock_slot(nack_slot_t *slot) {
+#ifdef _WIN32
+	WaitForSingleObject(slot->mutex, INFINITE);
+#else
+	pthread_mutex_lock(&slot->mutex);
+#endif
+	return 0;
+}
+
+static int _unlock_slot(nack_slot_t *slot) {
+#ifdef _WIN32
+	ReleaseMutex(slot->mutex);
+#else
+	pthread_mutex_unlock(&slot->mutex);
+#endif
+
+	return 0;
 }
 
 ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len) {
@@ -151,6 +218,12 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 
 	nalu_type = data[0] & 0x1F;
 
+	frame_size_t *frame = &mc->frames[mc->frame_write_idx];
+
+	if (frame->first_sn < 0) {
+		frame->first_sn = mc->seq_num;
+	}
+
 	while (remaining > 0) {
 		uint16_t sn = mc->seq_num;
 		uint32_t ssrc = mc->ssrc;
@@ -164,12 +237,15 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 		consumed += payload_size;
 		data += payload_size;
 
+		frame->total_bytes += pkt_len;
+		frame->total_packets++;
+
 		/*if all data has been consumed set marker bit*/
 		if (remaining <= 0 && end_of_frame) { 
 			_media_set_marker_bit(mc, pkt_buf);
 		}
 
-		_media_send_packet(ftl, ssrc, sn, pkt_len);
+		_media_queue_packet(ftl, ssrc, sn, pkt_len);
 	}
 
 	struct timeval now, delta;
@@ -189,6 +265,17 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 		status.type = FTL_STATUS_VIDEO;
 
 		enqueue_status_msg(ftl, &status);
+	}
+
+	if (end_of_frame) {
+		mc->frame_write_idx = (mc->frame_write_idx + 1) % MAX_FRAME_SIZE_ELEMENTS;
+		init_frame(&mc->frames[mc->frame_write_idx]);
+		mc->frames[mc->frame_write_idx].frame_number = frame->frame_number + 1;
+#ifdef _WIN32
+		ReleaseSemaphore(mc->send_frame_sem, 1, NULL);
+#else
+		//TODO: do non-windows
+#endif
 	}
 
 	return FTL_SUCCESS;
@@ -244,7 +331,6 @@ static int _nack_destroy(ftl_media_component_common_t *media) {
 static ftl_media_component_common_t *_media_lookup(ftl_stream_configuration_private_t *ftl, uint32_t ssrc) {
 	ftl_media_component_common_t *mc = NULL;
 
-
 	/*check audio*/
 	mc = &ftl->audio.media_component;
 	if (mc->ssrc == ssrc) {
@@ -268,14 +354,16 @@ static uint8_t* _media_get_empty_packet(ftl_stream_configuration_private_t *ftl,
 		return NULL;
 	}
 
-	/*map sequence number to slot*/
-	nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
+	if ( ((mc->producer + 1) % NACK_RB_SIZE) == mc->consumer) {
+		FTL_LOG(FTL_LOG_ERROR, "[%d] ring buffer is full\n", ssrc);
+		return NULL;
+	}
 
-#ifdef _WIN32
-	WaitForSingleObject(slot->mutex, INFINITE);
-#else
-	pthread_mutex_lock(&slot->mutex);
-#endif
+	/*map sequence number to slot*/
+
+    nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
+
+	_lock_slot(slot);
 
 	*buf_len = sizeof(slot->packet);
 	return slot->packet;
@@ -297,18 +385,59 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t 
 	slot->sn = sn;
 	gettimeofday(&slot->insert_time, NULL);
 
-	if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
-	{
-		FTL_LOG(FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
-	}
+	tx_len = _media_send_slot(ftl, slot);
 
-#ifdef _WIN32
-	ReleaseMutex(slot->mutex);
-#else
-	pthread_mutex_unlock(&slot->mutex);
-#endif
+	_unlock_slot(slot);
 
 	return tx_len;
+}
+
+static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
+
+	int tx_len;
+
+	gettimeofday(&slot->xmit_time, NULL);
+	
+	if (!(slot->sn % 5000 == 0)) {
+		if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
+		{
+			FTL_LOG(FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
+		}
+	}
+	else {
+		tx_len = slot->len;
+		FTL_LOG(FTL_LOG_INFO, "Dropping SN %d\n", slot->sn);
+	}
+
+	return tx_len;
+}
+
+static int _media_queue_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int len) {
+	ftl_media_component_common_t *mc;
+
+	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
+		FTL_LOG(FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
+		return -1;
+	}
+
+	/*map sequence number to slot*/
+	nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
+
+	slot->len = len;
+	slot->sn = sn;
+	gettimeofday(&slot->insert_time, NULL);
+
+	//sanity check
+	if (mc->producer != (sn % NACK_RB_SIZE)) {
+		FTL_LOG(FTL_LOG_ERROR, "RB producer index is %d, expected %d\n", mc->producer, sn % NACK_RB_SIZE);
+	}
+
+	//incrementer index to mark previous as ready to send
+	mc->producer = (mc->producer + 1) % NACK_RB_SIZE;
+
+	_unlock_slot(slot);
+
+	return 0;
 }
 
 //TODO: i dont like how mutexes are being handled here...rethink this
@@ -323,20 +452,11 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 
 	/*map sequence number to slot*/
 	nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
-
-#ifdef _WIN32
-	WaitForSingleObject(slot->mutex, INFINITE);
-#else
-	pthread_mutex_lock(&slot->mutex);
-#endif
+	_lock_slot(slot);
 
 	if (slot->sn != sn) {
 		FTL_LOG(FTL_LOG_WARN, "[%d] expected sn %d in slot but found %d...discarding retransmit request\n", ssrc, sn, slot->sn);
-#ifdef _WIN32
-		ReleaseMutex(slot->mutex);
-#else
-		pthread_mutex_unlock(&slot->mutex);
-#endif
+		_unlock_slot(slot);
 		return 0;
 	}
 
@@ -346,8 +466,10 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	timeval_subtract(&delta, &now, &slot->insert_time);
 	req_delay = timeval_to_ms(&delta);
 
-	tx_len = _media_send_packet(ftl, ssrc, sn, slot->len);
+	tx_len = _media_send_slot(ftl, slot);
 	FTL_LOG(FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
+
+	_unlock_slot(slot);
 
 	return tx_len;
 }
@@ -463,7 +585,7 @@ static void *recv_thread(void *data)
 
 	if ((buf = (unsigned char*)malloc(MAX_PACKET_BUFFER)) == NULL) {
 		FTL_LOG(FTL_LOG_ERROR, "Failed to allocate recv buffer\n");
-		return NULL;
+		return -1;
 	}
 
 #if 0
@@ -534,6 +656,107 @@ static void *recv_thread(void *data)
 	free(buf);
 
 	FTL_LOG(FTL_LOG_INFO, "Exited Recv Thread\n");
+
+	return 0;
+}
+
+/*handles rtcp packets from ingest including lost packet retransmission requests (nack)*/
+#ifdef _WIN32
+static DWORD WINAPI send_thread(LPVOID data)
+#else
+static void *send_thread(void *data)
+#endif
+{
+	#define SLEEP_DURATION 5
+
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
+	ftl_media_config_t *media = &ftl->media;
+	ftl_media_component_common_t *video = &ftl->video.media_component;
+	int ret;
+	nack_slot_t *slot;
+	frame_size_t *frame;
+	int pkt_counter;
+	int sn;
+	int actual_sleep;
+	int sleep_duration;
+
+	int ms_per_frame = (int)(1000.0 / ftl->video.frame_rate);
+	int transmit_level;
+	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
+	struct timeval start_tv, stop_tv, delta_tv;
+	struct timeval total_start_tv, total_stop_tv, total_delta_tv;
+
+#ifdef _WIN32
+	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
+		FTL_LOG(FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
+	}
+#endif
+
+	while (media->send_thread_running) {
+
+#ifdef _WIN32
+		WaitForSingleObject(video->send_frame_sem, INFINITE);
+#else
+		sem_pend
+#endif
+		gettimeofday(&total_start_tv, NULL);
+
+		frame = &video->frames[video->frame_read_idx];
+		pkt_counter = 0;
+		int bytes_to_send_per_ms = frame->total_bytes / ms_per_frame;
+
+		sleep_duration = 0;
+
+		/*start with 5ms of transmit level*/
+		transmit_level = bytes_to_send_per_ms * SLEEP_DURATION;
+		gettimeofday(&proc_start_tv, NULL);
+
+		for (pkt_counter = 0; pkt_counter < frame->total_packets; ) {
+
+			if (transmit_level > 0) {
+				sn = frame->first_sn + pkt_counter;
+				slot = video->nack_slots[sn % NACK_RB_SIZE];
+				_lock_slot(slot);
+				transmit_level -= _media_send_slot(ftl, slot);
+				_unlock_slot(slot);
+				video->consumer = (video->consumer + 1) % NACK_RB_SIZE;
+				pkt_counter++;
+			}
+			else {
+				gettimeofday(&proc_end_tv, NULL);
+				timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
+
+				sleep_duration += SLEEP_DURATION;
+				sleep_duration -= timeval_to_ms(&proc_delta_tv);
+
+				if (sleep_duration > 0) {
+					gettimeofday(&start_tv, NULL);
+					Sleep((DWORD)sleep_duration);
+					gettimeofday(&stop_tv, NULL);
+					timeval_subtract(&delta_tv, &stop_tv, &start_tv);
+					actual_sleep = timeval_to_ms(&delta_tv);
+				}
+				else {
+					actual_sleep = 0;
+				}
+
+				sleep_duration -= actual_sleep;
+
+				transmit_level += actual_sleep * bytes_to_send_per_ms;
+
+				gettimeofday(&proc_start_tv, NULL);
+			}
+		}
+
+		video->frame_read_idx = (video->frame_read_idx + 1) % MAX_FRAME_SIZE_ELEMENTS;
+
+		gettimeofday(&total_stop_tv, NULL);
+		timeval_subtract(&total_delta_tv, &total_stop_tv, &total_start_tv);
+
+		//FTL_LOG(FTL_LOG_WARN, "frame %d took %2.3f ms to transmit (size %d with %d packets)\n", frame->frame_number, timeval_to_ms(&total_delta_tv), frame->total_bytes, frame->total_packets);
+	}
+
+	FTL_LOG(FTL_LOG_INFO, "Exited Send Thread\n");
 
 	return 0;
 }

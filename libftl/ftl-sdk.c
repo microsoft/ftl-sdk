@@ -29,6 +29,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   ftl_cfg->connected = 0;
   ftl_cfg->ready_for_media = 0;
+  ftl_cfg->video_kbps = params->video_kbps;
 
   ftl_cfg->key = NULL;
   if( (ftl_cfg->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){

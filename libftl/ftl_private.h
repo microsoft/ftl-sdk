@@ -62,7 +62,7 @@
 #define NACK_RTT_AVG_SECONDS 5
 #define MAX_STATUS_MESSAGE_QUEUED 10
 #define MAX_FRAME_SIZE_ELEMENTS 64 //must be a minimum of 3
-#define MAX_XMIT_LEVEL_IN_MS 50 //allows a maximum burst size of 100ms at the target bitrate
+#define MAX_XMIT_LEVEL_IN_MS 100 //allows a maximum burst size of 100ms at the target bitrate
 
 #ifndef _WIN32
 typdef SOCKET int
@@ -127,11 +127,6 @@ typedef struct {
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
 	struct timeval stats;
 	frame_size_t frames[MAX_FRAME_SIZE_ELEMENTS];
-#ifdef _WIN32
-	HANDLE send_frame_sem;
-#else
-	 send_frame_sem;
-#endif
 	int frame_read_idx;
 	int frame_write_idx;
 }ftl_media_component_common_t;
@@ -178,7 +173,7 @@ typedef struct {
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];
-  int target_bitrate_kbps;
+  int video_kbps;
 #ifdef _WIN32
   HANDLE connection_thread_handle;
   DWORD connection_thread_id;

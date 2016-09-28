@@ -153,6 +153,7 @@ typedef struct {
    char *ingest_hostname;
    char *stream_key;
    ftl_video_codec_t video_codec;
+   int video_kbps; //used for the leaky bucket to smooth out packet flow rate, set to 0 to bypass
    float video_frame_rate; //TODO: add runtime detection mode of frame rate to simplify sdk
    ftl_audio_codec_t audio_codec;
    void *status_callback;

@@ -58,10 +58,10 @@
 #define FTL_UDP_MEDIA_PORT 8082   //The port on which to listen for incoming data
 #define RTP_HEADER_BASE_LEN 12
 #define RTP_FUA_HEADER_LEN 2
-#define NACK_RB_SIZE 10240
+#define NACK_RB_SIZE (65536/8) //must be evenly divisible by 2^16
 #define NACK_RTT_AVG_SECONDS 5
 #define MAX_STATUS_MESSAGE_QUEUED 10
-#define MAX_FRAME_SIZE_ELEMENTS 3
+#define MAX_FRAME_SIZE_ELEMENTS 64 //must be a minimum of 3
 
 #ifndef _WIN32
 typdef SOCKET int
@@ -107,6 +107,7 @@ typedef struct _frame_size {
 	int first_sn;
 	int total_packets;
 	int total_bytes;
+	struct timeval tv;
 }frame_size_t;
 
 typedef struct {

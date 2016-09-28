@@ -17,7 +17,7 @@ static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl,
 static int _media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in);
 static int _media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int len);
 uint8_t* _media_get_empty_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int *buf_len);
-static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot);
+static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot, BOOL is_retx);
 static int _media_queue_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn, int len);
 static int _lock_slot(nack_slot_t *slot);
 static int _unlock_slot(nack_slot_t *slot);
@@ -74,7 +74,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		}
 
 #ifdef _WIN32
-		if ((comp->send_frame_sem = CreateSemaphore(NULL, 0, MAX_FRAME_SIZE_ELEMENTS, NULL)) == NULL) {
+		if ((comp->send_frame_sem = CreateSemaphore(NULL, 0, MAX_FRAME_SIZE_ELEMENTS - 1, NULL)) == NULL) {
 #else
 		comp->send_frame_sem
 #endif
@@ -131,10 +131,10 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 
 	media->send_thread_running = FALSE;
 #ifdef _WIN32
-	ReleaseSemaphore(ftl->audio.media_component.send_frame_sem, 1, NULL);
+	ReleaseSemaphore(ftl->video.media_component.send_frame_sem, 1, NULL);
 	WaitForSingleObject(media->send_thread_handle, INFINITE);
 	CloseHandle(media->send_thread_handle);
-	CloseHandle(ftl->audio.media_component.send_frame_sem);
+	CloseHandle(ftl->video.media_component.send_frame_sem);
 #else
 	pthread_join(media->send_thread, NULL);
 #endif
@@ -191,6 +191,7 @@ ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *
 		uint16_t sn = mc->seq_num;
 		uint32_t ssrc = mc->ssrc;
 		uint8_t *pkt_buf;
+
 		pkt_buf = _media_get_empty_packet(ftl, ssrc, sn, &pkt_len);
 
 		payload_size = _media_make_audio_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len);
@@ -222,6 +223,7 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 
 	if (frame->first_sn < 0) {
 		frame->first_sn = mc->seq_num;
+		gettimeofday(&frame->tv, NULL);
 	}
 
 	while (remaining > 0) {
@@ -269,8 +271,27 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 
 	if (end_of_frame) {
 		mc->frame_write_idx = (mc->frame_write_idx + 1) % MAX_FRAME_SIZE_ELEMENTS;
+		if (mc->frame_write_idx == mc->frame_read_idx) {
+			FTL_LOG(FTL_LOG_ERROR, "Uh Oh, caught up to reader\n");
+		}
+
+		int frames_queued;
+
+		if (mc->frame_write_idx > mc->frame_read_idx) {
+			frames_queued = mc->frame_write_idx - mc->frame_read_idx;
+		}
+		else {
+			frames_queued = MAX_FRAME_SIZE_ELEMENTS - mc->frame_read_idx + mc->frame_write_idx;
+		}
+
+		if (frames_queued > (MAX_FRAME_SIZE_ELEMENTS / 2 + 1)) {
+			FTL_LOG(FTL_LOG_ERROR, "Uh Oh, already %d frames queued (r: %d, w: %d)\n", frames_queued, mc->frame_read_idx, mc->frame_write_idx);
+		}
+		
+
 		init_frame(&mc->frames[mc->frame_write_idx]);
 		mc->frames[mc->frame_write_idx].frame_number = frame->frame_number + 1;
+
 #ifdef _WIN32
 		ReleaseSemaphore(mc->send_frame_sem, 1, NULL);
 #else
@@ -354,11 +375,11 @@ static uint8_t* _media_get_empty_packet(ftl_stream_configuration_private_t *ftl,
 		return NULL;
 	}
 
-	if ( ((mc->producer + 1) % NACK_RB_SIZE) == mc->consumer) {
-		FTL_LOG(FTL_LOG_ERROR, "[%d] ring buffer is full\n", ssrc);
-		return NULL;
+	while (((mc->producer + 1) % NACK_RB_SIZE) == mc->consumer) {
+		FTL_LOG(FTL_LOG_ERROR, "[%d] ring buffer is full...trying again\n", ssrc);
+		Sleep(5);
 	}
-
+			
 	/*map sequence number to slot*/
 
     nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
@@ -385,20 +406,20 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, uint32_t 
 	slot->sn = sn;
 	gettimeofday(&slot->insert_time, NULL);
 
-	tx_len = _media_send_slot(ftl, slot);
+	tx_len = _media_send_slot(ftl, slot, FALSE);
 
 	_unlock_slot(slot);
 
 	return tx_len;
 }
 
-static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
+static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot, BOOL is_retx) {
 
 	int tx_len;
 
 	gettimeofday(&slot->xmit_time, NULL);
 	
-	if (!(slot->sn % 5000 == 0)) {
+	if (!(slot->sn % 15000 == 0) || is_retx) {
 		if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
 		{
 			FTL_LOG(FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
@@ -464,9 +485,9 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	struct timeval delta, now;
 	gettimeofday(&now, NULL);
 	timeval_subtract(&delta, &now, &slot->insert_time);
-	req_delay = timeval_to_ms(&delta);
+	req_delay = (int)timeval_to_ms(&delta);
 
-	tx_len = _media_send_slot(ftl, slot);
+	tx_len = _media_send_slot(ftl, slot, TRUE);
 	FTL_LOG(FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
 
 	_unlock_slot(slot);
@@ -678,7 +699,7 @@ static void *send_thread(void *data)
 	int pkt_counter;
 	int sn;
 	int actual_sleep;
-	int sleep_duration;
+	int amount_to_sleep, processing_time;
 
 	int ms_per_frame = (int)(1000.0 / ftl->video.frame_rate);
 	int transmit_level;
@@ -692,20 +713,30 @@ static void *send_thread(void *data)
 	}
 #endif
 
-	while (media->send_thread_running) {
+	while (1) {
 
 #ifdef _WIN32
 		WaitForSingleObject(video->send_frame_sem, INFINITE);
 #else
 		sem_pend
 #endif
+		if (!media->send_thread_running) {
+			break;
+		}
+
 		gettimeofday(&total_start_tv, NULL);
 
 		frame = &video->frames[video->frame_read_idx];
+
+		timeval_subtract(&delta_tv, &total_start_tv, &frame->tv);
+		if (timeval_to_ms(&delta_tv) > ms_per_frame) {
+			FTL_LOG(FTL_LOG_WARN, "frame %d took %2.3f ms before being processed by send thread\n", frame->frame_number, timeval_to_ms(&total_delta_tv), frame->total_bytes, frame->total_packets);
+		}
+
 		pkt_counter = 0;
 		int bytes_to_send_per_ms = frame->total_bytes / ms_per_frame;
 
-		sleep_duration = 0;
+		amount_to_sleep = 0;
 
 		/*start with 5ms of transmit level*/
 		transmit_level = bytes_to_send_per_ms * SLEEP_DURATION;
@@ -717,7 +748,7 @@ static void *send_thread(void *data)
 				sn = frame->first_sn + pkt_counter;
 				slot = video->nack_slots[sn % NACK_RB_SIZE];
 				_lock_slot(slot);
-				transmit_level -= _media_send_slot(ftl, slot);
+				transmit_level -= _media_send_slot(ftl, slot, FALSE);
 				_unlock_slot(slot);
 				video->consumer = (video->consumer + 1) % NACK_RB_SIZE;
 				pkt_counter++;
@@ -725,24 +756,25 @@ static void *send_thread(void *data)
 			else {
 				gettimeofday(&proc_end_tv, NULL);
 				timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
+				processing_time = (int)timeval_to_ms(&proc_delta_tv);
 
-				sleep_duration += SLEEP_DURATION;
-				sleep_duration -= timeval_to_ms(&proc_delta_tv);
+				amount_to_sleep += SLEEP_DURATION;
+				amount_to_sleep -= processing_time;
 
-				if (sleep_duration > 0) {
+				if (amount_to_sleep > 0) {
 					gettimeofday(&start_tv, NULL);
-					Sleep((DWORD)sleep_duration);
+					Sleep((DWORD)amount_to_sleep);
 					gettimeofday(&stop_tv, NULL);
 					timeval_subtract(&delta_tv, &stop_tv, &start_tv);
-					actual_sleep = timeval_to_ms(&delta_tv);
+					actual_sleep = (int)timeval_to_ms(&delta_tv);
 				}
 				else {
 					actual_sleep = 0;
 				}
 
-				sleep_duration -= actual_sleep;
+				amount_to_sleep -= actual_sleep;
 
-				transmit_level += actual_sleep * bytes_to_send_per_ms;
+				transmit_level += SLEEP_DURATION * bytes_to_send_per_ms;
 
 				gettimeofday(&proc_start_tv, NULL);
 			}
@@ -752,8 +784,10 @@ static void *send_thread(void *data)
 
 		gettimeofday(&total_stop_tv, NULL);
 		timeval_subtract(&total_delta_tv, &total_stop_tv, &total_start_tv);
+		if (timeval_to_ms(&total_delta_tv) > ms_per_frame) {
+			FTL_LOG(FTL_LOG_WARN, "frame %d took %2.3f ms to transmit (size %d with %d packets)\n", frame->frame_number, timeval_to_ms(&total_delta_tv), frame->total_bytes, frame->total_packets);
+		}
 
-		//FTL_LOG(FTL_LOG_WARN, "frame %d took %2.3f ms to transmit (size %d with %d packets)\n", frame->frame_number, timeval_to_ms(&total_delta_tv), frame->total_bytes, frame->total_packets);
 	}
 
 	FTL_LOG(FTL_LOG_INFO, "Exited Send Thread\n");

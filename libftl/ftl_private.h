@@ -106,6 +106,16 @@ typedef struct {
 }nack_slot_t;
 
 typedef struct {
+	int frames_received;
+	int frames_sent;
+	int bytes_sent;
+	int packets_sent;
+	int late_packets;
+	int lost_packets;
+	int nack_requests;
+}media_stats_t;
+
+typedef struct {
 	uint8_t payload_type;
 	uint32_t ssrc;
 	uint32_t timestamp;
@@ -119,12 +129,13 @@ typedef struct {
 	int consumer;
 	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
-	struct timeval stats;
 #ifdef _WIN32
-	HANDLE send_frame_sem;
+	HANDLE pkt_ready;
 #else
 	send_frame_sem;
 #endif
+	struct timeval stats_tv;
+	media_stats_t stats;
 }ftl_media_component_common_t;
 
 typedef struct {
@@ -146,6 +157,11 @@ typedef struct {
 typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
+#ifdef _WIN32
+	HANDLE mutex;
+#else
+	pthread_mutex_t mutex;
+#endif
 	int assigned_port;
 	BOOL recv_thread_running;
 	BOOL send_thread_running;

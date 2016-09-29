@@ -96,20 +96,14 @@ typedef struct {
 	struct timeval insert_time;
 	struct timeval xmit_time;
 	int sn;
+	int first;/*first packet in frame*/
+	int last; /*last packet in frame*/
 #ifdef _WIN32
 	HANDLE mutex;
 #else
 	pthread_mutex_t mutex;
 #endif
 }nack_slot_t;
-
-typedef struct _frame_size {
-	int frame_number;
-	int first_sn;
-	int total_packets;
-	int total_bytes;
-	struct timeval tv;
-}frame_size_t;
 
 typedef struct {
 	uint8_t payload_type;
@@ -126,9 +120,11 @@ typedef struct {
 	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
 	struct timeval stats;
-	frame_size_t frames[MAX_FRAME_SIZE_ELEMENTS];
-	int frame_read_idx;
-	int frame_write_idx;
+#ifdef _WIN32
+	HANDLE send_frame_sem;
+#else
+	send_frame_sem;
+#endif
 }ftl_media_component_common_t;
 
 typedef struct {

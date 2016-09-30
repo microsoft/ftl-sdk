@@ -166,6 +166,8 @@ if (verbose) {
 	params.ingest_hostname = ingest_location;
 	params.status_callback = NULL;
 	params.video_frame_rate = (float)input_framerate;
+	params.video_kbps = 10000;
+
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 	struct timeval profile_start, profile_stop, profile_delta;
 #ifdef _WIN32
@@ -281,6 +283,9 @@ if (verbose) {
 		return -1;
 	}
 
+	WaitForSingleObject(status_thread_handle, INFINITE);
+	CloseHandle(status_thread_handle);
+
    if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS) {
 	   printf("Failed to disconnect from ingest %d\n", status_code);
 	   return -1;
@@ -304,6 +309,10 @@ if (verbose) {
 		 
 		 if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED) {
 			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);
+
+			 if (status.msg.event.reason == FTL_STATUS_EVENT_REASON_API_REQUEST) {
+				 break;
+			 }
 			 //attempt reconnection
 			 Sleep(500);
 			 printf("Reconnecting to Ingest\n");

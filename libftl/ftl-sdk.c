@@ -202,6 +202,8 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 			ftl->status_q.count--;
 		}
 
+		ftl->status_q.head = NULL;
+
 #ifdef _WIN32
 		ReleaseMutex(ftl->status_q.mutex);
 		CloseHandle(ftl->status_q.mutex);

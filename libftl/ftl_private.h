@@ -115,6 +115,8 @@ typedef struct {
 typedef struct {
 	int frames_received;
 	int frames_sent;
+	int bytes_queued;
+	int packets_queued;
 	int bytes_sent;
 	int packets_sent;
 	int late_packets;

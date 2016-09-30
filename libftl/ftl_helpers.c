@@ -24,6 +24,7 @@
 
  #define __FTL_INTERNAL
  #include "ftl.h"
+#include "ftl_private.h"
  #include "hmac/hmac.h"
 
 /*

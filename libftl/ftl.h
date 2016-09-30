@@ -67,7 +67,9 @@ typedef enum {
   FTL_NOT_CONNECTED,
   FTL_ALREADY_CONNECTED,
   FTL_UNKNOWN_ERROR_CODE,
-  FTL_STATUS_TIMEOUT
+  FTL_STATUS_TIMEOUT,
+  FTL_STATUS_MEDIA_QUEUE_FULL,
+  FTL_STATUS_WAITING_FOR_KEY_FRAME
 } ftl_status_t;
 
 typedef enum {
@@ -112,36 +114,6 @@ typedef enum {
   FTL_LOG_DEBUG
 } ftl_log_severity_t;
 
-/*! \brief Configuration information for a given stream
- *  \ingroup ftl_public
- *
- * The members of this structure are private
- */
-
-typedef struct {
-  void* private;
-} ftl_stream_configuration_t;
-
-/*! \brief Configuration information for a audio stream component
- *  \ingroup ftl_public
- *
- * The members of this structure are private
- */
-
-typedef struct {
-  void* private;
-} ftl_stream_audio_component_t;
-
-/*! \brief Configuration information for a video stream component
- *  \ingroup ftl_public
- *
- * The members of this structure are private
- */
-
-typedef struct {
-  void* private;
-} ftl_stream_video_component_t;
-
 /*! \brief Function prototype for FTL logging callback
  * \ingroup ftl_public
  */
@@ -161,7 +133,7 @@ typedef struct {
  } ftl_ingest_params_t;
 
  typedef struct {
-	 void* private;
+	 void* priv;
  } ftl_handle_t;
 
  typedef enum {
@@ -248,10 +220,5 @@ FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_t
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
-
-// Load the internal API if necessary
-#ifdef __FTL_INTERNAL
-#include "ftl_private.h"
-#endif // __FTL_INTERNAL
 
 #endif // __FTL_H

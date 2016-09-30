@@ -22,9 +22,10 @@
  * SOFTWARE.
  **/
 
- #define __FTL_INTERNAL
- #include "ftl.h"
- #include <stdarg.h>
+#define __FTL_INTERNAL
+#include "ftl.h"
+#include "ftl_private.h"
+#include <stdarg.h>
 
 #ifdef _WIN32
 DWORD WINAPI connection_status_thread(LPVOID data);

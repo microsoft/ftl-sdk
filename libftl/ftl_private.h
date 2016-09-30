@@ -64,6 +64,13 @@
 #define MAX_FRAME_SIZE_ELEMENTS 64 //must be a minimum of 3
 #define MAX_XMIT_LEVEL_IN_MS 100 //allows a maximum burst size of 100ms at the target bitrate
 
+typedef enum {
+	H264_NALU_TYPE_NON_IDR = 1,
+	H264_NALU_TYPE_IDR = 5,
+	H264_NALU_TYPE_SPS = 7,
+	H264_NALU_TYPE_PPS = 8
+}h264_nalu_type_t;
+
 #ifndef _WIN32
 typdef SOCKET int
 #endif
@@ -113,6 +120,7 @@ typedef struct {
 	int late_packets;
 	int lost_packets;
 	int nack_requests;
+	int dropped_frames;
 }media_stats_t;
 
 typedef struct {
@@ -151,6 +159,7 @@ typedef struct {
   int frame_rate_den;
   float frame_rate;
   uint8_t fua_nalu_type;
+  BOOL wait_for_idr_frame;
   ftl_media_component_common_t media_component;
 } ftl_video_component_t;
 
@@ -253,6 +262,8 @@ int ftl_read_media_port(const char *response_str);
 
 // FIXME: make this less global
 extern char error_message[1000];
+
+void ftl_register_log_handler(ftl_logging_function_t log_func);
 
 void ftl_init_sockets();
 int ftl_close_socket(SOCKET sock);

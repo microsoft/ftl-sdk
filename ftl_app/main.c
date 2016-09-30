@@ -61,9 +61,6 @@ pthread_mutex_t mutex;
 
 
 int main(int argc, char** argv) {
-   ftl_stream_configuration_t* stream_config = 0;
-   ftl_stream_video_component_t* video_component = 0;
-   ftl_stream_audio_component_t* audio_component = 0;
    ftl_status_t status_code;
 
 
@@ -74,6 +71,7 @@ int main(int argc, char** argv) {
    int input_framerate = 30;
    int c;
    int audio_pps = 50;
+   int target_bw_kbps = 5000;
 
 int success = 0;
 int verbose = 0;
@@ -89,7 +87,7 @@ else {
 	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
 }
 
-while ((c = getopt(argc, argv, "a:i:v:s:f:?")) != -1) {
+while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
 	switch (c) {
 	case 'i':
 		ingest_location = optarg;
@@ -105,6 +103,9 @@ while ((c = getopt(argc, argv, "a:i:v:s:f:?")) != -1) {
 		break;
 	case 'f':
 		sscanf(optarg, "%d", &input_framerate);
+		break;
+	case 'b':
+		sscanf(optarg, "%d", &target_bw_kbps);
 		break;
 	case '?':
 		usage();
@@ -166,7 +167,7 @@ if (verbose) {
 	params.ingest_hostname = ingest_location;
 	params.status_callback = NULL;
 	params.video_frame_rate = (float)input_framerate;
-	params.video_kbps = 10000;
+	params.video_kbps = target_bw_kbps;
 
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 	struct timeval profile_start, profile_stop, profile_delta;

@@ -67,8 +67,11 @@
 typedef enum {
 	H264_NALU_TYPE_NON_IDR = 1,
 	H264_NALU_TYPE_IDR = 5,
+	H264_NALU_TYPE_SEI = 6,
 	H264_NALU_TYPE_SPS = 7,
-	H264_NALU_TYPE_PPS = 8
+	H264_NALU_TYPE_PPS = 8,
+	H264_NALU_TYPE_DELIM = 9,
+	H264_NALU_TYPE_FILLER = 12
 }h264_nalu_type_t;
 
 #ifndef _WIN32
@@ -161,6 +164,7 @@ typedef struct {
   int frame_rate_den;
   float frame_rate;
   uint8_t fua_nalu_type;
+  int missed_marker;
   BOOL wait_for_idr_frame;
   ftl_media_component_common_t media_component;
 } ftl_video_component_t;

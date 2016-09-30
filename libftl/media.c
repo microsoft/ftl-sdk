@@ -18,6 +18,7 @@ static int _media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in);
 static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc);
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot);
 static nack_slot_t* _media_get_empty_slot(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn);
+static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 
 #ifdef _WIN32
 static int _lock_mutex(HANDLE mutex);
@@ -197,6 +198,7 @@ static int _unlock_mutex(HANDLE mutex) {
 ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len) {
 	ftl_media_component_common_t *mc = &ftl->audio.media_component;
 	uint8_t nalu_type = 0;
+	int bytes_sent = 0;
 
 	int pkt_len;
 	int payload_size;
@@ -211,7 +213,7 @@ ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *
 		uint8_t *pkt_buf;
 		
 		if ((slot = _media_get_empty_slot(ftl, ssrc, sn)) == NULL) {
-			return FTL_STATUS_MEDIA_QUEUE_FULL;
+			return 0;
 		}
 
 		pkt_buf = slot->packet;
@@ -224,24 +226,25 @@ ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *
 		remaining -= payload_size;
 		consumed += payload_size;
 		data += payload_size;
+		bytes_sent += pkt_len;
 
 		slot->len = pkt_len;
 		slot->sn = sn;
 		gettimeofday(&slot->insert_time, NULL);
 
-		//_media_send_slot(ftl, slot);
 		_media_send_packet(ftl, mc);
 
 		_unlock_mutex(slot->mutex);
 	}
 
-	return FTL_SUCCESS;
+	return bytes_sent;
 }
 
-ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame) {
+int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame) {
 	ftl_media_component_common_t *mc = &ftl->video.media_component;
 	uint8_t nalu_type = 0;
 	uint8_t nri;
+	int bytes_queued = 0;
 
 	int pkt_len;
 	int payload_size;
@@ -253,6 +256,15 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 	nalu_type = data[0] & 0x1F;
 	nri = (data[0] >> 5) & 0x3;
 
+	if ( (nalu_type == H264_NALU_TYPE_FILLER || nalu_type == H264_NALU_TYPE_SEI || nalu_type == H264_NALU_TYPE_DELIM) && !nri) {
+		if (end_of_frame) {
+			mc->stats.dropped_frames++;
+			ftl->video.missed_marker = 1;
+			mc->timestamp += mc->timestamp_step;
+		}
+		return bytes_queued;
+	}
+
 	if (ftl->video.wait_for_idr_frame) {
 		if (nalu_type == H264_NALU_TYPE_SPS) {
 			FTL_LOG(FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
@@ -263,8 +275,12 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 				mc->stats.dropped_frames++;
 				mc->timestamp += mc->timestamp_step;
 			}
-			return FTL_STATUS_WAITING_FOR_KEY_FRAME;
+			return bytes_queued;
 		}
+	}
+
+	if (nalu_type == H264_NALU_TYPE_SPS) {
+		ftl->video.missed_marker = 0;
 	}
 
 	while (remaining > 0) {
@@ -277,7 +293,7 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 				FTL_LOG(FTL_LOG_INFO, "Video queue full, dropping packets until next key frame\n");
 				ftl->video.wait_for_idr_frame = TRUE;
 			}
-			return FTL_STATUS_MEDIA_QUEUE_FULL;
+			return bytes_queued;
 		}
 
 		_lock_mutex(slot->mutex);
@@ -294,11 +310,13 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 		remaining -= payload_size;
 		consumed += payload_size;
 		data += payload_size;
+		bytes_queued += pkt_len;
 
 		/*if all data has been consumed set marker bit*/
-		if (remaining <= 0 && end_of_frame) { 
+		if (remaining <= 0 && (end_of_frame || ftl->video.missed_marker) ) {
 			_media_set_marker_bit(mc, pkt_buf);
 			slot->last = 1;
+			ftl->video.missed_marker = 0;
 		}
 
 		slot->len = pkt_len;
@@ -335,17 +353,18 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 
 		enqueue_status_msg(ftl, &status);
 
-		FTL_LOG(FTL_LOG_INFO, "Queue an average of %3.2f fps (%3.1f kbps), sent an average of %3.2f fps (%3.1f kbps)\n", 
+		FTL_LOG(FTL_LOG_INFO, "Queue an average of %3.2f fps (%3.1f kbps), sent an average of %3.2f fps (%3.1f kbps), queue fullness %3.1f\n", 
 			(float)mc->stats.frames_received * 1000.f / stats_interval, 
 			(float)mc->stats.bytes_queued / stats_interval * 8,
 			(float)mc->stats.frames_sent * 1000.f / stats_interval,
-			(float)mc->stats.bytes_sent / stats_interval * 8);
+			(float)mc->stats.bytes_sent / stats_interval * 8,
+			_media_get_queue_fullness(ftl, mc->ssrc) * 100.f);
 
 		clear_stats(&mc->stats);
 
 	}
 
-	return FTL_SUCCESS;
+	return bytes_queued;
 }
 
 static int _nack_init(ftl_media_component_common_t *media) {
@@ -438,7 +457,7 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 
 	int packets_queued;
 
-	if (mc->seq_num > mc->xmit_seq_num) {
+	if (mc->seq_num >= mc->xmit_seq_num) {
 		packets_queued = mc->seq_num - mc->xmit_seq_num;
 	}
 	else {
@@ -753,6 +772,7 @@ static void *send_thread(void *data)
 	}
 #endif
 
+	//TODO: need to decide if 10% overhead makes sense (im leaning towards no) but if this is to restrictive it will introduce delay
 	bytes_per_ms = (int)(((float)(ftl->video_kbps * 1000 / 8)) * 1.1) / 1000;
 
 	transmit_level = 5 * bytes_per_ms; /*small initial level to prevent bursting at the same of a stream*/

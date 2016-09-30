@@ -86,6 +86,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		comp->stats.late_packets = 0;
 		comp->stats.lost_packets = 0;
 		comp->stats.nack_requests = 0;
+		comp->stats.bytes_queued = 0;
 	}
 
 	ftl->video.media_component.timestamp_step = (uint32_t)(90000.f / ftl->video.frame_rate);
@@ -103,7 +104,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	comp = &ftl->video.media_component;
 
 #ifdef _WIN32
-	if ((comp->pkt_ready = CreateSemaphore(NULL, 0, 1000, NULL)) == NULL) {
+	if ((comp->pkt_ready = CreateSemaphore(NULL, 0, 1000000, NULL)) == NULL) {
 #else
 	comp->pkt_ready
 #endif
@@ -272,8 +273,8 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 
 		LONG prev_cnt;
 		ReleaseSemaphore(mc->pkt_ready, 1, &prev_cnt);
-		mc->stats.packets_sent++;
-		mc->stats.bytes_sent += prev_cnt;
+		mc->stats.packets_queued++;
+		mc->stats.bytes_queued += pkt_len;
 	}
 
 	if (end_of_frame) {
@@ -298,14 +299,16 @@ ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *
 
 		enqueue_status_msg(ftl, &status);
 
-		FTL_LOG(FTL_LOG_INFO, "Queue an average of %3.2f fps, sent an average of %3.2f fps, %3.2f frames queued\n", 
+		FTL_LOG(FTL_LOG_INFO, "Queue an average of %3.2f fps (%d kbps), sent an average of %3.2f fps (%d kbps)\n", 
 			(float)mc->stats.frames_received * 1000.f / stats_interval, 
+			mc->stats.bytes_queued / (int)stats_interval,
 			(float)mc->stats.frames_sent * 1000.f / stats_interval,
-			(float)mc->stats.bytes_sent / (float)mc->stats.packets_sent);
+			mc->stats.bytes_sent / (int)stats_interval);
+
 		mc->stats.frames_received = 0;
 		mc->stats.frames_sent = 0;
-		mc->stats.packets_sent = 0;
 		mc->stats.bytes_sent = 0;
+		mc->stats.bytes_queued = 0;
 	}
 
 	return FTL_SUCCESS;
@@ -406,7 +409,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
 	}
 
 	gettimeofday(&slot->xmit_time, NULL);
-
+	
 	return tx_len;
 }
 
@@ -707,7 +710,10 @@ static void *send_thread(void *data)
 				slot = video->nack_slots[video->xmit_seq_num % NACK_RB_SIZE];
 				_lock_mutex(slot->mutex);
 				if (slot->sn == video->xmit_seq_num) {
-					transmit_level -= _media_send_slot(ftl, slot, FALSE, TRUE);
+					int bytes_sent = _media_send_slot(ftl, slot, FALSE, TRUE);
+					transmit_level -= bytes_sent;
+					video->stats.packets_sent++;
+					video->stats.bytes_sent += bytes_sent;
 					pkt_sent = 1;
 				}
 				else {

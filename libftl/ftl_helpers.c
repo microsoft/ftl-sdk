@@ -24,6 +24,7 @@
 
  #define __FTL_INTERNAL
  #include "ftl.h"
+#include "ftl_private.h"
  #include "hmac/hmac.h"
 
 /*
@@ -255,7 +256,7 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		retval = 0;
 	}
 	else {
-		FTL_LOG(FTL_LOG_ERROR, "ERROR: dequeue_status_msg had not messages");
+		FTL_LOG(FTL_LOG_ERROR, "ERROR: dequeue_status_msg had no messages");
 	}
 
 #ifdef _WIN32

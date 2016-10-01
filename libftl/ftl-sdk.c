@@ -20,106 +20,107 @@ FTL_API ftl_status_t ftl_init() {
 
 FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params){
   ftl_status_t ret_status = FTL_SUCCESS;
-	ftl_stream_configuration_private_t *ftl_cfg = NULL;
+	ftl_stream_configuration_private_t *ftl = NULL;
 
-  if( (ftl_cfg = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t))) == NULL){
+  if( (ftl = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t))) == NULL){
     ret_status = FTL_MALLOC_FAILURE;
 		goto fail;
   }
 
-  ftl_cfg->connected = 0;
-  ftl_cfg->ready_for_media = 0;
+  ftl->connected = 0;
+  ftl->ready_for_media = 0;
+  ftl->video_kbps = params->video_kbps;
 
-  ftl_cfg->key = NULL;
-  if( (ftl_cfg->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
+  ftl->key = NULL;
+  if( (ftl->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
     ret_status = FTL_MALLOC_FAILURE;
 		goto fail;
   }
 
-  if ( _get_chan_id_and_key(params->stream_key, &ftl_cfg->channel_id, ftl_cfg->key) == FALSE ) {
+  if ( _get_chan_id_and_key(params->stream_key, &ftl->channel_id, ftl->key) == FALSE ) {
     ret_status = FTL_BAD_OR_INVALID_STREAM_KEY;
 		goto fail;
   }
 
 /*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
-  if ( _lookup_ingest_ip(params->ingest_hostname, ftl_cfg->ingest_ip) == FALSE) {
+  if ( _lookup_ingest_ip(params->ingest_hostname, ftl->ingest_ip) == FALSE) {
     ret_status = FTL_DNS_FAILURE;
 		goto fail;
   }
 
-  ftl_cfg->audio.codec = params->audio_codec;
-  ftl_cfg->video.codec = params->video_codec;
+  ftl->audio.codec = params->audio_codec;
+  ftl->video.codec = params->video_codec;
 
-  ftl_cfg->audio.media_component.payload_type = AUDIO_PTYPE;
-  ftl_cfg->video.media_component.payload_type = VIDEO_PTYPE;
+  ftl->audio.media_component.payload_type = AUDIO_PTYPE;
+  ftl->video.media_component.payload_type = VIDEO_PTYPE;
 
   //TODO: this should be randomly generated, there is a potential for ssrc collisions with this
-  ftl_cfg->audio.media_component.ssrc = ftl_cfg->channel_id;
-  ftl_cfg->video.media_component.ssrc = ftl_cfg->channel_id + 1;
+  ftl->audio.media_component.ssrc = ftl->channel_id;
+  ftl->video.media_component.ssrc = ftl->channel_id + 1;
 
-  ftl_cfg->video.frame_rate = params->video_frame_rate;
-  ftl_cfg->video.width = 1280;
-  ftl_cfg->video.height = 720;
+  ftl->video.frame_rate = params->video_frame_rate;
+  ftl->video.width = 1280;
+  ftl->video.height = 720;
 
 
   ftl_register_log_handler(params->log_func);
 
-  ftl_cfg->status_q.count = 0;
-  ftl_cfg->status_q.head = NULL;
+  ftl->status_q.count = 0;
+  ftl->status_q.head = NULL;
 
 #ifdef _WIN32
-  if ((ftl_cfg->status_q.mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
+  if ((ftl->status_q.mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
 #else
-  if (pthread_mutex_init(&ftl_cfg->status_q.mutex, NULL) != 0) {
+  if (pthread_mutex_init(&ftl->status_q.mutex, NULL) != 0) {
 #endif
 	  FTL_LOG(FTL_LOG_ERROR, "Failed to create status queue mutex\n");
 	  return FTL_MALLOC_FAILURE;
   }
 
 #ifdef _WIN32
-  if ((ftl_cfg->status_q.sem = CreateSemaphore(NULL, 0, MAX_STATUS_MESSAGE_QUEUED, NULL)) == NULL) {
+  if ((ftl->status_q.sem = CreateSemaphore(NULL, 0, MAX_STATUS_MESSAGE_QUEUED, NULL)) == NULL) {
 #else
-  ftl_cfg->status_q.sem
+  ftl->status_q.sem
 #endif
 	  FTL_LOG(FTL_LOG_ERROR, "Failed to allocate create status queue semaphore\n");
 	  return FTL_MALLOC_FAILURE;
   }
 
-  ftl_handle->private = ftl_cfg;
+  ftl_handle->priv = ftl;
   return ret_status;
 
 fail:
 
-	if(ftl_cfg != NULL) {
-		if (ftl_cfg->key != NULL) {
-			free(ftl_cfg->key);
+	if(ftl != NULL) {
+		if (ftl->key != NULL) {
+			free(ftl->key);
 		}
 
-		free(ftl_cfg);
+		free(ftl);
 	}
 
 	return ret_status;	
 }
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
-  ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
   ftl_status_t status = FTL_SUCCESS;
 
-  if ((status = _ingest_connect(ftl_cfg)) != FTL_SUCCESS) {
+  if ((status = _ingest_connect(ftl)) != FTL_SUCCESS) {
 	  return status;
   }
 
-  if ((status = media_init(ftl_cfg)) != FTL_SUCCESS) {
+  if ((status = media_init(ftl)) != FTL_SUCCESS) {
 	  return status;
   }
 
-  ftl_cfg->ready_for_media = 1;
+  ftl->ready_for_media = 1;
 
   return status;
 }
 
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout) {
-	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status = FTL_SUCCESS;
 
 	return dequeue_status_msg(ftl, msg, ms_timeout);
@@ -134,38 +135,39 @@ FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, cons
 	return FTL_SUCCESS;
 }
 
-FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {
+FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {
 
-	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+	int bytes_sent = 0;
 
 	if (!ftl->ready_for_media) {
-		return FTL_NOT_CONNECTED;
+		return bytes_sent;
 	}
 
 	if (media_type == FTL_AUDIO_DATA) {
-		media_send_audio(ftl, data, len);
+		bytes_sent = media_send_audio(ftl, data, len);
 	}
 	else if (media_type == FTL_VIDEO_DATA) {
-		media_send_video(ftl, data, len, end_of_frame);
+		bytes_sent = media_send_video(ftl, data, len, end_of_frame);
 	}
 	else {
-		return FTL_UNSUPPORTED_MEDIA_TYPE;
+		return bytes_sent;
 	}
 
-	return FTL_SUCCESS;
+	return bytes_sent;
 }
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
-	ftl_stream_configuration_private_t *ftl_cfg = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status_code;
 
-	ftl_cfg->ready_for_media = 0;
+	ftl->ready_for_media = 0;
 
-	if ((status_code = _ingest_disconnect(ftl_cfg)) != FTL_SUCCESS) {
+	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
 	}
 
-	if ((status_code = media_destroy(ftl_cfg)) != FTL_SUCCESS) {
+	if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
 	}
 
@@ -175,13 +177,13 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
 	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
 
-	enqueue_status_msg(ftl_cfg, &status);
+	enqueue_status_msg(ftl, &status);
 
 	return FTL_SUCCESS;
 }
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
-	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->private;
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status = FTL_SUCCESS;
 
 	if (ftl != NULL) {
@@ -200,6 +202,8 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 			free(elmt);
 			ftl->status_q.count--;
 		}
+
+		ftl->status_q.head = NULL;
 
 #ifdef _WIN32
 		ReleaseMutex(ftl->status_q.mutex);

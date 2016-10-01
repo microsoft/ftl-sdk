@@ -67,7 +67,9 @@ typedef enum {
   FTL_NOT_CONNECTED,
   FTL_ALREADY_CONNECTED,
   FTL_UNKNOWN_ERROR_CODE,
-  FTL_STATUS_TIMEOUT
+  FTL_STATUS_TIMEOUT,
+  FTL_STATUS_MEDIA_QUEUE_FULL,
+  FTL_STATUS_WAITING_FOR_KEY_FRAME
 } ftl_status_t;
 
 typedef enum {
@@ -112,36 +114,6 @@ typedef enum {
   FTL_LOG_DEBUG
 } ftl_log_severity_t;
 
-/*! \brief Configuration information for a given stream
- *  \ingroup ftl_public
- *
- * The members of this structure are private
- */
-
-typedef struct {
-  void* private;
-} ftl_stream_configuration_t;
-
-/*! \brief Configuration information for a audio stream component
- *  \ingroup ftl_public
- *
- * The members of this structure are private
- */
-
-typedef struct {
-  void* private;
-} ftl_stream_audio_component_t;
-
-/*! \brief Configuration information for a video stream component
- *  \ingroup ftl_public
- *
- * The members of this structure are private
- */
-
-typedef struct {
-  void* private;
-} ftl_stream_video_component_t;
-
 /*! \brief Function prototype for FTL logging callback
  * \ingroup ftl_public
  */
@@ -153,6 +125,7 @@ typedef struct {
    char *ingest_hostname;
    char *stream_key;
    ftl_video_codec_t video_codec;
+   int video_kbps; //used for the leaky bucket to smooth out packet flow rate, set to 0 to bypass
    float video_frame_rate; //TODO: add runtime detection mode of frame rate to simplify sdk
    ftl_audio_codec_t audio_codec;
    void *status_callback;
@@ -160,7 +133,7 @@ typedef struct {
  } ftl_ingest_params_t;
 
  typedef struct {
-	 void* private;
+	 void* priv;
  } ftl_handle_t;
 
  typedef enum {
@@ -242,15 +215,10 @@ FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_
 FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname);
 FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, const char *stream_key);
 
-FTL_API ftl_status_t ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame);
+FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout);
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
-
-// Load the internal API if necessary
-#ifdef __FTL_INTERNAL
-#include "ftl_private.h"
-#endif // __FTL_INTERNAL
 
 #endif // __FTL_H

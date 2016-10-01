@@ -270,10 +270,6 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 		}
 	}
 
-	if (nalu_type == H264_NALU_TYPE_SPS) {
-		ftl->video.missed_marker = 0;
-	}
-
 	while (remaining > 0) {
 		uint16_t sn = mc->seq_num;
 		uint32_t ssrc = mc->ssrc;

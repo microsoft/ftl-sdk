@@ -256,15 +256,6 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 	nalu_type = data[0] & 0x1F;
 	nri = (data[0] >> 5) & 0x3;
 
-	if ( (nalu_type == H264_NALU_TYPE_FILLER || nalu_type == H264_NALU_TYPE_SEI || nalu_type == H264_NALU_TYPE_DELIM) && !nri) {
-		if (end_of_frame) {
-			mc->stats.dropped_frames++;
-			ftl->video.missed_marker = 1;
-			mc->timestamp += mc->timestamp_step;
-		}
-		return bytes_queued;
-	}
-
 	if (ftl->video.wait_for_idr_frame) {
 		if (nalu_type == H264_NALU_TYPE_SPS) {
 			FTL_LOG(FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
@@ -313,10 +304,9 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 		bytes_queued += pkt_len;
 
 		/*if all data has been consumed set marker bit*/
-		if (remaining <= 0 && (end_of_frame || ftl->video.missed_marker) ) {
+		if (remaining <= 0 && end_of_frame ) {
 			_media_set_marker_bit(mc, pkt_buf);
 			slot->last = 1;
-			ftl->video.missed_marker = 0;
 		}
 
 		slot->len = pkt_len;
@@ -361,7 +351,6 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 			_media_get_queue_fullness(ftl, mc->ssrc) * 100.f);
 
 		clear_stats(&mc->stats);
-
 	}
 
 	return bytes_queued;

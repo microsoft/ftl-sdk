@@ -164,7 +164,6 @@ typedef struct {
   int frame_rate_den;
   float frame_rate;
   uint8_t fua_nalu_type;
-  int missed_marker;
   BOOL wait_for_idr_frame;
   ftl_media_component_common_t media_component;
 } ftl_video_component_t;

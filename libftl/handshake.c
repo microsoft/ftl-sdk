@@ -196,7 +196,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
 #ifdef _WIN32
   if ((stream_config->connection_thread_handle = CreateThread(NULL, 0, connection_status_thread, stream_config, 0, &stream_config->connection_thread_id)) == NULL) {
 #else
-  if ((pthread_create(&media->recv_thread, NULL, recv_thread, ftl)) != 0) {
+  if ((pthread_create(&stream_config->connection_thread, NULL, connection_status_thread, stream_config)) != 0) {
 #endif
 	  return FTL_MALLOC_FAILURE;
   }
@@ -311,7 +311,11 @@ static void *connection_status_thread(void *data)
 
 	while (ftl->connected) {
 
+#ifdef _WIN32
 		Sleep(500);
+#else
+		usleep(500 * 1000);
+#endif
 
 		int err = recv(ftl->ingest_socket, &buf, sizeof(buf), MSG_PEEK);
 

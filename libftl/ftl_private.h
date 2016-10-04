@@ -30,20 +30,22 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "gettimeofday\gettimeofday.h"
 
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <WinSock2.h>
-#include "win32\gettimeofday.h"
 #else
 #include <pthread.h>
-#endif
-
-#ifndef _WIN32
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <netdb.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <semaphore.h>
 #endif
 
 #define MAX_INGEST_COMMAND_LEN 512
@@ -63,7 +65,12 @@
 #define MAX_STATUS_MESSAGE_QUEUED 10
 
 #ifndef _WIN32
-typdef SOCKET int
+typedef int SOCKET;
+typedef bool BOOL;
+#define TRUE true
+#define FALSE false
+#define INVALID_SOCKET (-1)
+#define SOCKET_ERROR (-1)
 #endif
 
 /*status message queue*/
@@ -80,6 +87,7 @@ typedef struct {
 	HANDLE sem;
 #else
 	pthread_mutex_t mutex;
+	sem_t sem;
 #endif
 }status_queue_t;
 
@@ -192,6 +200,7 @@ typedef enum {
 
 #define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
 void ftl_logging_init(); /* Sets the callback to 0 disabling it */
+void ftl_register_log_handler(ftl_logging_function_t log_func);
 void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
 
 /**

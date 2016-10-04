@@ -221,15 +221,27 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 
 	if (stream_config->connected) {
 		stream_config->connected = 0;
-		/*TODO: we dont need a key to disconnect from a tcp connection*/
-		if (!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, stream_config->hmacBuffer)) {
-			FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
-			response_code = FTL_INTERNAL_ERROR;
-		}
 
-		if ((response_code = _ftl_send_command(stream_config, TRUE, response, sizeof(response), "DISCONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
-			FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d\n", response_code);
-			response_code = response_code;
+		//TODO: once light saber releases this legancy disconnect can go away
+		if (stream_config->media.assigned_port == FTL_UDP_MEDIA_PORT) {
+			FTL_LOG(FTL_LOG_INFO, "Legacy disconnect\n");
+			/*TODO: we dont need a key to disconnect from a tcp connection*/
+			if (!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, stream_config->hmacBuffer)) {
+				FTL_LOG(FTL_LOG_ERROR, "could not get a signed HMAC!");
+				response_code = FTL_INTERNAL_ERROR;
+			}
+
+			if ((response_code = _ftl_send_command(stream_config, TRUE, response, sizeof(response), "DISCONNECT %d $%s", stream_config->channel_id, stream_config->hmacBuffer)) != FTL_INGEST_RESP_OK) {
+				FTL_LOG(FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d\n", response_code);
+				response_code = response_code;
+			}
+		}
+		else {
+			FTL_LOG(FTL_LOG_INFO, "light-saber disconnect\n");
+			if ((response_code = _ftl_send_command(stream_config, TRUE, response, sizeof(response), "DISCONNECT %d", stream_config->channel_id)) != FTL_INGEST_RESP_OK) {
+				FTL_LOG(FTL_LOG_ERROR, "Ingest Disconnect failed with %d\n", response_code);
+				response_code = response_code;
+			}
 		}
 	}
 

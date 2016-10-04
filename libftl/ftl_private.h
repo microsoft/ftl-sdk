@@ -126,6 +126,8 @@ typedef struct {
 	int lost_packets;
 	int nack_requests;
 	int dropped_frames;
+	int test_frame_count;
+	uint32_t old_ts_step;
 }media_stats_t;
 
 typedef struct {

@@ -24,6 +24,7 @@
 
 #define __FTL_INTERNAL
 #include "ftl.h"
+#include "ftl_private.h"
 
 void ftl_init_sockets() {
   WSADATA wsaData;

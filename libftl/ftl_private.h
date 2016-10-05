@@ -37,7 +37,6 @@
 #include <WinSock2.h>
 #else
 #include <pthread.h>
-#include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -60,9 +59,21 @@
 #define FTL_UDP_MEDIA_PORT 8082   //The port on which to listen for incoming data
 #define RTP_HEADER_BASE_LEN 12
 #define RTP_FUA_HEADER_LEN 2
-#define NACK_RB_SIZE 10240
+#define NACK_RB_SIZE (65536/8) //must be evenly divisible by 2^16
 #define NACK_RTT_AVG_SECONDS 5
 #define MAX_STATUS_MESSAGE_QUEUED 10
+#define MAX_FRAME_SIZE_ELEMENTS 64 //must be a minimum of 3
+#define MAX_XMIT_LEVEL_IN_MS 100 //allows a maximum burst size of 100ms at the target bitrate
+
+typedef enum {
+	H264_NALU_TYPE_NON_IDR = 1,
+	H264_NALU_TYPE_IDR = 5,
+	H264_NALU_TYPE_SEI = 6,
+	H264_NALU_TYPE_SPS = 7,
+	H264_NALU_TYPE_PPS = 8,
+	H264_NALU_TYPE_DELIM = 9,
+	H264_NALU_TYPE_FILLER = 12
+}h264_nalu_type_t;
 
 #ifndef _WIN32
 typedef int SOCKET;
@@ -91,6 +102,10 @@ typedef struct {
 #endif
 }status_queue_t;
 
+#ifndef _WIN32
+pthread_mutexattr_t ftl_default_mutexattr;
+#endif
+
 /**
  * This configuration structure handles basic information for a struct such
  * as the authetication keys and other similar information. It's members are
@@ -100,13 +115,29 @@ typedef struct {
 	uint8_t packet[MAX_PACKET_BUFFER];
 	int len;
 	struct timeval insert_time;
+	struct timeval xmit_time;
 	int sn;
+	int first;/*first packet in frame*/
+	int last; /*last packet in frame*/
 #ifdef _WIN32
 	HANDLE mutex;
 #else
 	pthread_mutex_t mutex;
 #endif
 }nack_slot_t;
+
+typedef struct {
+	int frames_received;
+	int frames_sent;
+	int bytes_queued;
+	int packets_queued;
+	int bytes_sent;
+	int packets_sent;
+	int late_packets;
+	int lost_packets;
+	int nack_requests;
+	int dropped_frames;
+}media_stats_t;
 
 typedef struct {
 	uint8_t payload_type;
@@ -118,8 +149,17 @@ typedef struct {
 	int64_t max_nack_rtt;
 	int64_t nack_rtt_avg;
 	BOOL nack_slots_initalized;
+	int producer;
+	int consumer;
+	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
-	struct timeval stats;
+#ifdef _WIN32
+	HANDLE pkt_ready;
+#else
+	sem_t pkt_ready;
+#endif
+	struct timeval stats_tv;
+	media_stats_t stats;
 }ftl_media_component_common_t;
 
 typedef struct {
@@ -131,21 +171,33 @@ typedef struct {
   ftl_video_codec_t codec;
   uint32_t height;
   uint32_t width;
+  int frame_rate_num;
+  int frame_rate_den;
   float frame_rate;
   uint8_t fua_nalu_type;
+  BOOL wait_for_idr_frame;
   ftl_media_component_common_t media_component;
 } ftl_video_component_t;
 
 typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
+#ifdef _WIN32
+	HANDLE mutex;
+#else
+	pthread_mutex_t mutex;
+#endif
 	int assigned_port;
 	BOOL recv_thread_running;
+	BOOL send_thread_running;
 #ifdef _WIN32
 	HANDLE recv_thread_handle;
 	DWORD recv_thread_id;
+	HANDLE send_thread_handle;
+	DWORD send_thread_id;
 #else
 	pthread_t recv_thread;
+	pthread_t send_thread;
 #endif
 	int max_mtu;
 } ftl_media_config_t;
@@ -158,6 +210,7 @@ typedef struct {
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];
+  int video_kbps;
 #ifdef _WIN32
   HANDLE connection_thread_handle;
   DWORD connection_thread_id;
@@ -227,6 +280,8 @@ int ftl_read_media_port(const char *response_str);
 // FIXME: make this less global
 extern char error_message[1000];
 
+void ftl_register_log_handler(ftl_logging_function_t log_func);
+
 void ftl_init_sockets();
 int ftl_close_socket(SOCKET sock);
 char * ftl_get_socket_error();
@@ -242,8 +297,10 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
-ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
-ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
+int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+
+void sleep_ms(int ms);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf

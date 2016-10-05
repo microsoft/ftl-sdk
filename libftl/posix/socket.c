@@ -26,6 +26,8 @@
 #include "ftl.h"
 
 #include <unistd.h>
+#include <sys/socket.h>
+#include <errno.h>
 
 void ftl_init_sockets() {
   //BSD sockets are smarter and don't need silly init
@@ -40,18 +42,24 @@ char * ftl_get_socket_error() {
 }
 
 int ftl_set_socket_recv_timeout(int socket, int ms_timeout){
-  struct timeval tv;
+  struct timeval tv = {0};
 
-  tv.tv_sec = 0;
+  while (ms_timeout >= 1000) {
+    tv.tv_sec++;
+    ms_timeout -= 1000;
+  }
   tv.tv_usec = ms_timeout * 1000;
 
   return setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv));  
 }
 
 int ftl_set_socket_send_timeout(int socket, int ms_timeout){
-  struct timeval tv;
+  struct timeval tv = {0};
 
-  tv.tv_sec = 0;
+  while (ms_timeout >= 1000) {
+    tv.tv_sec++;
+    ms_timeout -= 1000;
+  }
   tv.tv_usec = ms_timeout * 1000;
 
   return setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));

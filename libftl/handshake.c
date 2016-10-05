@@ -22,9 +22,10 @@
  * SOFTWARE.
  **/
 
- #define __FTL_INTERNAL
- #include "ftl.h"
- #include <stdarg.h>
+#define __FTL_INTERNAL
+#include "ftl.h"
+#include "ftl_private.h"
+#include <stdarg.h>
 
 #ifdef _WIN32
 DWORD WINAPI connection_status_thread(LPVOID data);
@@ -311,11 +312,7 @@ static void *connection_status_thread(void *data)
 
 	while (ftl->connected) {
 
-#ifdef _WIN32
-		Sleep(500);
-#else
-		usleep(500 * 1000);
-#endif
+		sleep_ms(500);
 
 		int err = recv(ftl->ingest_socket, &buf, sizeof(buf), MSG_PEEK);
 

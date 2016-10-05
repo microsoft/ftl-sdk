@@ -24,6 +24,7 @@
 
 #define __FTL_INTERNAL
 #include "ftl.h"
+#include "ftl_private.h"
 
 static ftl_logging_function_t ftl_log_cb;
 

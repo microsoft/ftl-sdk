@@ -179,6 +179,10 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec) {
   return "";
 }
 
+BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl) {
+	return ftl->media.assigned_port == FTL_UDP_MEDIA_PORT;
+}
+
 int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg) {
 	status_queue_elmt_t *elmt;
 #ifdef _WIN32

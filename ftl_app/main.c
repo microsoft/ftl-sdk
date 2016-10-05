@@ -68,7 +68,8 @@ int main(int argc, char** argv) {
    char* video_input = NULL;
    char* audio_input = NULL;
    char* stream_key = NULL;
-   int input_framerate = 30;
+   int fps_num = 30;
+   int fps_den = 1;
    int c;
    int audio_pps = 50;
    int target_bw_kbps = 5000;
@@ -102,7 +103,7 @@ while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
 		stream_key = optarg;
 		break;
 	case 'f':
-		sscanf(optarg, "%d", &input_framerate);
+		sscanf(optarg, "%d:%d", &fps_num, &fps_den);
 		break;
 	case 'b':
 		sscanf(optarg, "%d", &target_bw_kbps);
@@ -165,9 +166,11 @@ if (verbose) {
 	params.video_codec = FTL_VIDEO_H264;
 	params.audio_codec = FTL_AUDIO_OPUS;
 	params.ingest_hostname = ingest_location;
-	params.status_callback = NULL;
-	params.video_frame_rate = (float)input_framerate;
+	params.fps_num = fps_num;
+	params.fps_den = fps_den;
 	params.video_kbps = target_bw_kbps;
+	params.vendor_name = "ftl_app";
+	params.vendor_version = "0.0.1";
 
 	struct timeval proc_start_tv, proc_end_tv, proc_delta_tv;
 	struct timeval profile_start, profile_stop, profile_delta;
@@ -211,10 +214,10 @@ if (verbose) {
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
    float video_send_delay = 0, actual_sleep;
-   float video_time_step = 1000 / params.video_frame_rate;
+   float video_time_step = (float)(1000 * params.fps_den) / (float)params.fps_num;
 
    float audio_send_accumulator = video_time_step;
-   float audio_time_step = 1000 / audio_pps;
+   float audio_time_step = 1000.f / audio_pps;
    int audio_pkts_sent;
    int end_of_frame;
 

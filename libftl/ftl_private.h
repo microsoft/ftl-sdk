@@ -55,7 +55,7 @@
 #define SOCKET_SEND_TIMEOUT_MS 1000
 #define MAX_PACKET_BUFFER 1500  //Max length of buffer
 #define MAX_MTU 1392
-#define FTL_UDP_MEDIA_PORT 8082   //The port on which to listen for incoming data
+#define FTL_UDP_MEDIA_PORT 8082   //legacy port
 #define RTP_HEADER_BASE_LEN 12
 #define RTP_FUA_HEADER_LEN 2
 #define NACK_RB_SIZE (65536/8) //must be evenly divisible by 2^16
@@ -162,9 +162,8 @@ typedef struct {
   ftl_video_codec_t codec;
   uint32_t height;
   uint32_t width;
-  int frame_rate_num;
-  int frame_rate_den;
-  float frame_rate;
+  int fps_num;
+  int fps_den;
   uint8_t fua_nalu_type;
   BOOL wait_for_idr_frame;
   ftl_media_component_common_t media_component;
@@ -202,6 +201,8 @@ typedef struct {
   char *key;
   char hmacBuffer[512];
   int video_kbps;
+  char vendor_name[20];
+  char vendor_version[20];
 #ifdef _WIN32
   HANDLE connection_thread_handle;
   DWORD connection_thread_id;
@@ -279,6 +280,7 @@ int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_enable_keepalive(SOCKET socket);
 int ftl_set_socket_send_buf(SOCKET socket, int buffer_space);
+BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
 int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
 int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
 

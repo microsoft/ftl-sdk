@@ -8,8 +8,8 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
-FTL_API const int FTL_VERSION_MINOR = 2;
-FTL_API const int FTL_VERSION_MAINTENANCE = 3;
+FTL_API const int FTL_VERSION_MINOR = 5;
+FTL_API const int FTL_VERSION_MAINTENANCE = 0;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -63,10 +63,14 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl->audio.media_component.ssrc = ftl->channel_id;
   ftl->video.media_component.ssrc = ftl->channel_id + 1;
 
-  ftl->video.frame_rate = params->video_frame_rate;
+  ftl->video.fps_num = params->fps_num;
+  ftl->video.fps_den = params->fps_den;
+
+  strncpy_s(ftl->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]), params->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]) - 1);
+  strncpy_s(ftl->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]), params->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]) - 1);
+
   ftl->video.width = 1280;
   ftl->video.height = 720;
-
 
   ftl_register_log_handler(params->log_func);
 
@@ -131,13 +135,9 @@ FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_
 	return dequeue_status_msg(ftl, msg, ms_timeout);
 }
 
-FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname) {
-
-	return FTL_SUCCESS;
-}
-
-FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, const char *stream_key) {
-	return FTL_SUCCESS;
+FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params) {
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+	ftl_status_t status = FTL_SUCCESS;
 }
 
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {

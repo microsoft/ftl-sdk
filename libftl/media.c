@@ -85,7 +85,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		clear_stats(&comp->stats);
 	}
 
-	ftl->video.media_component.timestamp_step = (uint32_t)(90000.f / ftl->video.frame_rate);
+	ftl->video.media_component.timestamp_step = 90000.f * (float)ftl->video.fps_den / (float)ftl->video.fps_num;
 	ftl->video.wait_for_idr_frame = TRUE;
 	ftl->audio.media_component.timestamp_step = 48000 / 50; //TODO: dont assume the step size for audio
 
@@ -541,8 +541,9 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 	uint32_t *out_header = (uint32_t *)out;
 
 	rtp_header = htonl((2 << 30) | (mc->payload_type << 16) | mc->seq_num);
+
 	*out_header++ = rtp_header;
-	rtp_header = htonl(mc->timestamp);
+	rtp_header = htonl((uint32_t)mc->timestamp);
 	*out_header++ = rtp_header;
 	rtp_header = htonl(mc->ssrc);
 	*out_header++ = rtp_header;
@@ -595,7 +596,7 @@ static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
 	rtp_header = htonl((2 << 30) | (1 << 23) | (mc->payload_type << 16) | mc->seq_num);
 	*out_header++ = rtp_header;
-	rtp_header = htonl(mc->timestamp);
+	rtp_header = htonl((uint32_t)mc->timestamp);
 	*out_header++ = rtp_header;
 	rtp_header = htonl(mc->ssrc);
 	*out_header++ = rtp_header;
@@ -728,8 +729,6 @@ static void *send_thread(void *data)
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
 	ftl_media_config_t *media = &ftl->media;
 	ftl_media_component_common_t *video = &ftl->video.media_component;
-//	int ret;
-//	nack_slot_t *slot;
 
 	int first_packet = 1;
 	int bytes_per_ms;
@@ -737,9 +736,6 @@ static void *send_thread(void *data)
 
 	int transmit_level;
 	struct timeval start_tv, stop_tv, delta_tv;
-//	struct timeval profile_start, profile_stop, profile_delta;
-//	int pkt_xmit_delay_min = 1000, pkt_xmit_delay_max = 0, xmit_delay_delta;
-//	int xmit_delay_avg, xmit_delay_total = 0, xmit_delay_samples = 0;
 
 #ifdef _WIN32
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
@@ -789,7 +785,6 @@ static void *send_thread(void *data)
 			if (transmit_level > 0 ) {
 				transmit_level -= _media_send_packet(ftl, video);
 				pkt_sent = 1;
-
 			}
 		}
 	}

@@ -119,16 +119,18 @@ typedef enum {
  */
 
  typedef void (*ftl_logging_function_t)(ftl_log_severity_t log_level, const char * log_message);
-  typedef void (*ftl_status_function_t)(ftl_connection_status_t status);
+ typedef void (*ftl_status_function_t)(ftl_connection_status_t status);
 
  typedef struct {
    char *ingest_hostname;
    char *stream_key;
    ftl_video_codec_t video_codec;
-   int video_kbps; //used for the leaky bucket to smooth out packet flow rate, set to 0 to bypass
-   float video_frame_rate; //TODO: add runtime detection mode of frame rate to simplify sdk
    ftl_audio_codec_t audio_codec;
-   void *status_callback;
+   int video_kbps; //used for the leaky bucket to smooth out packet flow rate, set to 0 to bypass
+   int fps_num;
+   int fps_den;
+   char *vendor_name;
+   char *vendor_version;
    ftl_logging_function_t log_func;
  } ftl_ingest_params_t;
 
@@ -212,10 +214,7 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout);
 
-FTL_API ftl_status_t ftl_ingest_update_hostname(ftl_handle_t *ftl_handle, const char *ingest_hostname);
-FTL_API ftl_status_t ftl_ingest_update_stream_key(ftl_handle_t *ftl_handle, const char *stream_key);
-
-FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout);
+FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params);
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 

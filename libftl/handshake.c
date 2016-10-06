@@ -132,6 +132,14 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config) 
   }  
 
   /* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "VendorName: %s", stream_config->vendor_name)) != FTL_INGEST_RESP_OK) {
+	  goto fail;
+  }
+
+  if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "VendorVersion: %s", stream_config->vendor_version)) != FTL_INGEST_RESP_OK) {
+	  goto fail;
+  }
+
   ftl_video_component_t *video = &stream_config->video;
   /* We're sending video */
   if ((response_code = _ftl_send_command(stream_config, FALSE, response, sizeof(response), "Video: true")) != FTL_INGEST_RESP_OK){
@@ -223,7 +231,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 		stream_config->connected = 0;
 
 		//TODO: once light saber releases this legancy disconnect can go away
-		if (stream_config->media.assigned_port == FTL_UDP_MEDIA_PORT) {
+		if (is_legacy_ingest(stream_config)) {
 			FTL_LOG(FTL_LOG_INFO, "Legacy disconnect\n");
 			/*TODO: we dont need a key to disconnect from a tcp connection*/
 			if (!ftl_get_hmac(stream_config->ingest_socket, stream_config->key, stream_config->hmacBuffer)) {
@@ -372,7 +380,7 @@ ftl_status_t _log_response(int response_code){
       FTL_LOG(FTL_LOG_ERROR, "channel is not authorized for FTL");
       return FTL_UNAUTHORIZED;
     case FTL_INGEST_RESP_OLD_VERSION:
-      FTL_LOG(FTL_LOG_ERROR, "charon protocol mismatch. Please update to latest charon/libftl");
+      FTL_LOG(FTL_LOG_ERROR, "This version of the FTLSDK is depricated");
       return FTL_OLD_VERSION;
     case FTL_INGEST_RESP_AUDIO_SSRC_COLLISION:
       FTL_LOG(FTL_LOG_ERROR, "audio SSRC collision from this IP address. Please change your audio SSRC to an unused value");

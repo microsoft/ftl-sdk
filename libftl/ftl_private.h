@@ -30,7 +30,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gettimeofday\gettimeofday.h"
+#include "gettimeofday/gettimeofday.h"
 
 #ifdef _WIN32
 #include <WS2tcpip.h>

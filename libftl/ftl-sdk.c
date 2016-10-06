@@ -77,14 +77,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl->status_q.count = 0;
   ftl->status_q.head = NULL;
 
-#ifdef _WIN32
-  if ((ftl->status_q.mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
-#else
-  if (pthread_mutex_init(&ftl->status_q.mutex, &ftl_default_mutexattr) != 0) {
-#endif
-	  FTL_LOG(FTL_LOG_ERROR, "Failed to create status queue mutex\n");
-	  return FTL_MALLOC_FAILURE;
-  }
+  os_init_mutex(&ftl->status_q.mutex);
 
 #ifdef _WIN32
   if ((ftl->status_q.sem = CreateSemaphore(NULL, 0, MAX_STATUS_MESSAGE_QUEUED, NULL)) == NULL) {
@@ -193,11 +186,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 
 	if (ftl != NULL) {
 
-#ifdef _WIN32
-		WaitForSingleObject(ftl->status_q.mutex, INFINITE);
-#else
-		pthread_mutex_lock(&ftl->status_q.mutex);
-#endif
+		os_lock_mutex(&ftl->status_q.mutex);
 
 		status_queue_elmt_t *elmt;
 
@@ -210,13 +199,12 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 
 		ftl->status_q.head = NULL;
 
+		os_unlock_mutex(&ftl->status_q.mutex);
+		os_delete_mutex(&ftl->status_q.mutex);
+
 #ifdef _WIN32
-		ReleaseMutex(ftl->status_q.mutex);
-		CloseHandle(ftl->status_q.mutex);
 		CloseHandle(ftl->status_q.sem);
 #else
-		pthread_mutex_unlock(&ftl->status_q.mutex);
-		pthread_mutex_destroy(&ftl->status_q.mutex);
 		sem_destroy(&ftl->status_q.sem);
 #endif
 

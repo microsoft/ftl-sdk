@@ -185,11 +185,8 @@ BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl) {
 
 int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg) {
 	status_queue_elmt_t *elmt;
-#ifdef _WIN32
-	WaitForSingleObject(ftl->status_q.mutex, INFINITE);
-#else
-	pthread_mutex_lock(&ftl->status_q.mutex);
-#endif
+
+	os_lock_mutex(&ftl->status_q.mutex);
 
 	if ( (elmt = (status_queue_elmt_t*)malloc(sizeof(status_queue_elmt_t))) == NULL) {
 		FTL_LOG(FTL_LOG_ERROR, "Unable to allocate status msg");
@@ -229,11 +226,7 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 #endif
 	}
 
-#ifdef _WIN32
-	ReleaseMutex(ftl->status_q.mutex);
-#else
-	pthread_mutex_unlock(&ftl->status_q.mutex);
-#endif
+	os_unlock_mutex(&ftl->status_q.mutex);
 	return 0;
 }
 
@@ -245,12 +238,13 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		return retval;
 	}
 #ifdef _WIN32
-	HANDLE handles[] = { ftl->status_q.mutex, ftl->status_q.sem };
-	WaitForMultipleObjects(sizeof(handles) / sizeof(handles[0]), handles, TRUE, INFINITE);
+	WaitForSingleObject(ftl->status_q.sem, INFINITE);
 #else
 	sem_wait(&ftl->status_q.sem);
 	pthread_mutex_lock(&ftl->status_q.mutex);
 #endif
+	os_lock_mutex(&ftl->status_q.mutex);
+
 
 	if (ftl->status_q.head != NULL) {
 		elmt = ftl->status_q.head;
@@ -264,11 +258,7 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		FTL_LOG(FTL_LOG_ERROR, "ERROR: dequeue_status_msg had no messages");
 	}
 
-#ifdef _WIN32
-	ReleaseMutex(ftl->status_q.mutex);
-#else
-	pthread_mutex_unlock(&ftl->status_q.mutex);
-#endif
+	os_unlock_mutex(&ftl->status_q.mutex);
 
 	return retval;
 }

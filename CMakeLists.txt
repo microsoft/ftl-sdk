@@ -13,10 +13,16 @@ if (WIN32)
 							ftl_app/win32/gettimeofday.c
 							ftl_app/win32/gettimeofday.h)
   set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
-  set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c)
+  set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
+							libftl/win32/threads.c
+							libftl/win32/threads.h)
+
+  include_directories(libftl/win32)
 else()
   set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
-  set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c)
+  set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c
+							libftl/posix/threads.c
+							libftl/posix/threads.h)
 endif()
 
 add_library(ftl SHARED libftl/hmac/hmac.c
@@ -33,7 +39,7 @@ add_library(ftl SHARED libftl/hmac/hmac.c
                        libftl/ftl.h
                        libftl/ftl_private.h
              ${FTLSDK_PLATFORM_FILES})
-set_target_properties(ftl PROPERTIES VERSION "0.2.3")
+set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)

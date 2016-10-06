@@ -47,6 +47,9 @@
 #include <semaphore.h>
 #endif
 
+#include "threads.h"
+
+
 #define MAX_INGEST_COMMAND_LEN 512
 #define INGEST_PORT 8084
 #define MAX_KEY_LEN 100
@@ -94,7 +97,7 @@ typedef struct {
 	status_queue_elmt_t *head;
 	int count;
 #ifdef _WIN32
-	HANDLE mutex;
+	OS_MUTEX mutex;
 	HANDLE sem;
 #else
 	pthread_mutex_t mutex;

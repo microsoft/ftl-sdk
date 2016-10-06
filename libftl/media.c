@@ -764,7 +764,7 @@ static void *send_thread(void *data)
 		while(!pkt_sent && media->send_thread_running) {
 
 			if (transmit_level <= 0) {
-				sleep_ms(1500 / bytes_per_ms + 1);
+				sleep_ms(MAX_MTU / bytes_per_ms + 1);
 			}
 
 			gettimeofday(&stop_tv, NULL);

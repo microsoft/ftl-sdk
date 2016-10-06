@@ -144,8 +144,8 @@ typedef struct {
 typedef struct {
 	uint8_t payload_type;
 	uint32_t ssrc;
-	float timestamp;
-	float timestamp_step;
+	double timestamp;
+	double timestamp_step;
 	uint16_t seq_num;
 	int64_t min_nack_rtt;
 	int64_t max_nack_rtt;

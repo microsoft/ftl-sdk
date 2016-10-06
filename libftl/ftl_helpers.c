@@ -221,7 +221,7 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 #ifdef _WIN32
 		ReleaseSemaphore(ftl->status_q.sem, 1, NULL);
 #else
-		//TODO: do non-windows
+		sem_post(&ftl->status_q.sem);
 #endif
 	}
 
@@ -244,7 +244,8 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 	HANDLE handles[] = { ftl->status_q.mutex, ftl->status_q.sem };
 	WaitForMultipleObjects(sizeof(handles) / sizeof(handles[0]), handles, TRUE, INFINITE);
 #else
-	//TODO: do non-windows
+	sem_wait(&ftl->status_q.sem);
+	pthread_mutex_lock(&ftl->status_q.mutex);
 #endif
 
 	if (ftl->status_q.head != NULL) {
@@ -266,4 +267,13 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 #endif
 
 	return retval;
+}
+
+void sleep_ms(int ms)
+{
+#ifdef _WIN32
+	Sleep(ms);
+#else
+	usleep(ms * 1000);
+#endif
 }

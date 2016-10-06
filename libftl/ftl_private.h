@@ -30,20 +30,21 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "gettimeofday/gettimeofday.h"
 
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <WinSock2.h>
-#include "win32\gettimeofday.h"
 #else
 #include <pthread.h>
-#endif
-
-#ifndef _WIN32
-#include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <netdb.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <semaphore.h>
 #endif
 
 #define MAX_INGEST_COMMAND_LEN 512
@@ -75,7 +76,12 @@ typedef enum {
 }h264_nalu_type_t;
 
 #ifndef _WIN32
-typdef SOCKET int
+typedef int SOCKET;
+typedef bool BOOL;
+#define TRUE true
+#define FALSE false
+#define INVALID_SOCKET (-1)
+#define SOCKET_ERROR (-1)
 #endif
 
 /*status message queue*/
@@ -92,8 +98,13 @@ typedef struct {
 	HANDLE sem;
 #else
 	pthread_mutex_t mutex;
+	sem_t sem;
 #endif
 }status_queue_t;
+
+#ifndef _WIN32
+pthread_mutexattr_t ftl_default_mutexattr;
+#endif
 
 /**
  * This configuration structure handles basic information for a struct such
@@ -147,7 +158,7 @@ typedef struct {
 #ifdef _WIN32
 	HANDLE pkt_ready;
 #else
-	send_frame_sem;
+	sem_t pkt_ready;
 #endif
 	struct timeval stats_tv;
 	media_stats_t stats;
@@ -187,7 +198,7 @@ typedef struct {
 	HANDLE send_thread_handle;
 	DWORD send_thread_id;
 #else
-	pthread_t send_thread;
+	pthread_t recv_thread;
 	pthread_t send_thread;
 #endif
 	int max_mtu;
@@ -244,6 +255,7 @@ typedef enum {
 
 #define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
 void ftl_logging_init(); /* Sets the callback to 0 disabling it */
+void ftl_register_log_handler(ftl_logging_function_t log_func);
 void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
 
 /**
@@ -287,8 +299,10 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
-ftl_status_t media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
-ftl_status_t media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
+int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+
+void sleep_ms(int ms);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf

@@ -15,6 +15,11 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 3;
 FTL_API ftl_status_t ftl_init() {
   ftl_init_sockets();
   ftl_logging_init();
+#ifndef _WIN32
+  pthread_mutexattr_init(&ftl_default_mutexattr);
+  // Set pthread mutexes to recursive to mirror Windows mutex behavior
+  pthread_mutexattr_settype(&ftl_default_mutexattr, PTHREAD_MUTEX_RECURSIVE);
+#endif
   return FTL_SUCCESS;
 }
 
@@ -71,7 +76,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 #ifdef _WIN32
   if ((ftl->status_q.mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
 #else
-  if (pthread_mutex_init(&ftl->status_q.mutex, NULL) != 0) {
+  if (pthread_mutex_init(&ftl->status_q.mutex, &ftl_default_mutexattr) != 0) {
 #endif
 	  FTL_LOG(FTL_LOG_ERROR, "Failed to create status queue mutex\n");
 	  return FTL_MALLOC_FAILURE;
@@ -80,7 +85,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 #ifdef _WIN32
   if ((ftl->status_q.sem = CreateSemaphore(NULL, 0, MAX_STATUS_MESSAGE_QUEUED, NULL)) == NULL) {
 #else
-  ftl->status_q.sem
+  if (sem_init(&ftl->status_q.sem, 0 /* pshared */, 0 /* value */)) {
 #endif
 	  FTL_LOG(FTL_LOG_ERROR, "Failed to allocate create status queue semaphore\n");
 	  return FTL_MALLOC_FAILURE;
@@ -212,6 +217,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 #else
 		pthread_mutex_unlock(&ftl->status_q.mutex);
 		pthread_mutex_destroy(&ftl->status_q.mutex);
+		sem_destroy(&ftl->status_q.sem);
 #endif
 
 		if (ftl->key != NULL) {
@@ -246,7 +252,6 @@ BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) 
 
 		return FALSE;
 }
-
 
 static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip) {
 	struct hostent *remoteHost;

@@ -13,9 +13,7 @@ if (WIN32)
 							ftl_app/win32/gettimeofday.c
 							ftl_app/win32/gettimeofday.h)
   set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
-  set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
-							libftl/win32/gettimeofday.c
-							libftl/win32/gettimeofday.h)
+  set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c)
 else()
   set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
   set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c)
@@ -25,6 +23,8 @@ add_library(ftl SHARED libftl/hmac/hmac.c
                        libftl/hmac/hmac.h
                        libftl/hmac/sha2.c
                        libftl/hmac/sha2.h
+                       libftl/gettimeofday/gettimeofday.c
+                       libftl/gettimeofday/gettimeofday.h
                        libftl/ftl-sdk.c
                        libftl/handshake.c
                        libftl/ftl_helpers.c

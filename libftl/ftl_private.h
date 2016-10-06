@@ -120,7 +120,7 @@ typedef struct {
 	int first;/*first packet in frame*/
 	int last; /*last packet in frame*/
 #ifdef _WIN32
-	HANDLE mutex;
+	CRITICAL_SECTION mutex;
 #else
 	pthread_mutex_t mutex;
 #endif
@@ -184,7 +184,7 @@ typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
 #ifdef _WIN32
-	HANDLE mutex;
+	CRITICAL_SECTION mutex;
 #else
 	pthread_mutex_t mutex;
 #endif

@@ -21,8 +21,10 @@ static nack_slot_t* _media_get_empty_slot(ftl_stream_configuration_private_t *ft
 static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 
 #ifdef _WIN32
-#define LOCK_MUTEX(mutex) WaitForSingleObject((mutex), INFINITE)
-#define UNLOCK_MUTEX(mutex) ReleaseMutex(mutex)
+//#define LOCK_MUTEX(mutex) WaitForSingleObject((mutex), INFINITE)
+//#define UNLOCK_MUTEX(mutex) ReleaseMutex(mutex)
+#define LOCK_MUTEX(mutex) EnterCriticalSection(&(mutex))
+#define UNLOCK_MUTEX(mutex) LeaveCriticalSection(&(mutex))
 #else
 #define LOCK_MUTEX(mutex) pthread_mutex_lock(&(mutex))
 #define UNLOCK_MUTEX(mutex) pthread_mutex_unlock(&(mutex))
@@ -38,12 +40,13 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	int idx;
 
 #ifdef _WIN32
-	if ((media->mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
+	InitializeCriticalSection(&media->mutex);
 #else
 	if (pthread_mutex_init(&media->mutex, &ftl_default_mutexattr) != 0) {
-#endif
 		return FTL_MALLOC_FAILURE;
 	}
+#endif
+
 
 	//Create a socket
 	if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
@@ -140,6 +143,7 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	ReleaseSemaphore(ftl->video.media_component.pkt_ready, 1, NULL); 
 	WaitForSingleObject(media->send_thread_handle, INFINITE);
 	CloseHandle(media->send_thread_handle);
+	DeleteCriticalSection(&media->mutex);
 	CloseHandle(ftl->video.media_component.pkt_ready);
 #else
 	sem_post(&ftl->video.media_component.pkt_ready);
@@ -349,13 +353,13 @@ static int _nack_init(ftl_media_component_common_t *media) {
 		nack_slot_t *slot = media->nack_slots[i];
 		
 #ifdef _WIN32
-		if ((slot->mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
+		InitializeCriticalSection(&slot->mutex);
 #else
 		if (pthread_mutex_init(&slot->mutex, &ftl_default_mutexattr) != 0) {
-#endif
 			FTL_LOG(FTL_LOG_ERROR, "Failed to allocate memory for nack buffer\n");
 			return FTL_MALLOC_FAILURE;
 		}
+#endif
 
 		slot->len = 0;
 		slot->sn = -1;
@@ -373,7 +377,7 @@ static int _nack_destroy(ftl_media_component_common_t *media) {
 	for (int i = 0; i < NACK_RB_SIZE; i++) {
 		if (media->nack_slots[i] != NULL) {
 #ifdef _WIN32
-			CloseHandle(media->nack_slots[i]->mutex);
+			DeleteCriticalSection(&media->nack_slots[i]->mutex);
 #else
 			pthread_mutex_destroy(&media->nack_slots[i]->mutex);
 #endif

@@ -171,6 +171,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 
 	ftl_status_msg_t status;
 
+	FTL_LOG(FTL_LOG_ERROR, "Sending kill event\n");
 	status.type = FTL_STATUS_EVENT;
 	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
 	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
@@ -197,8 +198,6 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 			ftl->status_q.count--;
 		}
 
-		ftl->status_q.head = NULL;
-
 		os_unlock_mutex(&ftl->status_q.mutex);
 		os_delete_mutex(&ftl->status_q.mutex);
 
@@ -211,6 +210,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		if (ftl->key != NULL) {
 			free(ftl->key);
 		}
+
 
 		free(ftl);
 	}

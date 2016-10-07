@@ -193,8 +193,7 @@ if (verbose) {
 	HANDLE status_thread_handle;
 	int status_thread_id;
 #else
-	//TODO linux
-	int status_thread_handle;
+	pthread_t status_thread_handle;
 #endif
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
@@ -287,7 +286,6 @@ if (verbose) {
    
 	if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS) {
 		printf("Failed to disconnect from ingest %d\n", status_code);
-		return -1;
 	}
 #ifdef _WIN32
 	WaitForSingleObject(status_thread_handle, INFINITE);
@@ -298,7 +296,6 @@ if (verbose) {
 
    if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS) {
 	   printf("Failed to disconnect from ingest %d\n", status_code);
-	   return -1;
    }
 
    return 0;
@@ -328,14 +325,16 @@ if (verbose) {
 			 printf("Reconnecting to Ingest\n");
 			 if ((status_code = ftl_ingest_connect(handle)) != FTL_SUCCESS) {
 				 printf("Failed to connect to ingest %d\n", status_code);
-				 return -1;
+				 break;
 			 }
 			 printf("Done\n");
 		 }
 		 else {
 			 printf("Status:  Got Status message of type %d\n", status.type);
 		 }
-	 }
+	}
 
-	 return 0;
+	printf("exited ftl_status_thread\n");
+
+	return 0;
  }

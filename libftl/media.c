@@ -128,13 +128,14 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
 
-	ftl_close_socket(media->media_socket);
 
 	media->recv_thread_running = FALSE;
 #ifdef _WIN32
+	ftl_close_socket(media->media_socket);
 	WaitForSingleObject(media->recv_thread_handle, INFINITE);
 	CloseHandle(media->recv_thread_handle);
 #else
+	shutdown(media->media_socket, SHUT_RDWR);
 	pthread_join(media->recv_thread, NULL);
 #endif
 

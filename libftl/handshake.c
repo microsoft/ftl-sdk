@@ -247,7 +247,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_confi
 		else {
 			FTL_LOG(FTL_LOG_INFO, "light-saber disconnect\n");
 			if ((response_code = _ftl_send_command(stream_config, TRUE, response, sizeof(response), "DISCONNECT %d", stream_config->channel_id)) != FTL_INGEST_RESP_OK) {
-				FTL_LOG(FTL_LOG_ERROR, "Ingest Disconnect failed with %d\n", response_code);
+				FTL_LOG(FTL_LOG_ERROR, "Ingest Disconnect failed with %d (%s)\n", response_code, response);
 				response_code = response_code;
 			}
 		}

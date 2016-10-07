@@ -241,7 +241,6 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 	WaitForSingleObject(ftl->status_q.sem, INFINITE);
 #else
 	sem_wait(&ftl->status_q.sem);
-	pthread_mutex_lock(&ftl->status_q.mutex);
 #endif
 	os_lock_mutex(&ftl->status_q.mutex);
 

@@ -77,14 +77,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl->status_q.count = 0;
   ftl->status_q.head = NULL;
 
-#ifdef _WIN32
-  if ((ftl->status_q.mutex = CreateMutex(NULL, FALSE, NULL)) == NULL) {
-#else
-  if (pthread_mutex_init(&ftl->status_q.mutex, &ftl_default_mutexattr) != 0) {
-#endif
-	  FTL_LOG(FTL_LOG_ERROR, "Failed to create status queue mutex\n");
-	  return FTL_MALLOC_FAILURE;
-  }
+  os_init_mutex(&ftl->status_q.mutex);
 
 #ifdef _WIN32
   if ((ftl->status_q.sem = CreateSemaphore(NULL, 0, MAX_STATUS_MESSAGE_QUEUED, NULL)) == NULL) {
@@ -138,6 +131,8 @@ FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_
 FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status = FTL_SUCCESS;
+
+	return status;
 }
 
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {
@@ -178,6 +173,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 
 	ftl_status_msg_t status;
 
+	FTL_LOG(FTL_LOG_ERROR, "Sending kill event\n");
 	status.type = FTL_STATUS_EVENT;
 	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
 	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
@@ -193,11 +189,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 
 	if (ftl != NULL) {
 
-#ifdef _WIN32
-		WaitForSingleObject(ftl->status_q.mutex, INFINITE);
-#else
-		pthread_mutex_lock(&ftl->status_q.mutex);
-#endif
+		os_lock_mutex(&ftl->status_q.mutex);
 
 		status_queue_elmt_t *elmt;
 
@@ -208,21 +200,19 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 			ftl->status_q.count--;
 		}
 
-		ftl->status_q.head = NULL;
+		os_unlock_mutex(&ftl->status_q.mutex);
+		os_delete_mutex(&ftl->status_q.mutex);
 
 #ifdef _WIN32
-		ReleaseMutex(ftl->status_q.mutex);
-		CloseHandle(ftl->status_q.mutex);
 		CloseHandle(ftl->status_q.sem);
 #else
-		pthread_mutex_unlock(&ftl->status_q.mutex);
-		pthread_mutex_destroy(&ftl->status_q.mutex);
 		sem_destroy(&ftl->status_q.sem);
 #endif
 
 		if (ftl->key != NULL) {
 			free(ftl->key);
 		}
+
 
 		free(ftl);
 	}
@@ -232,9 +222,10 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
 	int len;
+	int i;
 	
 	len = strlen(stream_key);
-	for (int i = 0; i != len; i++) {
+	for (i = 0; i != len; i++) {
 		/* find the comma that divides the stream key */
 		if (stream_key[i] == '-' || stream_key[i] == ',') {
 			/* stream key gets copied */

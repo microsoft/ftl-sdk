@@ -23,13 +23,23 @@
  **/
 
 #include "main.h"
-
+#include "gettimeofday.h"
 #ifdef _WIN32
 #include <Windows.h>
 #include <WinSock2.h>
-#include "win32/gettimeofday.h"
+#else
+#include <sys/time.h>
 #endif
 #include "file_parser.h"
+
+void sleep_ms(int ms)
+{
+#ifdef _WIN32
+	Sleep(ms);
+#else
+	usleep(ms * 1000);
+#endif
+}
 
 void log_test(ftl_log_severity_t log_level, const char * message) {
   fprintf(stderr, "libftl message: %s\n", message);
@@ -52,11 +62,9 @@ void usage() {
 }
 
 #ifdef _WIN32
-DWORD WINAPI ftl_status_thread(LPVOID data);
-HANDLE mutex;
+int WINAPI ftl_status_thread(LPVOID data);
 #else
 static void *ftl_status_thread(void *data);
-pthread_mutex_t mutex;
 #endif
 
 
@@ -155,8 +163,15 @@ if (verbose) {
 		return -1;
 	}
 
-	init_audio(&opus_handle, audio_input);
-	init_video(&h264_handle, video_input);
+	if(!init_audio(&opus_handle, audio_input)){
+		printf("Failed to open audio file\n");
+		return -1;
+	}
+	
+	if(!init_video(&h264_handle, video_input)){
+		printf("Faild to open video file\n");
+		return -1;
+	}
 	ftl_init();
 	ftl_handle_t handle;
 	ftl_ingest_params_t params;
@@ -176,10 +191,9 @@ if (verbose) {
 	struct timeval profile_start, profile_stop, profile_delta;
 #ifdef _WIN32
 	HANDLE status_thread_handle;
-	HANDLE mutex;
-	DWORD status_thread_id;
+	int status_thread_id;
 #else
-	//TODO linux
+	pthread_t status_thread_handle;
 #endif
 
 	if( (status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS){
@@ -191,29 +205,18 @@ if (verbose) {
 	   printf("Failed to connect to ingest %d\n", status_code);
 	   return -1;
 	}
-
-#ifdef _WIN32
-   if ((mutex = CreateMutex(NULL, FALSE, NULL)) == NULL)
-#else
-   if (pthread_mutex_init(mutex, NULL) != 0)
-#endif
-   {
-	   printf("Failed to create mutex\n");
-	   return -1;
-   }
-
 #ifdef _WIN32
    if ((status_thread_handle = CreateThread(NULL, 0, ftl_status_thread, &handle, 0, &status_thread_id)) == NULL) {
 #else
-   if ((pthread_create(&media->recv_thread, NULL, recv_thread, ftl)) != 0) {
+   if ((pthread_create(&status_thread_handle, NULL, ftl_status_thread, &handle)) != 0) {
 #endif
 	   return FTL_MALLOC_FAILURE;
    }
-
+   
    printf("Stream online!\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
-   float video_send_delay = 0, actual_sleep;
+   float video_send_delay = 0, actual_sleep, time_delta;
    float video_time_step = (float)(1000 * params.fps_den) / (float)params.fps_num;
 
    float audio_send_accumulator = video_time_step;
@@ -234,7 +237,7 @@ if (verbose) {
 		   continue;
 	   }
 
-	   if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == FALSE) {
+	   if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0) {
 		   continue;
 	   }
 
@@ -242,7 +245,7 @@ if (verbose) {
 
 	   audio_pkts_sent = 0;
 	   while (audio_send_accumulator > audio_time_step) {
-		   if (get_audio_packet(&opus_handle, audio_frame, &len) == FALSE) {
+		   if (get_audio_packet(&opus_handle, audio_frame, &len) == 0) {
 			   break;
 		   }
 
@@ -259,15 +262,15 @@ if (verbose) {
 		   timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
 
 		   video_send_delay += video_time_step;
-
-		   video_send_delay -= timeval_to_ms(&proc_delta_tv);
+		   time_delta = (float)timeval_to_ms(&proc_delta_tv);
+		   video_send_delay -= time_delta;
 
 		   if (video_send_delay > 0){
 			   gettimeofday(&profile_start, NULL);
-			   Sleep((DWORD)video_send_delay);
+			   sleep_ms((int)video_send_delay);
 			   gettimeofday(&profile_stop, NULL);
 			   timeval_subtract(&profile_delta, &profile_stop, &profile_start);
-			   actual_sleep = timeval_to_ms(&profile_delta);
+			   actual_sleep = (float)timeval_to_ms(&profile_delta);
 		   }
 		   else {
 			   actual_sleep = 0;
@@ -283,22 +286,23 @@ if (verbose) {
    
 	if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS) {
 		printf("Failed to disconnect from ingest %d\n", status_code);
-		return -1;
 	}
-
+#ifdef _WIN32
 	WaitForSingleObject(status_thread_handle, INFINITE);
 	CloseHandle(status_thread_handle);
+#else
+	pthread_join(status_thread_handle, NULL);
+#endif
 
    if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS) {
 	   printf("Failed to disconnect from ingest %d\n", status_code);
-	   return -1;
    }
 
    return 0;
  }
 
 #ifdef _WIN32
- DWORD WINAPI ftl_status_thread(LPVOID data)
+ int WINAPI ftl_status_thread(LPVOID data)
 #else
  static void *ftl_status_thread(void *data)
 #endif
@@ -308,7 +312,7 @@ if (verbose) {
 	 ftl_status_t status_code;
 
 	 while (1) {
-		 ftl_ingest_get_status(handle, &status, INFINITE);
+		 ftl_ingest_get_status(handle, &status, FOREVER);
 		 
 		 if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED) {
 			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);
@@ -317,18 +321,20 @@ if (verbose) {
 				 break;
 			 }
 			 //attempt reconnection
-			 Sleep(500);
+			 sleep_ms(500);
 			 printf("Reconnecting to Ingest\n");
 			 if ((status_code = ftl_ingest_connect(handle)) != FTL_SUCCESS) {
 				 printf("Failed to connect to ingest %d\n", status_code);
-				 return -1;
+				 break;
 			 }
 			 printf("Done\n");
 		 }
 		 else {
 			 printf("Status:  Got Status message of type %d\n", status.type);
 		 }
-	 }
+	}
 
-	 return 0;
+	printf("exited ftl_status_thread\n");
+
+	return 0;
  }

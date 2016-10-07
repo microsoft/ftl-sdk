@@ -1,7 +1,7 @@
 /**
-* ctrlc_handler.cpp - POSIX handler for Ctrl-C behavior
+* \file threads.c - Windows Threads Abstractions
 *
-* Copyright (c) 2015 Michael Casadevall
+* Copyright (c) 2015 Stefan Slivinski
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -22,34 +22,32 @@
 * SOFTWARE.
 **/
 
-#include "main.h"
+#include "threads.h"
 
-/**
- * On POSIX platforms, we need to catch SIGINT, and and change the state
- * of the shutdown flag. When we're in a signal handler, we've very limited
- * in the type of calls we can safely make due to the state of the stack
- * and potentially being anywhere in the calling program's execution. 
- *
- * As such, the "safest" thing to do is simply set a global variable which
- * breaks us out of the loop, and brings us to our shutdown code. 
- */
+int os_init_mutex(OS_MUTEX *mutex) {
 
-volatile sig_atomic_t shutdown_flag = 0;
+	InitializeCriticalSection(mutex);
 
-void charon_shutdown_stream(int sig) {
-  shutdown_flag = 1;
+	return 0;
 }
 
-void charon_install_ctrlc_handler() {
-  signal(SIGINT, charon_shutdown_stream);
+int os_lock_mutex(OS_MUTEX *mutex) {
+
+	EnterCriticalSection(mutex);
+
+	return 0;
 }
 
-void charon_loop_until_ctrlc() {
-  while (shutdown_flag != 1) {
-    sleep(1);
-  }
+int os_unlock_mutex(OS_MUTEX *mutex) {
+
+	LeaveCriticalSection(mutex);
+
+	return 0;
 }
 
-int ctrlc_pressed() {
-	return shutdown_flag;
+int os_delete_mutex(OS_MUTEX *mutex) {
+
+	DeleteCriticalSection(mutex);
+
+	return 0;
 }

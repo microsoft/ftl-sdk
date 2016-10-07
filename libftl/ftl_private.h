@@ -22,8 +22,10 @@
  * SOFTWARE.
  **/
 
- #ifndef __FTL_PRIVATE_H
- #define __FTL_PRIVATE_H
+#ifndef __FTL_PRIVATE_H
+#define __FTL_PRIVATE_H
+
+#define __STDC_WANT_LIB_EXT1__ 1
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -47,6 +49,9 @@
 #include <semaphore.h>
 #endif
 
+#include "threads.h"
+
+
 #define MAX_INGEST_COMMAND_LEN 512
 #define INGEST_PORT 8084
 #define MAX_KEY_LEN 100
@@ -64,6 +69,10 @@
 #define MAX_STATUS_MESSAGE_QUEUED 10
 #define MAX_FRAME_SIZE_ELEMENTS 64 //must be a minimum of 3
 #define MAX_XMIT_LEVEL_IN_MS 100 //allows a maximum burst size of 100ms at the target bitrate
+
+#ifndef __STDC_LIB_EXT1__
+#define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
+#endif
 
 typedef enum {
 	H264_NALU_TYPE_NON_IDR = 1,
@@ -93,11 +102,10 @@ typedef struct _status_queue_t {
 typedef struct {
 	status_queue_elmt_t *head;
 	int count;
+	OS_MUTEX mutex;
 #ifdef _WIN32
-	HANDLE mutex;
 	HANDLE sem;
 #else
-	pthread_mutex_t mutex;
 	sem_t sem;
 #endif
 }status_queue_t;
@@ -119,11 +127,7 @@ typedef struct {
 	int sn;
 	int first;/*first packet in frame*/
 	int last; /*last packet in frame*/
-#ifdef _WIN32
-	CRITICAL_SECTION mutex;
-#else
-	pthread_mutex_t mutex;
-#endif
+	OS_MUTEX mutex;
 }nack_slot_t;
 
 typedef struct {
@@ -183,11 +187,7 @@ typedef struct {
 typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
-#ifdef _WIN32
-	CRITICAL_SECTION mutex;
-#else
-	pthread_mutex_t mutex;
-#endif
+	OS_MUTEX mutex;
 	int assigned_port;
 	BOOL recv_thread_running;
 	BOOL send_thread_running;

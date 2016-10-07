@@ -20,16 +20,6 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
 static nack_slot_t* _media_get_empty_slot(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn);
 static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 
-#ifdef _WIN32
-//#define LOCK_MUTEX(mutex) WaitForSingleObject((mutex), INFINITE)
-//#define UNLOCK_MUTEX(mutex) ReleaseMutex(mutex)
-#define LOCK_MUTEX(mutex) EnterCriticalSection(&(mutex))
-#define UNLOCK_MUTEX(mutex) LeaveCriticalSection(&(mutex))
-#else
-#define LOCK_MUTEX(mutex) pthread_mutex_lock(&(mutex))
-#define UNLOCK_MUTEX(mutex) pthread_mutex_unlock(&(mutex))
-#endif
-
 void clear_stats(media_stats_t *stats);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
@@ -39,14 +29,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	ftl_status_t status = FTL_SUCCESS;
 	int idx;
 
-#ifdef _WIN32
-	InitializeCriticalSection(&media->mutex);
-#else
-	if (pthread_mutex_init(&media->mutex, &ftl_default_mutexattr) != 0) {
-		return FTL_MALLOC_FAILURE;
-	}
-#endif
-
+	os_init_mutex(&media->mutex);
 
 	//Create a socket
 	if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
@@ -207,7 +190,7 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 		pkt_buf = slot->packet;
 		pkt_len = sizeof(slot->packet);
 
-		LOCK_MUTEX(slot->mutex);
+		os_lock_mutex(&slot->mutex);
 
 		payload_size = _media_make_audio_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len);
 
@@ -222,7 +205,7 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 
 		_media_send_packet(ftl, mc);
 
-		UNLOCK_MUTEX(slot->mutex);
+		os_unlock_mutex(&slot->mutex);
 	}
 
 	return bytes_sent;
@@ -271,7 +254,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 			return bytes_queued;
 		}
 
-		LOCK_MUTEX(slot->mutex);
+		os_lock_mutex(&slot->mutex);
 
 		pkt_buf = slot->packet;
 		pkt_len = sizeof(slot->packet);
@@ -297,7 +280,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 		slot->sn = sn;
 		gettimeofday(&slot->insert_time, NULL);
 
-		UNLOCK_MUTEX(slot->mutex);
+		os_unlock_mutex(&slot->mutex);
 
 #ifdef _WIN32
 		ReleaseSemaphore(mc->pkt_ready, 1, NULL);
@@ -354,14 +337,7 @@ static int _nack_init(ftl_media_component_common_t *media) {
 
 		nack_slot_t *slot = media->nack_slots[i];
 		
-#ifdef _WIN32
-		InitializeCriticalSection(&slot->mutex);
-#else
-		if (pthread_mutex_init(&slot->mutex, &ftl_default_mutexattr) != 0) {
-			FTL_LOG(FTL_LOG_ERROR, "Failed to allocate memory for nack buffer\n");
-			return FTL_MALLOC_FAILURE;
-		}
-#endif
+		os_init_mutex(&slot->mutex);
 
 		slot->len = 0;
 		slot->sn = -1;
@@ -378,11 +354,7 @@ static int _nack_destroy(ftl_media_component_common_t *media) {
 	int i;
 	for (i = 0; i < NACK_RB_SIZE; i++) {
 		if (media->nack_slots[i] != NULL) {
-#ifdef _WIN32
-			DeleteCriticalSection(&media->nack_slots[i]->mutex);
-#else
-			pthread_mutex_destroy(&media->nack_slots[i]->mutex);
-#endif
+			os_delete_mutex(&media->nack_slots[i]->mutex);
 			free(media->nack_slots[i]);
 			media->nack_slots[i] = NULL;
 		}
@@ -447,12 +419,12 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
 	int tx_len;
 	
-	LOCK_MUTEX(ftl->media.mutex);
+	os_lock_mutex(&ftl->media.mutex);
 	if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
 	{
 		FTL_LOG(FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
 	}
-	UNLOCK_MUTEX(ftl->media.mutex);
+	os_unlock_mutex(&ftl->media.mutex);
 
 	return tx_len;
 }
@@ -467,7 +439,7 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 		FTL_LOG(FTL_LOG_INFO, "ERROR: No packets in ring buffer (%d == %d)\n", mc->xmit_seq_num, mc->seq_num);
 	}
 
-	LOCK_MUTEX(slot->mutex);
+	os_lock_mutex(&slot->mutex);
 
 	tx_len = _media_send_slot(ftl, slot);
 
@@ -496,7 +468,7 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 	xmit_delay_total += xmit_delay_delta;
 	xmit_delay_samples++;
 */
-	UNLOCK_MUTEX(slot->mutex);
+	os_unlock_mutex(&slot->mutex);
 	
 	return tx_len;
 }
@@ -512,11 +484,11 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 
 	/*map sequence number to slot*/
 	nack_slot_t *slot = mc->nack_slots[sn % NACK_RB_SIZE];
-	LOCK_MUTEX(slot->mutex);
+	os_lock_mutex(&slot->mutex);
 
 	if (slot->sn != sn) {
 		FTL_LOG(FTL_LOG_WARN, "[%d] expected sn %d in slot but found %d...discarding retransmit request\n", ssrc, sn, slot->sn);
-		UNLOCK_MUTEX(slot->mutex);
+		os_unlock_mutex(&slot->mutex);
 		return 0;
 	}
 
@@ -529,7 +501,7 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	tx_len = _media_send_slot(ftl, slot);
 	FTL_LOG(FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
 
-	UNLOCK_MUTEX(slot->mutex);
+	os_unlock_mutex(&slot->mutex);
 
 	return tx_len;
 }
@@ -664,11 +636,7 @@ static void *recv_thread(void *data)
 
 	while (media->recv_thread_running) {
 
-#ifdef _WIN32
 		ret = recv(media->media_socket, buf, MAX_PACKET_BUFFER, 0);
-#else
-		ret = recv(media->media_socket, buf, MAX_PACKET_BUFFER, 0);
-#endif
 		if (ret <= 0) {
 			continue;
 		}

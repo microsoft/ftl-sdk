@@ -23,16 +23,23 @@
  **/
 
 #include "main.h"
-
+#include "gettimeofday.h"
 #ifdef _WIN32
 #include <Windows.h>
 #include <WinSock2.h>
-#include "gettimeofday.h"
 #else
 #include <sys/time.h>
-#include "gettimeofday.h"
 #endif
 #include "file_parser.h"
+
+void sleep_ms(int ms)
+{
+#ifdef _WIN32
+	Sleep(ms);
+#else
+	usleep(ms * 1000);
+#endif
+}
 
 void log_test(ftl_log_severity_t log_level, const char * message) {
   fprintf(stderr, "libftl message: %s\n", message);

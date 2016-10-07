@@ -25,6 +25,8 @@
 * IS" BASIS, AND THE AUTHOR HAS NO OBLIGATIONS TO PROVIDE MAINTENANCE,
 * SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
+#include "gettimeofday.h"
+#ifdef _WIN32
 #include <Windows.h>
 
 /* FILETIME of Jan 1 1970 00:00:00. */
@@ -52,6 +54,7 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 	return 0;
 }
+#endif
 
 int timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *y)
 {
@@ -77,10 +80,10 @@ int timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *
 }
 
 float timeval_to_ms(struct timeval *tv) {
-	float sec, usec;
+	double sec, usec;
 
-	sec = tv->tv_sec;
-	usec = tv->tv_usec;
+	sec = (float)tv->tv_sec;
+	usec = (float)tv->tv_usec;
 
-	return sec * 1000 + usec / 1000;
+	return (float)(sec * 1000 + usec / 1000);
 }

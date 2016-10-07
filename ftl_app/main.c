@@ -27,7 +27,10 @@
 #ifdef _WIN32
 #include <Windows.h>
 #include <WinSock2.h>
-#include "win32/gettimeofday.h"
+#include "gettimeofday.h"
+#else
+#include <sys/time.h>
+#include "gettimeofday.h"
 #endif
 #include "file_parser.h"
 
@@ -53,10 +56,8 @@ void usage() {
 
 #ifdef _WIN32
 int WINAPI ftl_status_thread(LPVOID data);
-HANDLE mutex;
 #else
 static void *ftl_status_thread(void *data);
-pthread_mutex_t mutex;
 #endif
 
 
@@ -155,8 +156,15 @@ if (verbose) {
 		return -1;
 	}
 
-	init_audio(&opus_handle, audio_input);
-	init_video(&h264_handle, video_input);
+	if(!init_audio(&opus_handle, audio_input)){
+		printf("Failed to open audio file\n");
+		return -1;
+	}
+	
+	if(!init_video(&h264_handle, video_input)){
+		printf("Faild to open video file\n");
+		return -1;
+	}
 	ftl_init();
 	ftl_handle_t handle;
 	ftl_ingest_params_t params;
@@ -176,7 +184,6 @@ if (verbose) {
 	struct timeval profile_start, profile_stop, profile_delta;
 #ifdef _WIN32
 	HANDLE status_thread_handle;
-	HANDLE mutex;
 	int status_thread_id;
 #else
 	//TODO linux
@@ -192,17 +199,6 @@ if (verbose) {
 	   printf("Failed to connect to ingest %d\n", status_code);
 	   return -1;
 	}
-
-#ifdef _WIN32
-   if ((mutex = CreateMutex(NULL, 0, NULL)) == NULL)
-#else
-   if (pthread_mutex_init(mutex, NULL) != 0)
-#endif
-   {
-	   printf("Failed to create mutex\n");
-	   return -1;
-   }
-
 #ifdef _WIN32
    if ((status_thread_handle = CreateThread(NULL, 0, ftl_status_thread, &handle, 0, &status_thread_id)) == NULL) {
 #else
@@ -210,11 +206,11 @@ if (verbose) {
 #endif
 	   return FTL_MALLOC_FAILURE;
    }
-
+   
    printf("Stream online!\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
 
-   float video_send_delay = 0, actual_sleep;
+   float video_send_delay = 0, actual_sleep, time_delta;
    float video_time_step = (float)(1000 * params.fps_den) / (float)params.fps_num;
 
    float audio_send_accumulator = video_time_step;
@@ -260,15 +256,15 @@ if (verbose) {
 		   timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
 
 		   video_send_delay += video_time_step;
-
-		   video_send_delay -= timeval_to_ms(&proc_delta_tv);
+		   time_delta = (float)timeval_to_ms(&proc_delta_tv);
+		   video_send_delay -= time_delta;
 
 		   if (video_send_delay > 0){
 			   gettimeofday(&profile_start, NULL);
 			   sleep_ms((int)video_send_delay);
 			   gettimeofday(&profile_stop, NULL);
 			   timeval_subtract(&profile_delta, &profile_stop, &profile_start);
-			   actual_sleep = timeval_to_ms(&profile_delta);
+			   actual_sleep = (float)timeval_to_ms(&profile_delta);
 		   }
 		   else {
 			   actual_sleep = 0;

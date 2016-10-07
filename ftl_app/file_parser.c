@@ -40,7 +40,6 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get
 		 }
 
 		 nalu_type = buf[0] & 0x1F;
-		 //printf("Got nalu type %d of size %d\n", nalu_type, *length);
 		 *get_video_frame = 0;
 		 if (nalu_type == 1 || nalu_type == 5)
 		 {
@@ -117,6 +116,7 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get
 	 while (!feof(fp)) {
 		 fread(&byte, 1, 1, fp);
 
+                 
 		 if (buf != NULL) {
 			 buf[pos] = byte;
 		 }

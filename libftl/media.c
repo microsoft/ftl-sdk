@@ -127,13 +127,13 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	ReleaseSemaphore(ftl->video.media_component.pkt_ready, 1, NULL); 
 	WaitForSingleObject(media->send_thread_handle, INFINITE);
 	CloseHandle(media->send_thread_handle);
-	DeleteCriticalSection(&media->mutex);
 	CloseHandle(ftl->video.media_component.pkt_ready);
 #else
 	sem_post(&ftl->video.media_component.pkt_ready);
 	pthread_join(media->send_thread, NULL);
 	sem_destroy(&ftl->video.media_component.pkt_ready);
 #endif
+	os_delete_mutex(&media->mutex);
 
 	media->max_mtu = 0;
 

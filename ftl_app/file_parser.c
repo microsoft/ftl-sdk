@@ -7,34 +7,34 @@
 #include "ftl.h"
 #include "file_parser.h"
 
-BOOL h264_get_nalu(FILE *fp, uint8_t *buf, uint32_t *length);
-BOOL get_ogg_page(opus_obj_t *handle);
+int h264_get_nalu(FILE *fp, uint8_t *buf, uint32_t *length);
+int get_ogg_page(opus_obj_t *handle);
 
-BOOL init_video(h264_obj_t *handle, const char *video_file) {
+int init_video(h264_obj_t *handle, const char *video_file) {
 
 	if (video_file == NULL) {
-		return FALSE;
+		return 0;
 	}
 
 	if ((handle->fp = fopen(video_file, "rb")) == NULL) {
-		return FALSE;
+		return 0;
 	}
 
-	return TRUE;
+	return 1;
 }
 
-BOOL reset_video(h264_obj_t *handle) {
+int reset_video(h264_obj_t *handle) {
 	fseek(handle->fp, 0, SEEK_SET);
 	
-	return TRUE;
+	return 1;
 }
 
-BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get_video_frame) {
-	 BOOL got_sc = FALSE;
+int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get_video_frame) {
+	 int got_sc = 0;
 	 uint32_t pos = 0;
 	 uint8_t nalu_type = 0;
 
-	 while (h264_get_nalu(handle->fp, buf, length) == TRUE) {
+	 while (h264_get_nalu(handle->fp, buf, length) == 1) {
 		 if (*length == 0) {
 			 continue;
 		 }
@@ -47,50 +47,50 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 			 *get_video_frame = 1;
 		 }
 
-		 return TRUE;
+		 return 1;
 	 }
 
-	 return FALSE;
+	 return 0;
  }
 
- BOOL init_audio(opus_obj_t *handle, const char *audio_file) {
+ int init_audio(opus_obj_t *handle, const char *audio_file) {
 
 
 	 if (audio_file == NULL) {
-		 return FALSE;
+		 return 0;
 	 }
 
 	 if ((handle->fp = fopen(audio_file, "rb")) == NULL) {
-		 return FALSE;
+		 return 0;
 	 }
 
 	 if ((handle->page_buf = malloc(MAX_OGG_PAGE_LEN)) == NULL) {
-		 return FALSE;
+		 return 0;
 	 }
 
 	 handle->current_segment = 0;
 	 handle->consumed = 0;
 	 handle->page_len = 0;
 
-	 return TRUE;
+	 return 1;
  }
 
- BOOL reset_audio(opus_obj_t *handle) {
+ int reset_audio(opus_obj_t *handle) {
 	 fseek(handle->fp, 0, SEEK_SET);
 
 	 handle->consumed = 0;
 	 handle->page_len = 0;
 
-	 return TRUE;
+	 return 1;
  }
  
- BOOL get_audio_packet(opus_obj_t *handle, uint8_t *buf, uint32_t *length) {
+ int get_audio_packet(opus_obj_t *handle, uint8_t *buf, uint32_t *length) {
 
 	 *length = 0;
 
 	 if (handle->consumed >= handle->page_len) {
-		 if (get_ogg_page(handle) != TRUE) {
-			 return FALSE;
+		 if (get_ogg_page(handle) != 1) {
+			 return 0;
 		 }
 	 }
 
@@ -105,14 +105,14 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 		 handle->current_segment++;
 	 } while (seg_len == 255);
 
-	 return TRUE;
+	 return 1;
  }
 
- BOOL h264_get_nalu(FILE *fp, uint8_t *buf, uint32_t *length) {
+ int h264_get_nalu(FILE *fp, uint8_t *buf, uint32_t *length) {
 	 uint32_t sc = 0;
 	 uint8_t byte;
 	 uint32_t pos = 0;
-	 BOOL got_sc = FALSE;
+	 int got_sc = 0;
 
 	 while (!feof(fp)) {
 		 fread(&byte, 1, 1, fp);
@@ -133,7 +133,7 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 				 pos -= 1;
 			 }
 
-			 got_sc = TRUE;
+			 got_sc = 1;
 			 break;
 		 }
 	 }
@@ -166,7 +166,8 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 		 *len -= bytes;
 	 }
 
-	 for (int i = sizeof(uint16_t) - 1; i >= 0; i--) {
+	 int i;
+	 for (i = sizeof(uint16_t) - 1; i >= 0; i--) {
 		 val = (val << 8) | (*buf)[i];
 	 }
 
@@ -182,8 +183,9 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 	 if (*len >= bytes) {
 		 *len -= bytes;
 	 }
-
-	 for (int i = bytes - 1; i >= 0; i--) {
+         
+         int i;
+	 for (i = bytes - 1; i >= 0; i--) {
 		 val = (val << 8) | (*buf)[i];
 	 }
 
@@ -200,7 +202,8 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 		 *len -= bytes;
 	 }
 
-	 for (int i = bytes - 1; i >= 0; i--) {
+         int i;
+	 for (i = bytes - 1; i >= 0; i--) {
 		 val = (val << 8) | (*buf)[i];
 	 }
 
@@ -209,11 +212,11 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 	 return val;
  }
 
- BOOL get_ogg_page(opus_obj_t *handle) {
+ int get_ogg_page(opus_obj_t *handle) {
 	 uint32_t magic_num = 0;
 	 uint8_t byte;
 	 uint32_t pos = 0;
-	 BOOL got_page = FALSE;
+	 int got_page = 0;
 
 	 while (!feof(handle->fp)) {
 		 fread(&byte, 1, 1, handle->fp);
@@ -249,7 +252,8 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 			 handle->checksum = get_32bits(&p, &bytes_available);
 			 handle->page_segs = get_8bits(&p, &bytes_available);
 
-			 for (int i = 0; i < handle->page_segs; i++) {
+                         int i;
+			 for (i = 0; i < handle->page_segs; i++) {
 				 handle->seg_len_table[i] = get_8bits(&p, &bytes_available);
 				 if (handle->seg_len_table[i] != 255) {
 					 handle->packets_in_page++;
@@ -261,7 +265,7 @@ BOOL get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *ge
 			 handle->consumed = pos - bytes_available;
 			 handle->current_segment = 0;
 
-			 got_page = TRUE;
+			 got_page = 1;
 			 break;
 		 }
 	 }

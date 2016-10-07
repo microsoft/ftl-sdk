@@ -344,7 +344,8 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 
 static int _nack_init(ftl_media_component_common_t *media) {
 
-	for (int i = 0; i < NACK_RB_SIZE; i++) {
+	int i;
+	for (i = 0; i < NACK_RB_SIZE; i++) {
 		if ((media->nack_slots[i] = (nack_slot_t *)malloc(sizeof(nack_slot_t))) == NULL) {
 			FTL_LOG(FTL_LOG_ERROR, "Failed to allocate memory for nack buffer\n");
 			return FTL_MALLOC_FAILURE;
@@ -373,8 +374,8 @@ static int _nack_init(ftl_media_component_common_t *media) {
 }
 
 static int _nack_destroy(ftl_media_component_common_t *media) {
-
-	for (int i = 0; i < NACK_RB_SIZE; i++) {
+	int i;
+	for (i = 0; i < NACK_RB_SIZE; i++) {
 		if (media->nack_slots[i] != NULL) {
 #ifdef _WIN32
 			DeleteCriticalSection(&media->nack_slots[i]->mutex);
@@ -699,14 +700,16 @@ static void *recv_thread(void *data)
 			ssrcMedia = ntohl(*((uint32_t*)(buf + 8)));
 
 			uint16_t *p = (uint16_t *)(buf + 12);
-
-			for (int fci = 0; fci < (length - 2); fci++) {
+			
+			int fci;
+			for (fci = 0; fci < (length - 2); fci++) {
 				//request the first sequence number
 				snBase = ntohs(*p++);
 				_nack_resend_packet(ftl, ssrcMedia, snBase);
 				blp = ntohs(*p++);
 				if (blp) {
-					for (int i = 0; i < 16; i++) {
+					int i;
+					for (i = 0; i < 16; i++) {
 						if ((blp & (1 << i)) != 0) {
 							sn = snBase + i + 1;
 							_nack_resend_packet(ftl, ssrcMedia, sn);

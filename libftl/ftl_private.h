@@ -22,8 +22,10 @@
  * SOFTWARE.
  **/
 
- #ifndef __FTL_PRIVATE_H
- #define __FTL_PRIVATE_H
+#ifndef __FTL_PRIVATE_H
+#define __FTL_PRIVATE_H
+
+#define __STDC_WANT_LIB_EXT1__ 1
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -67,6 +69,10 @@
 #define MAX_STATUS_MESSAGE_QUEUED 10
 #define MAX_FRAME_SIZE_ELEMENTS 64 //must be a minimum of 3
 #define MAX_XMIT_LEVEL_IN_MS 100 //allows a maximum burst size of 100ms at the target bitrate
+
+#ifndef __STDC_LIB_EXT1__
+#define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
+#endif
 
 typedef enum {
 	H264_NALU_TYPE_NON_IDR = 1,

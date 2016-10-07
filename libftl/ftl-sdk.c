@@ -220,9 +220,10 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
 	int len;
+	int i;
 	
 	len = strlen(stream_key);
-	for (int i = 0; i != len; i++) {
+	for (i = 0; i != len; i++) {
 		/* find the comma that divides the stream key */
 		if (stream_key[i] == '-' || stream_key[i] == ',') {
 			/* stream key gets copied */

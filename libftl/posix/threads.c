@@ -25,7 +25,7 @@
 #include "threads.h"
 
 int os_init_mutex(OS_MUTEX *mutex) {
-	return pthread_mutex_init(mutex, &ftl_default_mutexattr)
+	return pthread_mutex_init(mutex, &ftl_default_mutexattr);
 }
 
 int os_lock_mutex(OS_MUTEX *mutex) {

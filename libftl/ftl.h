@@ -41,6 +41,7 @@ FTL_API extern const int FTL_VERSION_MAJOR;
 FTL_API extern const int FTL_VERSION_MINOR;
 FTL_API extern const int FTL_VERSION_MAINTENANCE;
 
+
 /*! \defgroup ftl_public Public Interfaces for libftl */
 
 /*! \brief Status codes used by libftl
@@ -77,6 +78,8 @@ typedef enum {
   FTL_CONNECTION_RECONNECTED
 } ftl_connection_status_t;
 
+
+#define FOREVER -1
 /*! \brief Video codecs supported by FTL
  *  \ingroug ftl_public
  */

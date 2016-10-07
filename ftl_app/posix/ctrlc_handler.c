@@ -22,7 +22,7 @@
 * SOFTWARE.
 **/
 
-#include "charon.h"
+#include "main.h"
 
 /**
  * On POSIX platforms, we need to catch SIGINT, and and change the state
@@ -48,4 +48,8 @@ void charon_loop_until_ctrlc() {
   while (shutdown_flag != 1) {
     sleep(1);
   }
+}
+
+int ctrlc_pressed() {
+	return shutdown_flag;
 }

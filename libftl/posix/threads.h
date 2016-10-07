@@ -24,8 +24,10 @@
 
 #include "ftl.h"
 #include "ftl_private.h"
+#include <stdbool.h>
 
 typedef pthread_mutex_t OS_MUTEX;
+typedef bool BOOL;
 
 int os_init_mutex(OS_MUTEX *mutex);
 int os_lock_mutex(OS_MUTEX *mutex);

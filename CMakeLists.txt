@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.5.2)
+cmake_minimum_required (VERSION 2.8.0)
 enable_language(C)
 project(libftl)
 
@@ -23,6 +23,7 @@ else()
   set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c
 							libftl/posix/threads.c
 							libftl/posix/threads.h)
+  include_directories(libftl/posix)
 endif()
 
 add_library(ftl SHARED libftl/hmac/hmac.c
@@ -52,8 +53,8 @@ add_executable(ftl_app
                ftl_app/file_parser.c
                ftl_app/file_parser.h			   
                ${FTL_PLATFORM_FILES})
-target_link_libraries(ftl_app ftl Threads::Threads ${FTL_PLATFORM_LIBS})
-#target_link_libraries(ftl_app ftl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
+#target_link_libraries(ftl_app ftl Threads::Threads ${FTL_PLATFORM_LIBS})
+target_link_libraries(ftl_app ftl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules

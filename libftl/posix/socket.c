@@ -23,8 +23,10 @@
 **/
 
 #define __FTL_INTERNAL
+
 #include "ftl.h"
 
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <errno.h>

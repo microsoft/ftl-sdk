@@ -199,6 +199,7 @@ if (!stream_key || !ingest_location || !video_input) {
    float audio_time_step = 1000.f / audio_pps;
    int audio_pkts_sent;
    int end_of_frame;
+   int retval = 0;
 
    gettimeofday(&proc_start_tv, NULL);
 
@@ -262,6 +263,7 @@ if (!stream_key || !ingest_location || !video_input) {
    
 	if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS) {
 		printf("Failed to disconnect from ingest %d\n", status_code);
+		retval = -1;
 	}
 #ifdef _WIN32
 	WaitForSingleObject(status_thread_handle, INFINITE);
@@ -272,9 +274,10 @@ if (!stream_key || !ingest_location || !video_input) {
 
    if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS) {
 	   printf("Failed to disconnect from ingest %d\n", status_code);
+	retval = -1;
    }
 
-   return 0;
+   return retval;
  }
 
 #ifdef _WIN32

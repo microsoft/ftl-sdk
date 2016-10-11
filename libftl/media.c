@@ -715,7 +715,7 @@ static void *send_thread(void *data)
 
 		if (video_kbps != video->kbps) {
 			//TODO: need to decide if 10% overhead makes sense (im leaning towards no) but if this is to restrictive it will introduce delay
-			bytes_per_ms = (int)(((float)(video->kbps * 1000 / 8)) * 2) / 1000;
+			bytes_per_ms = (int)(((float)(video->kbps * 1000 / 8)) * 1.1) / 1000;
 			transmit_level = 5 * bytes_per_ms; /*small initial level to prevent bursting at the start of a stream*/
 			video_kbps = video->kbps;
 		}

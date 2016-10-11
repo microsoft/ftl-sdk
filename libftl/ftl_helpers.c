@@ -95,8 +95,6 @@ int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
         n = recv(sock, buf, buflen, 0);
         if (n < 0) {
             //this will abort in the event of an error or in the buffer is filled before the terminiator is reached
-            const char * error = ftl_get_socket_error();
-            FTL_LOG(FTL_LOG_ERROR, "socket error while receiving: %s", error);
             return n;
         }
 		else if (n == 0) {
@@ -121,19 +119,16 @@ int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst) {
     send(sock, "HMAC\r\n\r\n", 8, 0);
     string_len = recv_all(sock, buf, 2048, '\n');
     if (string_len < 4 || string_len == 2048) {
-        FTL_LOG(FTL_LOG_ERROR, "ingest returned invalid response with length %d", string_len);
         return 0;
     }
 
     response_code = ftl_read_response_code(buf);
     if (response_code != FTL_INGEST_RESP_OK) {
-        FTL_LOG(FTL_LOG_ERROR, "ingest did not give us an HMAC nonce");
         return 0;
     }
 
     int len = string_len - 5; // Strip "200 " and "\n"
     if (len % 2) {
-        FTL_LOG(FTL_LOG_ERROR, "ingest did not give us a well-formed hex string");
         return 0;
     }
 
@@ -141,7 +136,6 @@ int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst) {
     unsigned char *msg;
 
     if( (msg = (unsigned char*)malloc(messageLen * sizeof(*msg))) == NULL){
-        FTL_LOG(FTL_LOG_ERROR, "Unable to allocate %d bytes of memory", messageLen * sizeof(*msg));
         return 0;        
     }
 
@@ -189,7 +183,7 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 	os_lock_mutex(&ftl->status_q.mutex);
 
 	if ( (elmt = (status_queue_elmt_t*)malloc(sizeof(status_queue_elmt_t))) == NULL) {
-		FTL_LOG(FTL_LOG_ERROR, "Unable to allocate status msg");
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to allocate status msg");
 	}
 
 	memcpy(&elmt->stats_msg, stats_msg, sizeof(status_queue_elmt_t));
@@ -215,7 +209,7 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		elmt = ftl->status_q.head;
 		ftl->status_q.head = elmt->next;
 		free(elmt);
-		FTL_LOG(FTL_LOG_ERROR, "Status queue was full with %d msgs, removed head", ftl->status_q.count);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Status queue was full with %d msgs, removed head", ftl->status_q.count);
 	}
 	else {
 		ftl->status_q.count++;
@@ -244,7 +238,6 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 #endif
 	os_lock_mutex(&ftl->status_q.mutex);
 
-
 	if (ftl->status_q.head != NULL) {
 		elmt = ftl->status_q.head;
 		memcpy(stats_msg, &elmt->stats_msg, sizeof(elmt->stats_msg));
@@ -254,7 +247,7 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		retval = 0;
 	}
 	else {
-		FTL_LOG(FTL_LOG_ERROR, "ERROR: dequeue_status_msg had no messages");
+		FTL_LOG(ftl, FTL_LOG_ERROR, "ERROR: dequeue_status_msg had no messages");
 	}
 
 	os_unlock_mutex(&ftl->status_q.mutex);

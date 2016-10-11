@@ -14,7 +14,6 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 0;
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
   ftl_init_sockets();
-  ftl_logging_init();
 #ifndef _WIN32
   pthread_mutexattr_init(&ftl_default_mutexattr);
   // Set pthread mutexes to recursive to mirror Windows mutex behavior
@@ -34,7 +33,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   ftl->connected = 0;
   ftl->ready_for_media = 0;
-  ftl->video_kbps = params->video_kbps;
+  ftl->video.media_component.kbps = params->video_kbps;
 
   ftl->key = NULL;
   if( (ftl->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
@@ -69,10 +68,9 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   strncpy_s(ftl->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]), params->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]) - 1);
   strncpy_s(ftl->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]), params->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]) - 1);
 
+  /*this is legacy, this isnt used anymore*/
   ftl->video.width = 1280;
   ftl->video.height = 720;
-
-  ftl_register_log_handler(params->log_func);
 
   ftl->status_q.count = 0;
   ftl->status_q.head = NULL;
@@ -84,9 +82,11 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 #else
   if (sem_init(&ftl->status_q.sem, 0 /* pshared */, 0 /* value */)) {
 #endif
-	  FTL_LOG(FTL_LOG_ERROR, "Failed to allocate create status queue semaphore\n");
+	  fprintf(stderr, "Failed to allocate create status queue semaphore\n");
 	  return FTL_MALLOC_FAILURE;
   }
+
+  FTL_LOG(ftl, FTL_LOG_ERROR, "This is a test");
 
   ftl_handle->priv = ftl;
   return ret_status;
@@ -132,6 +132,14 @@ FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_inge
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status = FTL_SUCCESS;
 
+	ftl->video.media_component.kbps = params->video_kbps;
+
+	/* not going to update fps for the moment*/
+	/*
+	ftl->video.fps_num = params->fps_num;
+	ftl->video.fps_den = params->fps_den;
+	*/
+
 	return status;
 }
 
@@ -164,16 +172,16 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl->ready_for_media = 0;
 
 	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
-		FTL_LOG(FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
 	}
 
 	if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
-		FTL_LOG(FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
 	}
 
 	ftl_status_msg_t status;
 
-	FTL_LOG(FTL_LOG_ERROR, "Sending kill event\n");
+	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
 	status.type = FTL_STATUS_EVENT;
 	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
 	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
@@ -258,7 +266,6 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip) {
 		{
 			while (remoteHost->h_addr_list[i] != 0) {
 				addr.s_addr = *(u_long *)remoteHost->h_addr_list[i++];
-				FTL_LOG(FTL_LOG_DEBUG, "IP Address #%d of ingest is: %s\n", i, inet_ntoa(addr));
 
 				//revolving dns ensures this will change automatically so just use first ip found
 				if (!success) {

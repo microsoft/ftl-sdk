@@ -70,7 +70,7 @@
 #define MAX_FRAME_SIZE_ELEMENTS 64 //must be a minimum of 3
 #define MAX_XMIT_LEVEL_IN_MS 100 //allows a maximum burst size of 100ms at the target bitrate
 
-#ifndef __STDC_LIB_EXT1__
+#ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
 #endif
 
@@ -141,8 +141,12 @@ typedef struct {
 	int lost_packets;
 	int nack_requests;
 	int dropped_frames;
-	int test_frame_count;
-	uint32_t old_ts_step;
+	int pkt_xmit_delay_max;
+	int pkt_xmit_delay_min;
+	int total_xmit_delay;
+	int xmit_delay_samples;
+	int current_frame_size;
+	int max_frame_size;
 }media_stats_t;
 
 typedef struct {
@@ -159,12 +163,12 @@ typedef struct {
 	int consumer;
 	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
+	int kbps;
 #ifdef _WIN32
 	HANDLE pkt_ready;
 #else
 	sem_t pkt_ready;
 #endif
-	struct timeval stats_tv;
 	media_stats_t stats;
 }ftl_media_component_common_t;
 
@@ -201,6 +205,7 @@ typedef struct {
 	pthread_t send_thread;
 #endif
 	int max_mtu;
+	struct timeval stats_tv;
 } ftl_media_config_t;
 
 typedef struct {
@@ -254,10 +259,8 @@ typedef enum {
  * Logs something to the FTL logs
  */
 
-#define FTL_LOG(log_level, ...) ftl_log_message (log_level, __FILE__, __LINE__, __VA_ARGS__);
-void ftl_logging_init(); /* Sets the callback to 0 disabling it */
-void ftl_register_log_handler(ftl_logging_function_t log_func);
-void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
+#define FTL_LOG(ftl_handle, log_level, ...) ftl_log_msg (ftl_handle, log_level, __FILE__, __LINE__, __VA_ARGS__);
+void ftl_log_msg(ftl_stream_configuration_private_t *ftl, ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...);
 
 /**
  * Value to string conversion functions
@@ -283,11 +286,10 @@ int ftl_read_media_port(const char *response_str);
 // FIXME: make this less global
 extern char error_message[1000];
 
-void ftl_register_log_handler(ftl_logging_function_t log_func);
-
 void ftl_init_sockets();
 int ftl_close_socket(SOCKET sock);
 char * ftl_get_socket_error();
+ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
 int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_enable_keepalive(SOCKET socket);

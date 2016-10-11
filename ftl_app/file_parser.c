@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef _WIN32
 #include <Windows.h>
 #endif
+
 
 #include "ftl.h"
 #include "file_parser.h"

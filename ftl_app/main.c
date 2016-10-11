@@ -48,16 +48,6 @@ void log_test(ftl_log_severity_t log_level, const char * message) {
 
 void usage() {
     printf("Usage: ftl_app -i <ingest uri> -s <stream_key> - v <h264_annex_b_file> -a <opus in ogg container>\n");
-    printf("Charon is used to signal to ingest that a FTL stream is online\n");
-    printf("\t-A\t\t\tset audio SSRC\n");
-    printf("\t-V\t\t\tset video SSRC\n");
-    printf("\t-i\t\t\tIngest hostname\n");
-    printf("\t-c\t\t\tChannel ID\n");
-    printf("\t-a\t\t\tAuthetication key for given channel id\n");
-    printf("\t-h\t\t\tVideo Height\n");
-    printf("\t-w\t\t\tVideo Width\n");
-    printf("\t-v\t\t\tVerbose mode\n");
-    printf("\t-?\t\t\tThis help message\n");
     exit (0);
 }
 
@@ -126,20 +116,6 @@ while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
 if (!stream_key || !ingest_location || !video_input) {
 	usage();
 }
-
-#if 0
-if (verbose) {
-	printf("\nConfiguration:\n");
-	printf("\taudio ssrc: %d\n", audio_ssrc);
-	printf("\tvideo ssrc: %d\n", video_ssrc);
-	printf("\tvideo height: %d\n", video_height);
-	printf("\tvideo width: %d\n", video_width);
-	printf("\tingesting to: %s\n", ingest_location);
-	printf("\tchannel id: %d\n", channel_id);
-	printf("\tauthetication key: %s\n", authetication_key);
-}
-#endif
-
 	FILE *video_fp = NULL;	
 	uint32_t len = 0;
 	uint8_t *h264_frame;

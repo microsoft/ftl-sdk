@@ -34,7 +34,7 @@ static void *connection_status_thread(void *data);
 #endif
 
 static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...);
-ftl_status_t _log_response(int response_code);
+ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;

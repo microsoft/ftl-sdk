@@ -171,6 +171,14 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 
 	ftl->ready_for_media = 0;
 
+	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
+	ftl_status_msg_t status;
+	status.type = FTL_STATUS_EVENT;
+	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
+	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
+
+	enqueue_status_msg(ftl, &status);
+
 	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
 	}
@@ -178,15 +186,6 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
 	}
-
-	ftl_status_msg_t status;
-
-	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
-	status.type = FTL_STATUS_EVENT;
-	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
-	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
-
-	enqueue_status_msg(ftl, &status);
 
 	return FTL_SUCCESS;
 }

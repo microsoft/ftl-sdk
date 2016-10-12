@@ -28,6 +28,7 @@
 #include <Windows.h>
 #include <WinSock2.h>
 #else
+#include <pthread.h>
 #include <sys/time.h>
 #endif
 #include "file_parser.h"
@@ -290,7 +291,9 @@ if (!stream_key || !ingest_location || !video_input) {
 	 ftl_status_t status_code;
 
 	 while (1) {
-		 ftl_ingest_get_status(handle, &status, FOREVER);
+		 if (ftl_ingest_get_status(handle, &status, FOREVER) < 0) {
+			 break;
+		 }
 		 
 		 if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED) {
 			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);

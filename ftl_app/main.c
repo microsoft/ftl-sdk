@@ -28,6 +28,7 @@
 #include <Windows.h>
 #include <WinSock2.h>
 #else
+#include <pthread.h>
 #include <sys/time.h>
 #endif
 #include "file_parser.h"
@@ -152,14 +153,13 @@ if (!stream_key || !ingest_location || !video_input) {
 	ftl_handle_t handle;
 	ftl_ingest_params_t params;
 
-	params.log_func = log_test;
 	params.stream_key = stream_key;
 	params.video_codec = FTL_VIDEO_H264;
 	params.audio_codec = FTL_AUDIO_OPUS;
 	params.ingest_hostname = ingest_location;
 	params.fps_num = fps_num;
 	params.fps_den = fps_den;
-	params.video_kbps = target_bw_kbps;
+	params.peak_kbps = target_bw_kbps;
 	params.vendor_name = "ftl_app";
 	params.vendor_version = "0.0.1";
 
@@ -291,7 +291,9 @@ if (!stream_key || !ingest_location || !video_input) {
 	 ftl_status_t status_code;
 
 	 while (1) {
-		 ftl_ingest_get_status(handle, &status, FOREVER);
+		 if (ftl_ingest_get_status(handle, &status, FOREVER) < 0) {
+			 break;
+		 }
 		 
 		 if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED) {
 			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);
@@ -307,6 +309,27 @@ if (!stream_key || !ingest_location || !video_input) {
 				 break;
 			 }
 			 printf("Done\n");
+		 }
+		 else if (status.type == FTL_STATUS_LOG)
+		 {
+			 printf("[%d] %s\n", status.msg.log.log_level, status.msg.log.string);
+		 }
+		 else if (status.type == FTL_STATUS_VIDEO_PACKETS) {
+			 ftl_packet_stats_msg_t *p = &status.msg.pkt_stats;
+
+			 printf("Avg packet send per second %3.1f, nack requests %d, avg transmit delay %d (min: %d, max: %d)\n",
+				 (float)p->sent * 1000.f / p->period,
+				 p->nack_reqs, p->avg_xmit_delay, p->min_xmit_delay, p->max_xmit_delay);
+		 }
+		 else if (status.type == FTL_STATUS_VIDEO) {
+			 ftl_video_frame_stats_msg_t *v = &status.msg.video_stats;
+
+			 printf("Queue an average of %3.2f fps (%3.1f kbps), sent an average of %3.2f fps (%3.1f kbps), queue fullness %d, max frame size %d\n",
+				 (float)v->frames_queued * 1000.f / v->period,
+				 (float)v->bytes_queued / v->period * 8,
+				 (float)v->frames_sent * 1000.f / v->period,
+				 (float)v->bytes_sent / v->period * 8,
+				 v->queue_fullness, v->max_frame_size);
 		 }
 		 else {
 			 printf("Status:  Got Status message of type %d\n", status.type);

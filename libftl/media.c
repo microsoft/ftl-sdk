@@ -19,6 +19,9 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot);
 static nack_slot_t* _media_get_empty_slot(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn);
 static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
+static int _update_stats(ftl_stream_configuration_private_t *ftl);
+static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms);
+static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms);
 
 void clear_stats(media_stats_t *stats);
 
@@ -34,12 +37,12 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	//Create a socket
 	if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
-		FTL_LOG(FTL_LOG_ERROR, "Could not create socket : %s", ftl_get_socket_error());
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Could not create socket : %s", ftl_get_socket_error());
 	}
-	FTL_LOG(FTL_LOG_INFO, "Socket created\n");
+	FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
 
 	if ((server = gethostbyname(ftl->ingest_ip)) == NULL) {
-		FTL_LOG(FTL_LOG_ERROR, "No such host as %s\n", ftl->ingest_ip);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "No such host as %s\n", ftl->ingest_ip);
 		return FTL_DNS_FAILURE;
 	}
 
@@ -49,6 +52,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	media->server_addr.sin_port = htons(media->assigned_port);
 
 	media->max_mtu = MAX_MTU;
+	gettimeofday(&media->stats_tv, NULL);
 
 	ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
 	ftl_media_component_common_t *comp;
@@ -64,7 +68,6 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		}
 
 		comp->timestamp = 0; //TODO: should start at a random value
-		gettimeofday(&comp->stats_tv, NULL);
 		comp->producer = 0;
 		comp->consumer = 0;
 
@@ -154,6 +157,42 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	return status;
 }
 
+static int _nack_init(ftl_media_component_common_t *media) {
+
+	int i;
+	for (i = 0; i < NACK_RB_SIZE; i++) {
+		if ((media->nack_slots[i] = (nack_slot_t *)malloc(sizeof(nack_slot_t))) == NULL) {
+			return FTL_MALLOC_FAILURE;
+		}
+
+		nack_slot_t *slot = media->nack_slots[i];
+
+		os_init_mutex(&slot->mutex);
+
+		slot->len = 0;
+		slot->sn = -1;
+		//slot->insert_time = 0;
+	}
+
+	media->nack_slots_initalized = TRUE;
+	media->seq_num = media->xmit_seq_num = 0; //TODO: should start at a random value
+
+	return FTL_SUCCESS;
+}
+
+static int _nack_destroy(ftl_media_component_common_t *media) {
+	int i;
+	for (i = 0; i < NACK_RB_SIZE; i++) {
+		if (media->nack_slots[i] != NULL) {
+			os_delete_mutex(&media->nack_slots[i]->mutex);
+			free(media->nack_slots[i]);
+			media->nack_slots[i] = NULL;
+		}
+	}
+
+	return 0;
+}
+
 void clear_stats(media_stats_t *stats) {
 	stats->frames_received = 0;
 	stats->frames_sent = 0;
@@ -164,6 +203,13 @@ void clear_stats(media_stats_t *stats) {
 	stats->nack_requests = 0;
 	stats->dropped_frames = 0;
 	stats->bytes_queued = 0;
+	stats->packets_queued = 0;
+	stats->pkt_xmit_delay_max = 0;
+	stats->pkt_xmit_delay_min = 10000;
+	stats->total_xmit_delay = 0;
+	stats->xmit_delay_samples = 0;
+	stats->current_frame_size = 0;
+	stats->max_frame_size = 0;
 }
 
 int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len) {
@@ -229,7 +275,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 
 	if (ftl->video.wait_for_idr_frame) {
 		if (nalu_type == H264_NALU_TYPE_SPS) {
-			FTL_LOG(FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
+			FTL_LOG(ftl, FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
 			ftl->video.wait_for_idr_frame = FALSE;
 		}
 		else {
@@ -248,7 +294,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 
 		if ((slot = _media_get_empty_slot(ftl, ssrc, sn)) == NULL) {
 			if (nri) {
-				FTL_LOG(FTL_LOG_INFO, "Video queue full, dropping packets until next key frame\n");
+				FTL_LOG(ftl, FTL_LOG_INFO, "Video queue full, dropping packets until next key frame\n");
 				ftl->video.wait_for_idr_frame = TRUE;
 			}
 			return bytes_queued;
@@ -291,76 +337,19 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 		mc->stats.bytes_queued += pkt_len;
 	}
 
+	mc->stats.current_frame_size += len;
+
 	if (end_of_frame) {
 		mc->stats.frames_received++;
-	}
 
-	struct timeval now, delta;
-	gettimeofday(&now, NULL);
-	timeval_subtract(&delta, &now, &mc->stats_tv);
-	float stats_interval = timeval_to_ms(&delta);
+		if (mc->stats.current_frame_size > mc->stats.max_frame_size) {
+			mc->stats.max_frame_size = mc->stats.current_frame_size;
+		}
 
-	if (stats_interval > 5000) {
-		ftl_status_msg_t status;
-
-		mc->stats_tv = now;
-
-		status.msg.video_stats.average_fps = 60;
-		status.msg.video_stats.bytes_sent = 1234;
-		status.msg.video_stats.frames_sent = 600;
-
-		status.type = FTL_STATUS_VIDEO;
-
-		enqueue_status_msg(ftl, &status);
-
-		FTL_LOG(FTL_LOG_INFO, "Queue an average of %3.2f fps (%3.1f kbps), sent an average of %3.2f fps (%3.1f kbps), queue fullness %3.1f\n", 
-			(float)mc->stats.frames_received * 1000.f / stats_interval, 
-			(float)mc->stats.bytes_queued / stats_interval * 8,
-			(float)mc->stats.frames_sent * 1000.f / stats_interval,
-			(float)mc->stats.bytes_sent / stats_interval * 8,
-			_media_get_queue_fullness(ftl, mc->ssrc) * 100.f);
-
-		clear_stats(&mc->stats);
+		mc->stats.current_frame_size = 0;
 	}
 
 	return bytes_queued;
-}
-
-static int _nack_init(ftl_media_component_common_t *media) {
-
-	int i;
-	for (i = 0; i < NACK_RB_SIZE; i++) {
-		if ((media->nack_slots[i] = (nack_slot_t *)malloc(sizeof(nack_slot_t))) == NULL) {
-			FTL_LOG(FTL_LOG_ERROR, "Failed to allocate memory for nack buffer\n");
-			return FTL_MALLOC_FAILURE;
-		}
-
-		nack_slot_t *slot = media->nack_slots[i];
-		
-		os_init_mutex(&slot->mutex);
-
-		slot->len = 0;
-		slot->sn = -1;
-		//slot->insert_time = 0;
-	}
-
-	media->nack_slots_initalized = TRUE;
-	media->seq_num = media->xmit_seq_num = 0; //TODO: should start at a random value
-
-	return FTL_SUCCESS;
-}
-
-static int _nack_destroy(ftl_media_component_common_t *media) {
-	int i;
-	for (i = 0; i < NACK_RB_SIZE; i++) {
-		if (media->nack_slots[i] != NULL) {
-			os_delete_mutex(&media->nack_slots[i]->mutex);
-			free(media->nack_slots[i]);
-			media->nack_slots[i] = NULL;
-		}
-	}
-
-	return 0;
 }
 
 static ftl_media_component_common_t *_media_lookup(ftl_stream_configuration_private_t *ftl, uint32_t ssrc) {
@@ -385,7 +374,7 @@ static nack_slot_t* _media_get_empty_slot(ftl_stream_configuration_private_t *ft
 	ftl_media_component_common_t *mc;
 
 	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
-		FTL_LOG(FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
 		return NULL;
 	}
 
@@ -400,7 +389,7 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 	ftl_media_component_common_t *mc;
 
 	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
-		FTL_LOG(FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
 		return -1;
 	}
 
@@ -422,7 +411,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
 	os_lock_mutex(&ftl->media.mutex);
 	if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
 	{
-		FTL_LOG(FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
+		FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
 	}
 	os_unlock_mutex(&ftl->media.mutex);
 
@@ -436,7 +425,7 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 	nack_slot_t *slot = mc->nack_slots[mc->xmit_seq_num % NACK_RB_SIZE];
 
 	if (mc->xmit_seq_num == mc->seq_num) {
-		FTL_LOG(FTL_LOG_INFO, "ERROR: No packets in ring buffer (%d == %d)\n", mc->xmit_seq_num, mc->seq_num);
+		FTL_LOG(ftl, FTL_LOG_INFO, "ERROR: No packets in ring buffer (%d == %d)\n", mc->xmit_seq_num, mc->seq_num);
 	}
 
 	os_lock_mutex(&slot->mutex);
@@ -453,21 +442,22 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 	mc->stats.packets_sent++;
 	mc->stats.bytes_sent += tx_len;
 
-/*
+	struct timeval profile_delta;
+	float xmit_delay_delta;
 	timeval_subtract(&profile_delta, &slot->xmit_time, &slot->insert_time);
 
 	xmit_delay_delta = timeval_to_ms(&profile_delta);
 
-	if (xmit_delay_delta > pkt_xmit_delay_max) {
-		pkt_xmit_delay_max = xmit_delay_delta;
+	if (xmit_delay_delta > mc->stats.pkt_xmit_delay_max) {
+		mc->stats.pkt_xmit_delay_max = (int)xmit_delay_delta;
 	}
-	else if (xmit_delay_delta < pkt_xmit_delay_min) {
-		pkt_xmit_delay_min = xmit_delay_delta;
+	else if (xmit_delay_delta < mc->stats.pkt_xmit_delay_min) {
+		mc->stats.pkt_xmit_delay_min = (int)xmit_delay_delta;
 	}
 
-	xmit_delay_total += xmit_delay_delta;
-	xmit_delay_samples++;
-*/
+	mc->stats.total_xmit_delay += (int)xmit_delay_delta;
+	mc->stats.xmit_delay_samples++;
+
 	os_unlock_mutex(&slot->mutex);
 	
 	return tx_len;
@@ -478,7 +468,7 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	int tx_len;
 
 	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
-		FTL_LOG(FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
 		return -1;
 	}
 
@@ -487,7 +477,7 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	os_lock_mutex(&slot->mutex);
 
 	if (slot->sn != sn) {
-		FTL_LOG(FTL_LOG_WARN, "[%d] expected sn %d in slot but found %d...discarding retransmit request\n", ssrc, sn, slot->sn);
+		FTL_LOG(ftl, FTL_LOG_WARN, "[%d] expected sn %d in slot but found %d...discarding retransmit request\n", ssrc, sn, slot->sn);
 		os_unlock_mutex(&slot->mutex);
 		return 0;
 	}
@@ -499,7 +489,8 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	req_delay = (int)timeval_to_ms(&delta);
 
 	tx_len = _media_send_slot(ftl, slot);
-	FTL_LOG(FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
+	mc->stats.nack_requests++;
+	FTL_LOG(ftl, FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
 
 	os_unlock_mutex(&slot->mutex);
 
@@ -618,12 +609,12 @@ static void *recv_thread(void *data)
 
 #ifdef _WIN32
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
-		FTL_LOG(FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
+		FTL_LOG(ftl, FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
 	}
 #endif
 
 	if ((buf = (unsigned char*)malloc(MAX_PACKET_BUFFER)) == NULL) {
-		FTL_LOG(FTL_LOG_ERROR, "Failed to allocate recv buffer\n");
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Failed to allocate recv buffer\n");
 		return -1;
 	}
 
@@ -646,7 +637,7 @@ static void *recv_thread(void *data)
 		int recv_len = ret;
 
 		if (recv_len < 2) {
-			FTL_LOG(FTL_LOG_WARN, "recv packet too small to parse, discarding\n");
+			FTL_LOG(ftl, FTL_LOG_WARN, "recv packet too small to parse, discarding\n");
 			continue;
 		}
 
@@ -661,7 +652,7 @@ static void *recv_thread(void *data)
 			length = ntohs(*((uint16_t*)(buf + 2)));
 
 			if (recv_len < ((length + 1) * 4)) {
-				FTL_LOG(FTL_LOG_WARN, "reported len was %d but packet is only %d...discarding\n", recv_len, ((length + 1) * 4));
+				FTL_LOG(ftl, FTL_LOG_WARN, "reported len was %d but packet is only %d...discarding\n", recv_len, ((length + 1) * 4));
 				continue;
 			}
 
@@ -691,7 +682,7 @@ static void *recv_thread(void *data)
 
 	free(buf);
 
-	FTL_LOG(FTL_LOG_INFO, "Exited Recv Thread\n");
+	FTL_LOG(ftl, FTL_LOG_INFO, "Exited Recv Thread\n");
 
 	return 0;
 }
@@ -709,22 +700,24 @@ static void *send_thread(void *data)
 	int first_packet = 1;
 	int bytes_per_ms;
 	int pkt_sent;
+	int video_kbps = 0;
 
 	int transmit_level;
 	struct timeval start_tv, stop_tv, delta_tv;
 
 #ifdef _WIN32
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
-		FTL_LOG(FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
+		FTL_LOG(ftl, FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
 	}
 #endif
 
-	//TODO: need to decide if 10% overhead makes sense (im leaning towards no) but if this is to restrictive it will introduce delay
-	bytes_per_ms = (int)(((float)(ftl->video_kbps * 1000 / 8)) * 1.1) / 1000;
-
-	transmit_level = 5 * bytes_per_ms; /*small initial level to prevent bursting at the same of a stream*/
-
 	while (1) {
+
+		if (video_kbps != video->kbps) {
+			bytes_per_ms = video->kbps * 1000 / 8 / 1000;
+			transmit_level = 5 * bytes_per_ms; /*small initial level to prevent bursting at the start of a stream*/
+			video_kbps = video->kbps;
+		}
 
 #ifdef _WIN32
 		WaitForSingleObject(video->pkt_ready, INFINITE);
@@ -763,8 +756,68 @@ static void *send_thread(void *data)
 				pkt_sent = 1;
 			}
 		}
+
+		_update_stats(ftl);
 	}
 
-	FTL_LOG(FTL_LOG_INFO, "Exited Send Thread\n");
+	FTL_LOG(ftl, FTL_LOG_INFO, "Exited Send Thread\n");
+	return 0;
+}
+
+static int _update_stats(ftl_stream_configuration_private_t *ftl) {
+	struct timeval now, delta;
+	gettimeofday(&now, NULL);
+	timeval_subtract(&delta, &now, &ftl->media.stats_tv);
+	float stats_interval = timeval_to_ms(&delta);
+
+	if (stats_interval > 5000) {
+		ftl_status_msg_t status;
+
+		ftl->media.stats_tv = now;
+
+		_send_pkt_stats(ftl, &ftl->video.media_component, stats_interval);
+		//_send_pkt_stats(ftl, &ftl->audio.media_component);
+		_send_video_stats(ftl, &ftl->video.media_component, stats_interval);
+
+		clear_stats(&ftl->video.media_component.stats);
+	}
+
+	return 0;
+}
+
+static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms) {
+	ftl_status_msg_t m;
+	m.type = FTL_STATUS_VIDEO_PACKETS;
+
+	m.msg.pkt_stats.period = (int)interval_ms;
+	m.msg.pkt_stats.sent = mc->stats.packets_sent;
+	m.msg.pkt_stats.nack_reqs = mc->stats.nack_requests;
+	m.msg.pkt_stats.lost = 0; // needs rtcp reports to get this value
+	m.msg.pkt_stats.recovered; // need rtcp reports to get this value
+	m.msg.pkt_stats.late; // need rtcp reports to get this value
+	m.msg.pkt_stats.min_xmit_delay = mc->stats.pkt_xmit_delay_min;
+	m.msg.pkt_stats.max_xmit_delay = mc->stats.pkt_xmit_delay_max;
+	m.msg.pkt_stats.avg_xmit_delay = mc->stats.total_xmit_delay / mc->stats.xmit_delay_samples;
+
+	enqueue_status_msg(ftl, &m);
+
+	return 0;
+}
+
+static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms) {
+	ftl_status_msg_t m;
+	ftl_video_frame_stats_msg_t *v = &m.msg.video_stats;
+	m.type = FTL_STATUS_VIDEO;
+
+	v->period = (int)interval_ms;
+	v->frames_queued = mc->stats.frames_received;
+	v->frames_sent = mc->stats.frames_sent;
+	v->bytes_queued = mc->stats.bytes_queued;
+	v->bytes_sent = mc->stats.bytes_sent;
+	v->queue_fullness = (int)(_media_get_queue_fullness(ftl, mc->ssrc) * 100.f);
+	v->max_frame_size = mc->stats.max_frame_size;
+
+	enqueue_status_msg(ftl, &m);
+
 	return 0;
 }

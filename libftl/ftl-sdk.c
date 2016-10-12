@@ -33,7 +33,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   ftl->connected = 0;
   ftl->ready_for_media = 0;
-  ftl->video.media_component.kbps = params->video_kbps;
+  ftl->video.media_component.kbps = params->peak_kbps;
 
   ftl->key = NULL;
   if( (ftl->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
@@ -132,7 +132,7 @@ FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_inge
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status = FTL_SUCCESS;
 
-	ftl->video.media_component.kbps = params->video_kbps;
+	ftl->video.media_component.kbps = params->peak_kbps;
 
 	/* not going to update fps for the moment*/
 	/*

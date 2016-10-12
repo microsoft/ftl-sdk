@@ -129,7 +129,7 @@ typedef struct {
 	char *stream_key;
 	ftl_video_codec_t video_codec;
 	ftl_audio_codec_t audio_codec;
-	int video_kbps; //used for the leaky bucket to smooth out packet flow rate, set to 0 to bypass
+	int peak_kbps; //used for the leaky bucket to smooth out packet flow rate, set to 0 to bypass
 	int fps_num;
 	int fps_den;
 	char *vendor_name;

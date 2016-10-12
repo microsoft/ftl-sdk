@@ -183,7 +183,7 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 	os_lock_mutex(&ftl->status_q.mutex);
 
 	if ( (elmt = (status_queue_elmt_t*)malloc(sizeof(status_queue_elmt_t))) == NULL) {
-		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to allocate status msg");
+		fprintf(stderr, "Unable to allocate status msg");
 	}
 
 	memcpy(&elmt->stats_msg, stats_msg, sizeof(status_queue_elmt_t));
@@ -209,7 +209,7 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		elmt = ftl->status_q.head;
 		ftl->status_q.head = elmt->next;
 		free(elmt);
-		FTL_LOG(ftl, FTL_LOG_ERROR, "Status queue was full with %d msgs, removed head", ftl->status_q.count);
+		fprintf(stderr, "Status queue was full with %d msgs, removed head", ftl->status_q.count);
 	}
 	else {
 		ftl->status_q.count++;
@@ -247,7 +247,7 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		retval = 0;
 	}
 	else {
-		FTL_LOG(ftl, FTL_LOG_ERROR, "ERROR: dequeue_status_msg had no messages");
+		fprintf(stderr, "ERROR: dequeue_status_msg had no messages");
 	}
 
 	os_unlock_mutex(&ftl->status_q.mutex);

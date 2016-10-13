@@ -211,6 +211,7 @@ typedef struct {
 typedef struct {
   SOCKET ingest_socket;
   int connected;
+  int async_queue_alive;
   int ready_for_media;
   char ingest_ip[16];//ipv4 only
   uint32_t channel_id;

@@ -228,7 +228,7 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 	status_queue_elmt_t *elmt;
 	int retval = -1;
 
-	if (!ftl->connected) {
+	if (!ftl->async_queue_alive) {
 		return retval;
 	}
 #ifdef _WIN32

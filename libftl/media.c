@@ -212,6 +212,56 @@ void clear_stats(media_stats_t *stats) {
 	stats->max_frame_size = 0;
 }
 
+
+int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms) {
+	ftl_media_component_common_t *mc = &ftl->audio.media_component;
+	int64_t bytes_sent = 0;
+	int64_t transmit_level = MAX_MTU;
+	unsigned char data[MAX_MTU];
+	int64_t bytes_per_ms;
+	int64_t total_ms = 0;
+	struct timeval stop_tv, start_tv, delta_tv;
+	float packet_loss = 0.f;
+	int64_t ms_elapsed;
+	int64_t total_sent = 0;
+	int64_t pkts_sent = 0;
+
+	int initial_nack_cnt = mc->stats.nack_requests;
+
+	gettimeofday(&start_tv, NULL);
+
+	bytes_per_ms = speed_kbps * 1000 / 8 / 1000;
+
+	while (total_ms < duration_ms) {
+
+		if (transmit_level <= 0) {
+			sleep_ms(MAX_MTU / bytes_per_ms + 1);
+		}
+
+		gettimeofday(&stop_tv, NULL);
+		timeval_subtract(&delta_tv, &stop_tv, &start_tv);
+		ms_elapsed = (int64_t)timeval_to_ms(&delta_tv);
+		transmit_level += ms_elapsed * bytes_per_ms;
+		total_ms += ms_elapsed;
+
+		start_tv = stop_tv;
+
+		while (transmit_level > 0) {
+			pkts_sent++;
+			bytes_sent = media_send_audio(ftl, data, sizeof(data));
+			total_sent += bytes_sent;
+			transmit_level -= bytes_sent;
+		}
+	}
+
+	/*give some times for the nack requests to come in*/
+	sleep_ms(100);
+
+	FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt);
+
+	return (float)(mc->stats.nack_requests-initial_nack_cnt) * 100.f / (float)pkts_sent;
+}
+
 int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len) {
 	ftl_media_component_common_t *mc = &ftl->audio.media_component;
 	uint8_t nalu_type = 0;

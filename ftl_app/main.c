@@ -69,6 +69,8 @@ int main(int argc, char** argv) {
    char* stream_key = NULL;
    int fps_num = 30;
    int fps_den = 1;
+   int speedtest_kbps = 1000;
+   int speedtest_duration = 0;
    int c;
    int audio_pps = 50;
    int target_bw_kbps = 5000;
@@ -87,7 +89,7 @@ else {
 	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
 }
 
-while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
+while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1) {
 	switch (c) {
 	case 'i':
 		ingest_location = optarg;
@@ -106,6 +108,9 @@ while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
 		break;
 	case 'b':
 		sscanf(optarg, "%d", &target_bw_kbps);
+		break;
+	case 't':
+		sscanf(optarg, "%d:%d", &speedtest_duration, &speedtest_kbps);
 		break;
 	case '?':
 		usage();
@@ -187,6 +192,16 @@ if (!stream_key || !ingest_location || !video_input) {
    if ((pthread_create(&status_thread_handle, NULL, ftl_status_thread, &handle)) != 0) {
 #endif
 	   return FTL_MALLOC_FAILURE;
+   }
+
+   if (speedtest_duration) 
+   {
+	   printf("Running Speed test: sending %d kbps for %d ms", speedtest_kbps, speedtest_duration);
+	   float packetloss_rate = 0;
+	   packetloss_rate = ftl_ingest_speed_test(&handle, speedtest_kbps, speedtest_duration);
+	   sleep_ms(1);
+	   printf("Running Speed complete: packet loss rate was %3.2f\n", packetloss_rate);
+	   return 0;
    }
    
    printf("Stream online!\n");

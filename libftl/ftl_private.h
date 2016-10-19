@@ -305,6 +305,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
 int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
 int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms);
 
 void sleep_ms(int ms);
 

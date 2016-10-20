@@ -155,6 +155,7 @@ typedef struct {
 	double timestamp;
 	double timestamp_step;
 	uint16_t seq_num;
+	BOOL nack_enabled;
 	int64_t min_nack_rtt;
 	int64_t max_nack_rtt;
 	int64_t nack_rtt_avg;
@@ -296,8 +297,8 @@ int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_enable_keepalive(SOCKET socket);
 int ftl_set_socket_send_buf(SOCKET socket, int buffer_space);
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
-int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
-int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
+ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
+ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
@@ -306,6 +307,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
 int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame);
 int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len);
+int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms);
 
 void sleep_ms(int ms);
 

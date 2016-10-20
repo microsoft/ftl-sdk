@@ -69,8 +69,10 @@ typedef enum {
 	FTL_ALREADY_CONNECTED,
 	FTL_UNKNOWN_ERROR_CODE,
 	FTL_STATUS_TIMEOUT,
-	FTL_STATUS_MEDIA_QUEUE_FULL,
-	FTL_STATUS_WAITING_FOR_KEY_FRAME
+	FTL_QUEUE_FULL,
+	FTL_STATUS_WAITING_FOR_KEY_FRAME,
+	FTL_QUEUE_EMPTY,
+	FTL_NOT_INITIALIZED
 } ftl_status_t;
 
 typedef enum {
@@ -227,6 +229,8 @@ FTL_API ftl_status_t ftl_init();
 FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params);
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
+
+FTL_API float ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms);
 
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame);
 

@@ -69,6 +69,8 @@ int main(int argc, char** argv) {
    char* stream_key = NULL;
    int fps_num = 30;
    int fps_den = 1;
+   int speedtest_kbps = 1000;
+   int speedtest_duration = 0;
    int c;
    int audio_pps = 50;
    int target_bw_kbps = 5000;
@@ -87,7 +89,7 @@ else {
 	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
 }
 
-while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
+while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1) {
 	switch (c) {
 	case 'i':
 		ingest_location = optarg;
@@ -107,6 +109,9 @@ while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
 	case 'b':
 		sscanf(optarg, "%d", &target_bw_kbps);
 		break;
+	case 't':
+		sscanf(optarg, "%d:%d", &speedtest_duration, &speedtest_kbps);
+		break;
 	case '?':
 		usage();
 		break;
@@ -114,15 +119,16 @@ while ((c = getopt(argc, argv, "a:i:v:s:f:b:?")) != -1) {
 }
 
 /* Make sure we have all the required bits */
-if (!stream_key || !ingest_location || !video_input) {
+if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration))) {
 	usage();
-}
+}	
 	FILE *video_fp = NULL;	
 	uint32_t len = 0;
 	uint8_t *h264_frame;
 	uint8_t *audio_frame;
 	opus_obj_t opus_handle;
 	h264_obj_t h264_handle;
+	int retval = 0;
 
 	if (video_input != NULL) {
 		if ((h264_frame = malloc(10000000)) == NULL) {
@@ -130,25 +136,25 @@ if (!stream_key || !ingest_location || !video_input) {
 			return -1;
 		}
 
+		if (!init_video(&h264_handle, video_input)) {
+			printf("Faild to open video file\n");
+			return -1;
+		}
+
+	}
+
+	if (audio_input != NULL) {
 		if ((audio_frame = malloc(1000)) == NULL) {
 			printf("Failed to allocate memory for bitstream\n");
 			return -1;
 		}
 
-	}
-	else {
-		return -1;
+		if (!init_audio(&opus_handle, audio_input)) {
+			printf("Failed to open audio file\n");
+			return -1;
+		}
 	}
 
-	if(!init_audio(&opus_handle, audio_input)){
-		printf("Failed to open audio file\n");
-		return -1;
-	}
-	
-	if(!init_video(&h264_handle, video_input)){
-		printf("Faild to open video file\n");
-		return -1;
-	}
 	ftl_init();
 	ftl_handle_t handle;
 	ftl_ingest_params_t params;
@@ -188,6 +194,16 @@ if (!stream_key || !ingest_location || !video_input) {
 #endif
 	   return FTL_MALLOC_FAILURE;
    }
+
+   if (speedtest_duration) 
+   {
+	   printf("Running Speed test: sending %d kbps for %d ms", speedtest_kbps, speedtest_duration);
+	   float packetloss_rate = 0;
+	   packetloss_rate = ftl_ingest_speed_test(&handle, speedtest_kbps, speedtest_duration);
+	   sleep_ms(1);
+	   printf("Running Speed complete: packet loss rate was %3.2f, estimated peak bitrate is %3.2f kbps\n", packetloss_rate, (float)speedtest_kbps * (100.f - packetloss_rate) / 100 );
+	   goto cleanup;
+   }
    
    printf("Stream online!\n");
    printf("Press Ctrl-C to shutdown your stream in this window\n");
@@ -199,7 +215,6 @@ if (!stream_key || !ingest_location || !video_input) {
    float audio_time_step = 1000.f / audio_pps;
    int audio_pkts_sent;
    int end_of_frame;
-   int retval = 0;
 
    gettimeofday(&proc_start_tv, NULL);
 
@@ -260,6 +275,8 @@ if (!stream_key || !ingest_location || !video_input) {
 		   audio_send_accumulator += video_time_step;
 	   }
    }
+
+cleanup:
    
 	if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS) {
 		printf("Failed to disconnect from ingest %d\n", status_code);
@@ -274,7 +291,7 @@ if (!stream_key || !ingest_location || !video_input) {
 
    if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS) {
 	   printf("Failed to disconnect from ingest %d\n", status_code);
-	retval = -1;
+	   retval = -1;
    }
 
    return retval;
@@ -291,10 +308,15 @@ if (!stream_key || !ingest_location || !video_input) {
 	 ftl_status_t status_code;
 
 	 while (1) {
-		 if (ftl_ingest_get_status(handle, &status, FOREVER) < 0) {
+		 status_code = ftl_ingest_get_status(handle, &status, 1000);
+
+		 if (status_code == FTL_STATUS_TIMEOUT) {
+			 continue;
+		 }
+		 else if (status_code == FTL_NOT_INITIALIZED) {
 			 break;
 		 }
-		 
+
 		 if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED) {
 			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);
 

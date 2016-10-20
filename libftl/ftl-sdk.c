@@ -88,7 +88,6 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->async_queue_alive = 1;
-
   ftl_handle->priv = ftl;
   return ret_status;
 
@@ -142,6 +141,15 @@ FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_inge
 	*/
 
 	return status;
+}
+
+FTL_API float ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms) {
+
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+
+	float packet_loss = media_speed_test(ftl, speed_kbps, duration_ms);
+
+	return packet_loss;
 }
 
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {

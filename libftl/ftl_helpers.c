@@ -177,13 +177,19 @@ BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl) {
 	return ftl->media.assigned_port == FTL_UDP_MEDIA_PORT;
 }
 
-int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg) {
+ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg) {
 	status_queue_elmt_t *elmt;
+	ftl_status_t retval = FTL_SUCCESS;
+
+	if (!ftl->async_queue_alive) {
+		return FTL_NOT_INITIALIZED;
+	}
 
 	os_lock_mutex(&ftl->status_q.mutex);
 
 	if ( (elmt = (status_queue_elmt_t*)malloc(sizeof(status_queue_elmt_t))) == NULL) {
 		fprintf(stderr, "Unable to allocate status msg");
+		return FTL_MALLOC_FAILURE;
 	}
 
 	memcpy(&elmt->stats_msg, stats_msg, sizeof(status_queue_elmt_t));
@@ -209,7 +215,7 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		elmt = ftl->status_q.head;
 		ftl->status_q.head = elmt->next;
 		free(elmt);
-		fprintf(stderr, "Status queue was full with %d msgs, removed head", ftl->status_q.count);
+		retval = FTL_QUEUE_FULL;
 	}
 	else {
 		ftl->status_q.count++;
@@ -221,20 +227,33 @@ int enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 	}
 
 	os_unlock_mutex(&ftl->status_q.mutex);
-	return 0;
+	return retval;
 }
 
-int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout) {
+ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout) {
 	status_queue_elmt_t *elmt;
-	int retval = -1;
+	ftl_status_t retval = FTL_SUCCESS;
 
 	if (!ftl->async_queue_alive) {
-		return retval;
+		return FTL_NOT_INITIALIZED;
 	}
+
 #ifdef _WIN32
-	WaitForSingleObject(ftl->status_q.sem, INFINITE);
+	if (WaitForSingleObject(ftl->status_q.sem, ms_timeout) != WAIT_OBJECT_0) {
+		return FTL_STATUS_TIMEOUT;
+	}
 #else
-	sem_wait(&ftl->status_q.sem);
+	if (ms_timeout <= 0) {
+		sem_wait(&ftl->status_q.sem);
+	}
+	else {
+		struct timespec ts;
+		clock_gettime(CLOCK_REALTIME, &ts);
+		timespec_add_ms(&ts, ms_timeout);
+		if (sem_timedwait(&ftl->status_q.sem, &ts) != 0) {
+			return FTL_STATUS_TIMEOUT;
+		}
+	}
 #endif
 	os_lock_mutex(&ftl->status_q.mutex);
 
@@ -244,10 +263,9 @@ int dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t
 		ftl->status_q.head = elmt->next;
 		free(elmt);
 		ftl->status_q.count--;
-		retval = 0;
 	}
 	else {
-		fprintf(stderr, "ERROR: dequeue_status_msg had no messages");
+		retval = FTL_QUEUE_EMPTY;
 	}
 
 	os_unlock_mutex(&ftl->status_q.mutex);

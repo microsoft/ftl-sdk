@@ -32,7 +32,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->connected = 0;
-  ftl->queue_ready = 0;
+  ftl->async_queue_alive = 0;
   ftl->ready_for_media = 0;
   ftl->video.media_component.kbps = params->peak_kbps;
 
@@ -87,8 +87,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 	  return FTL_MALLOC_FAILURE;
   }
 
-  ftl->queue_ready = 1;
-  
+  ftl->async_queue_alive = 1;
   ftl_handle->priv = ftl;
   return ret_status;
 
@@ -208,7 +207,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 
 		os_lock_mutex(&ftl->status_q.mutex);
 
-		ftl->queue_ready = 0;
+		ftl->async_queue_alive = 0;
 
 		status_queue_elmt_t *elmt;
 

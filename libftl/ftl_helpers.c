@@ -181,7 +181,7 @@ ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	status_queue_elmt_t *elmt;
 	ftl_status_t retval = FTL_SUCCESS;
 
-	if (!ftl->queue_ready) {
+	if (!ftl->async_queue_alive) {
 		return FTL_NOT_INITIALIZED;
 	}
 
@@ -234,7 +234,7 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	status_queue_elmt_t *elmt;
 	ftl_status_t retval = FTL_SUCCESS;
 
-	if (!ftl->queue_ready) {
+	if (!ftl->async_queue_alive) {
 		return FTL_NOT_INITIALIZED;
 	}
 

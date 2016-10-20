@@ -202,7 +202,7 @@ if (!stream_key || !ingest_location || !video_input) {
 	   packetloss_rate = ftl_ingest_speed_test(&handle, speedtest_kbps, speedtest_duration);
 	   sleep_ms(1);
 	   printf("Running Speed complete: packet loss rate was %3.2f, estimated peak bitrate is %3.2f kbps\n", packetloss_rate, (float)speedtest_kbps * (100.f - packetloss_rate) / 100 );
-	   //goto cleanup;
+	   goto cleanup;
    }
    
    printf("Stream online!\n");
@@ -291,7 +291,7 @@ cleanup:
 
    if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS) {
 	   printf("Failed to disconnect from ingest %d\n", status_code);
-	retval = -1;
+	   retval = -1;
    }
 
    return retval;
@@ -321,7 +321,7 @@ cleanup:
 			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);
 
 			 if (status.msg.event.reason == FTL_STATUS_EVENT_REASON_API_REQUEST) {
-				 continue;
+				 break;
 			 }
 			 //attempt reconnection
 			 sleep_ms(500);

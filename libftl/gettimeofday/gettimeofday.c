@@ -56,7 +56,18 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 	return 0;
 }
+#else
+void timespec_add_ms(struct timespec *ts, int ms) {
+	int sec_a, sec_b, usec;
 
+	sec_a = ms / 1000;
+	ms -= sec_a * 1000;
+
+	sec_b = ts->tv_nsec / 1000000000;
+	ts->tv_nsec -= sec_b * 1000000000;
+
+	ts->tv_sec += sec_a + sec_b;
+}
 #endif // _WIN32
 
 int timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *y)
@@ -94,6 +105,7 @@ void timeval_add_ms(struct timeval *tv, int ms)
 
 	tv->tv_sec += sec_a + sec_b;
 }
+
 
 float timeval_to_ms(struct timeval *tv) {
 	float sec, usec;

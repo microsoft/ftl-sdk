@@ -119,9 +119,9 @@ while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1) {
 }
 
 /* Make sure we have all the required bits */
-if (!stream_key || !ingest_location || !video_input) {
+if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration))) {
 	usage();
-}
+}	
 	FILE *video_fp = NULL;	
 	uint32_t len = 0;
 	uint8_t *h264_frame;
@@ -136,25 +136,25 @@ if (!stream_key || !ingest_location || !video_input) {
 			return -1;
 		}
 
+		if (!init_video(&h264_handle, video_input)) {
+			printf("Faild to open video file\n");
+			return -1;
+		}
+
+	}
+
+	if (audio_input != NULL) {
 		if ((audio_frame = malloc(1000)) == NULL) {
 			printf("Failed to allocate memory for bitstream\n");
 			return -1;
 		}
 
-	}
-	else {
-		return -1;
+		if (!init_audio(&opus_handle, audio_input)) {
+			printf("Failed to open audio file\n");
+			return -1;
+		}
 	}
 
-	if(!init_audio(&opus_handle, audio_input)){
-		printf("Failed to open audio file\n");
-		return -1;
-	}
-	
-	if(!init_video(&h264_handle, video_input)){
-		printf("Faild to open video file\n");
-		return -1;
-	}
 	ftl_init();
 	ftl_handle_t handle;
 	ftl_ingest_params_t params;

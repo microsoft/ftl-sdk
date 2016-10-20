@@ -248,7 +248,7 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	}
 	else {
 		struct timespec ts;
-		clock_gettime(CLOCK_REALTIME, &ts)
+		clock_gettime(CLOCK_REALTIME, &ts);
 		timespec_add_ms(&ts, ms_timeout);
 		if (sem_timedwait(&ftl->status_q.sem, &ts) != 0) {
 			return FTL_STATUS_TIMEOUT;

@@ -22,31 +22,19 @@
  * SOFTWARE.
  **/
 
-#define __FTL_INTERNAL
 #include "ftl.h"
+#include "ftl_private.h"
 
-static ftl_logging_function_t ftl_log_cb;
+void ftl_log_msg(ftl_stream_configuration_private_t *ftl, ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...) {
+	va_list args;
+	ftl_status_msg_t m;
+	m.type = FTL_STATUS_LOG;
 
-void ftl_logging_init() {
-  ftl_log_cb = 0;
+	m.msg.log.log_level = log_level;
+	va_start(args, fmt);
+	vsnprintf(m.msg.log.string, sizeof(m.msg.log.string), fmt, args);
+	va_end(args);
+
+	enqueue_status_msg(ftl, &m);
 }
 
-void ftl_register_log_handler(ftl_logging_function_t log_func) {
-  ftl_log_cb = log_func;
-}
-
-// Convert compiler macro to actual printf call to stderr
-void ftl_log_message(ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...) {
-    va_list args;
-    char message[2048];
-    va_start(args, fmt);
-    vsnprintf(message, 2048, fmt, args);
-    va_end(args);
-
-    // and now spit it out
-    if (ftl_log_cb != 0) {
-      (*ftl_log_cb)(log_level, message);
-    } else {
-      fprintf(stderr, "[%s]:%d %s\n", file, lineno, message);
-    }
-}

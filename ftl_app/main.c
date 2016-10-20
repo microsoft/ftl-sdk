@@ -308,15 +308,20 @@ cleanup:
 	 ftl_status_t status_code;
 
 	 while (1) {
-		 if (ftl_ingest_get_status(handle, &status, FOREVER) < 0) {
+		 status_code = ftl_ingest_get_status(handle, &status, 1000);
+
+		 if (status_code == FTL_STATUS_TIMEOUT) {
+			 continue;
+		 }
+		 else if (status_code == FTL_NOT_INITIALIZED) {
 			 break;
 		 }
-		 
+
 		 if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED) {
 			 printf("Disconnected from ingest for reason %d\n", status.msg.event.reason);
 
 			 if (status.msg.event.reason == FTL_STATUS_EVENT_REASON_API_REQUEST) {
-				 break;
+				 continue;
 			 }
 			 //attempt reconnection
 			 sleep_ms(500);

@@ -82,6 +82,19 @@ int timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *
 	return x->tv_sec < y->tv_sec;
 }
 
+void timeval_add_ms(struct timeval *tv, int ms)
+{
+	int sec_a, sec_b, usec;
+
+	sec_a = ms / 1000;
+	ms -= sec_a * 1000;
+
+	sec_b = tv->tv_usec / 1000000;
+	tv->tv_usec -= sec_b * 1000000;
+
+	tv->tv_sec += sec_a + sec_b;
+}
+
 float timeval_to_ms(struct timeval *tv) {
 	float sec, usec;
 

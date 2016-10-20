@@ -109,6 +109,18 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	return status;
 }
 
+int media_enable_nack(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, BOOL enabled) {
+	ftl_media_component_common_t *mc = NULL;
+	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
+		return -1;
+	}
+
+	mc->nack_enabled = enabled;
+
+	return 0;	
+}
+
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	ftl_media_config_t *media = &ftl->media;
 	struct hostent *server = NULL;
@@ -175,6 +187,7 @@ static int _nack_init(ftl_media_component_common_t *media) {
 	}
 
 	media->nack_slots_initalized = TRUE;
+	media->nack_enabled = TRUE;
 	media->seq_num = media->xmit_seq_num = 0; //TODO: should start at a random value
 
 	return FTL_SUCCESS;
@@ -226,6 +239,8 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	int64_t total_sent = 0;
 	int64_t pkts_sent = 0;
 
+	media_enable_nack(ftl, mc->ssrc, FALSE);
+
 	int initial_nack_cnt = mc->stats.nack_requests;
 
 	gettimeofday(&start_tv, NULL);
@@ -258,6 +273,8 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	sleep_ms(100);
 
 	FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt);
+
+	media_enable_nack(ftl, mc->ssrc, TRUE);
 
 	return (float)(mc->stats.nack_requests-initial_nack_cnt) * 100.f / (float)pkts_sent;
 }
@@ -515,7 +532,7 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 
 static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, uint16_t sn) {
 	ftl_media_component_common_t *mc;
-	int tx_len;
+	int tx_len = 0;
 
 	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
@@ -538,9 +555,11 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	timeval_subtract(&delta, &now, &slot->xmit_time);
 	req_delay = (int)timeval_to_ms(&delta);
 
-	tx_len = _media_send_slot(ftl, slot);
+	if (mc->nack_enabled) {
+		tx_len = _media_send_slot(ftl, slot);
+		FTL_LOG(ftl, FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
+	}
 	mc->stats.nack_requests++;
-	FTL_LOG(ftl, FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
 
 	os_unlock_mutex(&slot->mutex);
 

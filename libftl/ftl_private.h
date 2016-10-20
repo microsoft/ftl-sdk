@@ -155,6 +155,7 @@ typedef struct {
 	double timestamp;
 	double timestamp_step;
 	uint16_t seq_num;
+	BOOL nack_enabled;
 	int64_t min_nack_rtt;
 	int64_t max_nack_rtt;
 	int64_t nack_rtt_avg;

@@ -128,6 +128,7 @@ if (!stream_key || !ingest_location || !video_input) {
 	uint8_t *audio_frame;
 	opus_obj_t opus_handle;
 	h264_obj_t h264_handle;
+	int retval = 0;
 
 	if (video_input != NULL) {
 		if ((h264_frame = malloc(10000000)) == NULL) {
@@ -200,8 +201,8 @@ if (!stream_key || !ingest_location || !video_input) {
 	   float packetloss_rate = 0;
 	   packetloss_rate = ftl_ingest_speed_test(&handle, speedtest_kbps, speedtest_duration);
 	   sleep_ms(1);
-	   printf("Running Speed complete: packet loss rate was %3.2f\n", packetloss_rate);
-	   return 0;
+	   printf("Running Speed complete: packet loss rate was %3.2f, estimated peak bitrate is %3.2f kbps\n", packetloss_rate, (float)speedtest_kbps * (100.f - packetloss_rate) / 100 );
+	   //goto cleanup;
    }
    
    printf("Stream online!\n");
@@ -214,7 +215,6 @@ if (!stream_key || !ingest_location || !video_input) {
    float audio_time_step = 1000.f / audio_pps;
    int audio_pkts_sent;
    int end_of_frame;
-   int retval = 0;
 
    gettimeofday(&proc_start_tv, NULL);
 
@@ -275,6 +275,8 @@ if (!stream_key || !ingest_location || !video_input) {
 		   audio_send_accumulator += video_time_step;
 	   }
    }
+
+cleanup:
    
 	if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS) {
 		printf("Failed to disconnect from ingest %d\n", status_code);

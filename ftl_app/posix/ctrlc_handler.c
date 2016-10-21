@@ -1,5 +1,5 @@
 /**
-* \file socket.c - Windows Socket Abstractions
+* ctrlc_handler.cpp - POSIX handler for Ctrl-C behavior
 *
 * Copyright (c) 2015 Michael Casadevall
 *
@@ -22,55 +22,34 @@
 * SOFTWARE.
 **/
 
-#define __FTL_INTERNAL
+#include "main.h"
 
-#include "ftl.h"
+/**
+ * On POSIX platforms, we need to catch SIGINT, and and change the state
+ * of the shutdown flag. When we're in a signal handler, we've very limited
+ * in the type of calls we can safely make due to the state of the stack
+ * and potentially being anywhere in the calling program's execution. 
+ *
+ * As such, the "safest" thing to do is simply set a global variable which
+ * breaks us out of the loop, and brings us to our shutdown code. 
+ */
 
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <errno.h>
+volatile sig_atomic_t shutdown_flag = 0;
 
-void ftl_init_sockets() {
-  //BSD sockets are smarter and don't need silly init
+void charon_shutdown_stream(int sig) {
+  shutdown_flag = 1;
 }
 
-int ftl_close_socket(int sock) {
-  return close(sock);
+void charon_install_ctrlc_handler() {
+  signal(SIGINT, charon_shutdown_stream);
 }
 
-char * ftl_get_socket_error() {
-  return strerror(errno);
-}
-
-int ftl_set_socket_recv_timeout(int socket, int ms_timeout){
-  struct timeval tv = {0};
-
-  while (ms_timeout >= 1000) {
-    tv.tv_sec++;
-    ms_timeout -= 1000;
+void charon_loop_until_ctrlc() {
+  while (shutdown_flag != 1) {
+    sleep(1);
   }
-  tv.tv_usec = ms_timeout * 1000;
-
-  return setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv));  
 }
 
-int ftl_set_socket_send_timeout(int socket, int ms_timeout){
-  struct timeval tv = {0};
-
-  while (ms_timeout >= 1000) {
-    tv.tv_sec++;
-    ms_timeout -= 1000;
-  }
-  tv.tv_usec = ms_timeout * 1000;
-
-  return setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
+int ctrlc_pressed() {
+	return shutdown_flag;
 }
-
-int ftl_set_socket_enable_keepalive(int socket){
-  int keep_alive = 1;
-  return setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
-}
-
-
-

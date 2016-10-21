@@ -65,6 +65,9 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   ftl->video.fps_num = params->fps_num;
   ftl->video.fps_den = params->fps_den;
+  ftl->video.dts_usec = 0;
+  ftl->audio.dts_usec = 0;
+  ftl->video.dts_error = 0;
 
   strncpy_s(ftl->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]), params->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]) - 1);
   strncpy_s(ftl->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]), params->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]) - 1);
@@ -152,7 +155,7 @@ FTL_API float ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, in
 	return packet_loss;
 }
 
-FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {
+FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame) {
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	int bytes_sent = 0;
@@ -162,16 +165,39 @@ FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t med
 	}
 
 	if (media_type == FTL_AUDIO_DATA) {
-		bytes_sent = media_send_audio(ftl, data, len);
+		bytes_sent = media_send_audio(ftl, dts_usec, data, len);
 	}
 	else if (media_type == FTL_VIDEO_DATA) {
-		bytes_sent = media_send_video(ftl, data, len, end_of_frame);
+		bytes_sent = media_send_video(ftl, dts_usec, data, len, end_of_frame);
 	}
 	else {
 		return bytes_sent;
 	}
 
 	return bytes_sent;
+}
+
+FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {
+
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+	int64_t dts_increment_usec, dts_usec;
+
+	if (media_type == FTL_AUDIO_DATA) {
+		dts_usec = ftl->audio.dts_usec;
+		dts_increment_usec = AUDIO_PACKET_DURATION_MS * 1000;
+		ftl->audio.dts_usec += dts_increment_usec;
+	}
+	else if (media_type == FTL_VIDEO_DATA) {
+		dts_usec = ftl->video.dts_usec;
+		if (end_of_frame) {
+			float dst_usec_f = (float)ftl->video.fps_den * 1000000.f / (float)ftl->video.fps_num + ftl->video.dts_error;
+			dts_increment_usec = (int64_t)(dst_usec_f);
+			ftl->video.dts_error = dst_usec_f - (float)dts_increment_usec;
+			ftl->video.dts_usec += dts_increment_usec;
+		}
+	}
+
+	return ftl_ingest_send_media_dts(ftl_handle, media_type, dts_usec, data, len, end_of_frame);
 }
 
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {

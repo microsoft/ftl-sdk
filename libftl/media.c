@@ -22,8 +22,8 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 static int _update_stats(ftl_stream_configuration_private_t *ftl);
 static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms);
 static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms);
-
-void clear_stats(media_stats_t *stats);
+void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec);
+void _clear_stats(media_stats_t *stats);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
@@ -71,12 +71,15 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		comp->producer = 0;
 		comp->consumer = 0;
 
-		clear_stats(&comp->stats);
+		_clear_stats(&comp->stats);
 	}
 
-	ftl->video.media_component.timestamp_step = 90000.f * (float)ftl->video.fps_den / (float)ftl->video.fps_num;
+	ftl->video.media_component.timestamp_clock = VIDEO_RTP_TS_CLOCK_HZ;
+	ftl->audio.media_component.timestamp_clock = AUDIO_SAMPLE_RATE;
+	ftl->video.media_component.prev_dts_usec = -1;
+	ftl->audio.media_component.prev_dts_usec = -1;
+
 	ftl->video.wait_for_idr_frame = TRUE;
-	ftl->audio.media_component.timestamp_step = 48000 / 50; //TODO: dont assume the step size for audio
 
 	media->recv_thread_running = TRUE;
 #ifdef _WIN32
@@ -156,16 +159,10 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 
 	_nack_destroy(video_comp);
 
-	video_comp->timestamp = 0; //TODO: should start at a random value
-	video_comp->timestamp_step = 0;
-
 	ftl_media_component_common_t *audio_comp = &ftl->audio.media_component;
 
 	_nack_destroy(audio_comp);
 
-	audio_comp->timestamp = 0;
-	audio_comp->timestamp_step = 0;
-	
 	return status;
 }
 
@@ -206,7 +203,7 @@ static int _nack_destroy(ftl_media_component_common_t *media) {
 	return 0;
 }
 
-void clear_stats(media_stats_t *stats) {
+void _clear_stats(media_stats_t *stats) {
 	stats->frames_received = 0;
 	stats->frames_sent = 0;
 	stats->bytes_sent = 0;
@@ -225,6 +222,29 @@ void clear_stats(media_stats_t *stats) {
 	stats->max_frame_size = 0;
 }
 
+void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec) {
+	int64_t delta_usec;
+	uint32_t delta_ts;
+
+	if (mc->prev_dts_usec < 0) {
+		mc->prev_dts_usec = dts_usec;
+	}
+
+	delta_usec = dts_usec - mc->prev_dts_usec;
+
+	if (delta_usec) {
+
+		//convert to percentage of 1 second
+		double delta_percent = (double)(delta_usec + 1) / 1000000.f;
+
+		delta_ts = (uint32_t)((double)mc->timestamp_clock * delta_percent);
+
+		mc->timestamp += delta_ts;
+
+		//TODO:  figure out if i need to compensate for rounding error;
+		mc->prev_dts_usec = dts_usec;
+	}
+}
 
 int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms) {
 	ftl_media_component_common_t *mc = &ftl->audio.media_component;
@@ -263,7 +283,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 
 		while (transmit_level > 0) {
 			pkts_sent++;
-			bytes_sent = media_send_audio(ftl, data, sizeof(data));
+			bytes_sent = media_send_audio(ftl, 0, data, sizeof(data));
 			total_sent += bytes_sent;
 			transmit_level -= bytes_sent;
 		}
@@ -279,7 +299,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	return (float)(mc->stats.nack_requests-initial_nack_cnt) * 100.f / (float)pkts_sent;
 }
 
-int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len) {
+int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len) {
 	ftl_media_component_common_t *mc = &ftl->audio.media_component;
 	uint8_t nalu_type = 0;
 	int bytes_sent = 0;
@@ -290,6 +310,8 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 	nack_slot_t *slot;
 	int remaining = len;
 	int retries = 0;
+
+	_update_timestamp(ftl, mc, dts_usec);
 
 	while (remaining > 0) {
 		uint16_t sn = mc->seq_num;
@@ -324,7 +346,7 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 	return bytes_sent;
 }
 
-int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len, int end_of_frame) {
+int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame) {
 	ftl_media_component_common_t *mc = &ftl->video.media_component;
 	uint8_t nalu_type = 0;
 	uint8_t nri;
@@ -340,6 +362,8 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 	nalu_type = data[0] & 0x1F;
 	nri = (data[0] >> 5) & 0x3;
 
+	_update_timestamp(ftl, mc, dts_usec);
+
 	if (ftl->video.wait_for_idr_frame) {
 		if (nalu_type == H264_NALU_TYPE_SPS) {
 			FTL_LOG(ftl, FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
@@ -348,7 +372,6 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, uint8_t *data, int
 		else {
 			if (end_of_frame) {
 				mc->stats.dropped_frames++;
-				mc->timestamp += mc->timestamp_step;
 			}
 			return bytes_queued;
 		}
@@ -642,7 +665,6 @@ static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl,
 	out = (uint8_t *)out_header;
 
 	mc->seq_num++;
-	mc->timestamp += mc->timestamp_step;
 
 	memcpy(out, in, payload_len);
 
@@ -657,8 +679,6 @@ static int _media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in) 
 	rtp_header = ntohl(*((uint32_t*)in));
 	rtp_header |= 1 << 23; /*set marker bit*/
 	*((uint32_t*)in) = htonl(rtp_header);
-
-	mc->timestamp += mc->timestamp_step;
 
 	return 0;
 }
@@ -848,7 +868,7 @@ static int _update_stats(ftl_stream_configuration_private_t *ftl) {
 		//_send_pkt_stats(ftl, &ftl->audio.media_component);
 		_send_video_stats(ftl, &ftl->video.media_component, stats_interval);
 
-		clear_stats(&ftl->video.media_component.stats);
+		_clear_stats(&ftl->video.media_component.stats);
 	}
 
 	return 0;

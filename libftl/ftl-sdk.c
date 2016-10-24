@@ -32,6 +32,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->connected = 0;
+  ftl->ingest_socket = -1;
   ftl->async_queue_alive = 0;
   ftl->ready_for_media = 0;
   ftl->video.media_component.kbps = params->peak_kbps;
@@ -110,6 +111,10 @@ fail:
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
   ftl_status_t status = FTL_SUCCESS;
+
+  if ((status = _init_control_connection(ftl)) != FTL_SUCCESS) {
+	  return status;
+  }
 
   if ((status = _ingest_connect(ftl)) != FTL_SUCCESS) {
 	  return status;

@@ -6,14 +6,21 @@ find_package(Threads REQUIRED)
 
 include_directories(libftl)
 
+SET(BUILD_CURL_EXE OFF CACHE BOOL "Building libcurl")
+SET(HTTP_ONLY OFF CACHE BOOL "using compiling HTTP")
+SET(BUILD_TESTING OFF CACHE BOOL "Not building Tests")
+add_subdirectory(libcurl)
+include_directories(libcurl/include ${CMAKE_CURRENT_BINARY_DIR}/libcurl/include/curl)
+
+
 if (WIN32)
   set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.c
                             ftl_app/win32/xgetopt.h
                             ftl_app/win32/ctrlc_handler.c)
   set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
-							libftl/win32/threads.c
-							libftl/win32/threads.h)
+							              libftl/win32/threads.c
+							              libftl/win32/threads.h)
 
   include_directories(libftl/win32)
 else()
@@ -33,16 +40,16 @@ add_library(ftl SHARED libftl/hmac/hmac.c
                        libftl/ftl-sdk.c
                        libftl/handshake.c
                        libftl/ftl_helpers.c
-					   libftl/media.c
+					             libftl/media.c
                        libftl/logging.c
                        libftl/ftl.h
                        libftl/ftl_private.h
-             ${FTLSDK_PLATFORM_FILES})
+                       ${FTLSDK_PLATFORM_FILES})
 set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32)
+  target_link_libraries(ftl ws2_32 libcurl)
 endif()
 
 add_executable(ftl_app
@@ -51,12 +58,12 @@ add_executable(ftl_app
                ftl_app/file_parser.c
                ftl_app/file_parser.h			   
                ftl_app/gettimeofday.c
-	       ftl_app/gettimeofday.h
+	             ftl_app/gettimeofday.h
                ${FTL_PLATFORM_FILES})
-#target_link_libraries(ftl_app ftl Threads::Threads ${FTL_PLATFORM_LIBS})
-target_link_libraries(ftl_app ftl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
+
+target_link_libraries(ftl_app ftl libcurl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules
-install(TARGETS ftl DESTINATION lib)
-install(FILES libftl/ftl.h DESTINATION "include/ftl")
+install(TARGETS ftl libcurl DESTINATION lib)
+

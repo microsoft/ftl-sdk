@@ -36,83 +36,99 @@ static void *connection_status_thread(void *data);
 static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...);
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
 
+ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
+	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
+
+	int err = 0;
+	SOCKET sock = 0;
+	struct addrinfo hints;
+	memset(&hints, 0, sizeof(hints));
+
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = 0;
+
+	struct addrinfo* resolved_names = 0;
+	struct addrinfo* p = 0;
+
+	int ingest_port = INGEST_PORT;
+	char ingest_port_str[10];
+
+	if (ftl->connected) {
+		return FTL_ALREADY_CONNECTED;
+	}
+
+	snprintf(ingest_port_str, 10, "%d", ingest_port);
+
+	err = getaddrinfo(ftl->ingest_ip, ingest_port_str, &hints, &resolved_names);
+	if (err != 0) {
+		FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_ip);
+		FTL_LOG(ftl, FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));
+		return FTL_DNS_FAILURE;
+	}
+
+	/* Open a socket to the control port */
+	for (p = resolved_names; p != NULL; p = p->ai_next) {
+		sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (sock == -1) {
+			/* try the next candidate */
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", ftl_get_socket_error());
+			continue;
+		}
+
+		/* Go for broke */
+		if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to connect on candidate, error: %s", ftl_get_socket_error());
+			ftl_close_socket(sock);
+			sock = 0;
+			continue;
+		}
+
+		/* If we got here, we successfully connected */
+		if (ftl_set_socket_enable_keepalive(sock) != 0) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to enable keep alives.  error: %s", ftl_get_socket_error());
+		}
+
+		if (ftl_set_socket_recv_timeout(sock, SOCKET_RECV_TIMEOUT_MS) != 0) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set recv timeout.  error: %s", ftl_get_socket_error());
+		}
+
+		if (ftl_set_socket_send_timeout(sock, SOCKET_SEND_TIMEOUT_MS) != 0) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set send timeout.  error: %s", ftl_get_socket_error());
+		}
+
+		break;
+	}
+
+	/* Free the resolved name struct */
+	freeaddrinfo(resolved_names);
+
+	/* Check to see if we actually connected */
+	if (sock <= 0) {
+		FTL_LOG(ftl, FTL_LOG_ERROR, "failed to connect to ingest. Last error was: %s",
+			ftl_get_socket_error());
+		return FTL_CONNECT_ERROR;
+	}
+
+	ftl->ingest_socket = sock;
+
+	return FTL_SUCCESS;
+}
+
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
 
   int err = 0;
-  SOCKET sock = 0;
-  struct addrinfo hints;
-  memset(&hints, 0, sizeof(hints));
-
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_protocol = 0;
-
-  struct addrinfo* resolved_names = 0;
-  struct addrinfo* p = 0;
-
-  int ingest_port = INGEST_PORT;
-  char ingest_port_str[10];
   char response[MAX_INGEST_COMMAND_LEN];
 
   if (ftl->connected) {
 	  return FTL_ALREADY_CONNECTED;
   }
 
-  snprintf(ingest_port_str, 10, "%d", ingest_port);
-  
-  err = getaddrinfo(ftl->ingest_ip, ingest_port_str, &hints, &resolved_names);
-  if (err != 0) {
-    FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_ip);
-    FTL_LOG(ftl, FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));
-    return FTL_DNS_FAILURE;
-  }
-  
-  /* Open a socket to the control port */
-  for (p = resolved_names; p != NULL; p = p->ai_next) {
-    sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-    if (sock == -1) {
-      /* try the next candidate */
-      FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", ftl_get_socket_error());
-      continue;
-    }
-
-    /* Go for broke */
-    if (connect (sock, p->ai_addr, p->ai_addrlen) == -1) {
-      FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to connect on candidate, error: %s", ftl_get_socket_error());
-      ftl_close_socket(sock);
-      sock = 0;
-      continue;
-    }
-
-    /* If we got here, we successfully connected */
-	if (ftl_set_socket_enable_keepalive(sock) != 0) {
-		FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to enable keep alives.  error: %s", ftl_get_socket_error());
-	}
-
-	if (ftl_set_socket_recv_timeout(sock, SOCKET_RECV_TIMEOUT_MS) != 0) {
-		FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set recv timeout.  error: %s", ftl_get_socket_error());
-	}
-
-	if (ftl_set_socket_send_timeout(sock, SOCKET_SEND_TIMEOUT_MS) != 0) {
-		FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set send timeout.  error: %s", ftl_get_socket_error());
-	}
-
-    break;
+  if (ftl->ingest_socket < 0) {
+	  return FTL_SOCKET_NOT_CONNECTED;
   }
 
-  /* Free the resolved name struct */
-  freeaddrinfo(resolved_names);
-  
-  /* Check to see if we actually connected */
-  if (sock <= 0) {
-    FTL_LOG(ftl, FTL_LOG_ERROR, "failed to connect to ingest. Last error was: %s",
-            ftl_get_socket_error());
-    return FTL_CONNECT_ERROR;
-  }
-
-  ftl->ingest_socket = sock;
-  
   if(!ftl_get_hmac(ftl->ingest_socket, ftl->key, ftl->hmacBuffer)) {
     FTL_LOG(ftl, FTL_LOG_ERROR, "could not get a signed HMAC!");
     response_code = FTL_INTERNAL_ERROR;

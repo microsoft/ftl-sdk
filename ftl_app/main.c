@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #endif
 #include "file_parser.h"
+#include <curl/curl.h>
 
 void sleep_ms(int ms)
 {
@@ -46,6 +47,8 @@ void log_test(ftl_log_severity_t log_level, const char * message) {
   fprintf(stderr, "libftl message: %s\n", message);
   return;
 }
+
+char *_get_ingests(char *host);
 
 void usage() {
     printf("Usage: ftl_app -i <ingest uri> -s <stream_key> - v <h264_annex_b_file> -a <opus in ogg container>\n");
@@ -75,53 +78,58 @@ int main(int argc, char** argv) {
    int audio_pps = 50;
    int target_bw_kbps = 5000;
 
-int success = 0;
-int verbose = 0;
+	int success = 0;
+	int verbose = 0;
 
-opterr = 0;
+	opterr = 0;
 
-charon_install_ctrlc_handler();
+	charon_install_ctrlc_handler();
+	curl_global_init(CURL_GLOBAL_ALL);
 
-if (FTL_VERSION_MAINTENANCE != 0) {
-	printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
-}
-else {
-	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
-}
-
-while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1) {
-	switch (c) {
-	case 'i':
-		ingest_location = optarg;
-		break;
-	case 'v':
-		video_input = optarg;
-		break;
-	case 'a':
-		audio_input = optarg;
-		break;
-	case 's':
-		stream_key = optarg;
-		break;
-	case 'f':
-		sscanf(optarg, "%d:%d", &fps_num, &fps_den);
-		break;
-	case 'b':
-		sscanf(optarg, "%d", &target_bw_kbps);
-		break;
-	case 't':
-		sscanf(optarg, "%d:%d", &speedtest_duration, &speedtest_kbps);
-		break;
-	case '?':
-		usage();
-		break;
+	if (FTL_VERSION_MAINTENANCE != 0) {
+		printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
 	}
-}
+	else {
+		printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
+	}
 
-/* Make sure we have all the required bits */
-if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration))) {
-	usage();
-}	
+	while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1) {
+		switch (c) {
+		case 'i':
+			ingest_location = optarg;
+			break;
+		case 'v':
+			video_input = optarg;
+			break;
+		case 'a':
+			audio_input = optarg;
+			break;
+		case 's':
+			stream_key = optarg;
+			break;
+		case 'f':
+			sscanf(optarg, "%d:%d", &fps_num, &fps_den);
+			break;
+		case 'b':
+			sscanf(optarg, "%d", &target_bw_kbps);
+			break;
+		case 't':
+			sscanf(optarg, "%d:%d", &speedtest_duration, &speedtest_kbps);
+			break;
+		case '?':
+			usage();
+			break;
+		}
+	}
+
+	/* Make sure we have all the required bits */
+	if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration))) {
+		usage();
+	}	
+
+
+	_get_ingests(ingest_location);
+
 	FILE *video_fp = NULL;	
 	uint32_t len = 0;
 	uint8_t *h264_frame;
@@ -361,4 +369,69 @@ cleanup:
 	printf("exited ftl_status_thread\n");
 
 	return 0;
+ }
+
+ struct MemoryStruct {
+	 char *memory;
+	 size_t size;
+ };
+
+ static size_t ftlsdk_curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
+ {
+	 size_t realsize = size * nmemb;
+	 struct MemoryStruct *mem = (struct MemoryStruct *)userp;
+
+	 mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+	 if (mem->memory == NULL) {
+		 /* out of memory! */
+		 printf("not enough memory (realloc returned NULL)\n");
+		 return 0;
+	 }
+
+	 memcpy(&(mem->memory[mem->size]), contents, realsize);
+	 mem->size += realsize;
+	 mem->memory[mem->size] = 0;
+
+	 return realsize;
+ }
+
+
+ char *_get_ingests(char *host) {
+	 CURL *curl_handle;
+	 CURLcode res;
+	 char etcd_uri[100];
+	 struct MemoryStruct chunk;
+	 char *query_result = NULL;
+	 char *etcd_host;
+
+	 curl_handle = curl_easy_init();
+
+	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
+	chunk.size = 0;    /* no data at this point */
+
+	curl_easy_setopt(curl_handle, CURLOPT_URL, "https://beam.pro/api/v1/ingests");
+	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, ftlsdk_curl_write_callback);
+	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
+	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
+
+	res = curl_easy_perform(curl_handle);
+
+	if (res == CURLE_OK) {
+		if ((query_result = malloc((chunk.size + 1) * sizeof(char))) == NULL) {
+			return NULL;
+		}
+
+		strncpy(query_result, chunk.memory, chunk.size);
+		printf("query returned: %s\n", query_result);
+	}
+	else {
+		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+	}
+
+	free(chunk.memory);
+
+	 /* cleanup curl stuff */
+	 curl_easy_cleanup(curl_handle);
+
+	 return query_result;
  }

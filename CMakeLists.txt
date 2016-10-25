@@ -15,6 +15,12 @@ SET(BUILD_TESTING OFF CACHE BOOL "Not building Tests")
 add_subdirectory(libcurl)
 include_directories(libcurl/include ${CMAKE_CURRENT_BINARY_DIR}/libcurl/include/curl)
 
+SET(JANSSON_BUILD_DOCS OFF CACHE BOOL "Jansson docs off")
+SET(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Jansson build without tests")
+SET(JANSSON_EXAMPLES OFF CACHE BOOL "Jansson disable examples")
+add_subdirectory(libjansson)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/libjansson/include)
+
 
 if (WIN32)
   set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.c
@@ -64,15 +70,10 @@ add_executable(ftl_app
 	             ftl_app/gettimeofday.h
                ${FTL_PLATFORM_FILES})
 
-#SET(LIBCURL)
-#find_library(LIBCURL libcurl PATH_SUFFIXES ${CMAKE_CURRENT_BINARY_DIR}/libcurl/lib/$<CONFIG>)
-#${CMAKE_CURRENT_BINARY_DIR}/libcurl/lib/$<CONFIG>/libcurl 
-#MESSAGE( STATUS "Lib curl dir: "  ${CONFIG} )
-target_link_libraries(ftl_app ftl libcurl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
+target_link_libraries(ftl_app ftl libcurl jansson ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules
 install(TARGETS ftl DESTINATION lib)
-#file (COPY ${CMAKE_CURRENT_SOURCE_DIR}/ftl-sdk/libftl/ftl.h
-#           DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include)
+
 

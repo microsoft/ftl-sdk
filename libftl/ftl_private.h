@@ -72,6 +72,9 @@
 #define VIDEO_RTP_TS_CLOCK_HZ 90000
 #define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_PACKET_DURATION_MS 20
+#define IPV4_ADDR_ASCII_LEN 24
+#define INGEST_LIST_URI "https://beam.pro/api/v1/ingests"
+#define INGEST_LOAD_PORT 8081
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
@@ -216,6 +219,15 @@ typedef struct {
 	struct timeval stats_tv;
 } ftl_media_config_t;
 
+typedef struct _ftl_ingest_t {
+	char name[50];
+	char host[30];
+	char ip[IPV4_ADDR_ASCII_LEN];
+	float cpu_load;
+	int rtt;
+	struct _ftl_ingest_t *next;
+}ftl_ingest_t;
+
 typedef struct {
   SOCKET ingest_socket;
   int connected;
@@ -237,12 +249,15 @@ typedef struct {
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
-
   status_queue_t status_q;
+  ftl_ingest_t *ingest_list;
 
 }  ftl_stream_configuration_private_t;
 
-
+struct MemoryStruct {
+	char *memory;
+	size_t size;
+};
 
 /**
  * Charon always responses with a three digit response code after each command
@@ -310,6 +325,8 @@ ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl);
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
+int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
+char * _ingest_find_best(ftl_stream_configuration_private_t *ftl);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);

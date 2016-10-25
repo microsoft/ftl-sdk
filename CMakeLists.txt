@@ -48,6 +48,7 @@ add_library(ftl SHARED libftl/hmac/hmac.c
                        libftl/gettimeofday/gettimeofday.h
                        libftl/ftl-sdk.c
                        libftl/handshake.c
+                       libftl/ingest.c
                        libftl/ftl_helpers.c
 					             libftl/media.c
                        libftl/logging.c
@@ -58,7 +59,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32)
+  target_link_libraries(ftl ws2_32 libcurl jansson)
 endif()
 
 add_executable(ftl_app

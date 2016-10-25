@@ -32,8 +32,6 @@
 #include <sys/time.h>
 #endif
 #include "file_parser.h"
-#include <curl/curl.h>
-#include <jansson.h>
 
 void sleep_ms(int ms)
 {
@@ -48,21 +46,6 @@ void log_test(ftl_log_severity_t log_level, const char * message) {
   fprintf(stderr, "libftl message: %s\n", message);
   return;
 }
-
-char *_get_ingests(char *host);
-/* forward refs */
-void print_json(json_t *root);
-void print_json_aux(json_t *element, int indent);
-void print_json_indent(int indent);
-const char *json_plural(int count);
-void print_json_object(json_t *element, int indent);
-void print_json_array(json_t *element, int indent);
-void print_json_string(json_t *element, int indent);
-void print_json_integer(json_t *element, int indent);
-void print_json_real(json_t *element, int indent);
-void print_json_true(json_t *element, int indent);
-void print_json_false(json_t *element, int indent);
-void print_json_null(json_t *element, int indent);
 
 void usage() {
     printf("Usage: ftl_app -i <ingest uri> -s <stream_key> - v <h264_annex_b_file> -a <opus in ogg container>\n");
@@ -98,7 +81,6 @@ int main(int argc, char** argv) {
 	opterr = 0;
 
 	charon_install_ctrlc_handler();
-	curl_global_init(CURL_GLOBAL_ALL);
 
 	if (FTL_VERSION_MAINTENANCE != 0) {
 		printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
@@ -140,14 +122,6 @@ int main(int argc, char** argv) {
 	if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration))) {
 		usage();
 	}	
-
-	char *ingest_list = _get_ingests(ingest_location);
-	json_t *ingests;
-	json_error_t error;
-
-	ingests = json_loads(ingest_list, 0, &error);
-
-	print_json(ingests);
 
 	FILE *video_fp = NULL;	
 	uint32_t len = 0;
@@ -388,173 +362,4 @@ cleanup:
 	printf("exited ftl_status_thread\n");
 
 	return 0;
- }
-
- struct MemoryStruct {
-	 char *memory;
-	 size_t size;
- };
-
- static size_t ftlsdk_curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
- {
-	 size_t realsize = size * nmemb;
-	 struct MemoryStruct *mem = (struct MemoryStruct *)userp;
-
-	 mem->memory = realloc(mem->memory, mem->size + realsize + 1);
-	 if (mem->memory == NULL) {
-		 /* out of memory! */
-		 printf("not enough memory (realloc returned NULL)\n");
-		 return 0;
-	 }
-
-	 memcpy(&(mem->memory[mem->size]), contents, realsize);
-	 mem->size += realsize;
-	 mem->memory[mem->size] = 0;
-
-	 return realsize;
- }
-
-
- char *_get_ingests(char *host) {
-	 CURL *curl_handle;
-	 CURLcode res;
-	 char etcd_uri[100];
-	 struct MemoryStruct chunk;
-	 char *query_result = NULL;
-	 char *etcd_host;
-
-	 curl_handle = curl_easy_init();
-
-	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
-	chunk.size = 0;    /* no data at this point */
-
-	curl_easy_setopt(curl_handle, CURLOPT_URL, "https://beam.pro/api/v1/ingests");
-	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, ftlsdk_curl_write_callback);
-	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
-	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
-
-	res = curl_easy_perform(curl_handle);
-
-	if (res == CURLE_OK) {
-		if ((query_result = malloc((chunk.size + 1) * sizeof(char))) == NULL) {
-			return NULL;
-		}
-
-		strncpy(query_result, chunk.memory, chunk.size);
-		query_result[chunk.size] = '\0';
-	}
-	else {
-		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-	}
-
-	free(chunk.memory);
-
-	 /* cleanup curl stuff */
-	 curl_easy_cleanup(curl_handle);
-
-	 return query_result;
- }
-
- void print_json(json_t *root) {
-	 print_json_aux(root, 0);
- }
-
- void print_json_aux(json_t *element, int indent) {
-	 switch (json_typeof(element)) {
-	 case JSON_OBJECT:
-		 print_json_object(element, indent);
-		 break;
-	 case JSON_ARRAY:
-		 print_json_array(element, indent);
-		 break;
-	 case JSON_STRING:
-		 print_json_string(element, indent);
-		 break;
-	 case JSON_INTEGER:
-		 print_json_integer(element, indent);
-		 break;
-	 case JSON_REAL:
-		 print_json_real(element, indent);
-		 break;
-	 case JSON_TRUE:
-		 print_json_true(element, indent);
-		 break;
-	 case JSON_FALSE:
-		 print_json_false(element, indent);
-		 break;
-	 case JSON_NULL:
-		 print_json_null(element, indent);
-		 break;
-	 default:
-		 fprintf(stderr, "unrecognized JSON type %d\n", json_typeof(element));
-	 }
- }
-
- void print_json_indent(int indent) {
-	 int i;
-	 for (i = 0; i < indent; i++) { putchar(' '); }
- }
-
- const char *json_plural(int count) {
-	 return count == 1 ? "" : "s";
- }
-
- void print_json_object(json_t *element, int indent) {
-	 size_t size;
-	 const char *key;
-	 json_t *value;
-
-	 print_json_indent(indent);
-	 size = json_object_size(element);
-
-	 printf("JSON Object of %ld pair%s:\n", size, json_plural(size));
-	 json_object_foreach(element, key, value) {
-		 print_json_indent(indent + 2);
-		 printf("JSON Key: \"%s\"\n", key);
-		 print_json_aux(value, indent + 2);
-	 }
- }
-
- void print_json_array(json_t *element, int indent) {
-	 size_t i;
-	 size_t size = json_array_size(element);
-	 print_json_indent(indent);
-
-	 printf("JSON Array of %ld element%s:\n", size, json_plural(size));
-	 for (i = 0; i < size; i++) {
-		 print_json_aux(json_array_get(element, i), indent + 2);
-	 }
- }
-
- void print_json_string(json_t *element, int indent) {
-	 print_json_indent(indent);
-	 printf("JSON String: \"%s\"\n", json_string_value(element));
- }
-
- void print_json_integer(json_t *element, int indent) {
-	 print_json_indent(indent);
-	 printf("JSON Integer: \"%" JSON_INTEGER_FORMAT "\"\n", json_integer_value(element));
- }
-
- void print_json_real(json_t *element, int indent) {
-	 print_json_indent(indent);
-	 printf("JSON Real: %f\n", json_real_value(element));
- }
-
- void print_json_true(json_t *element, int indent) {
-	 (void)element;
-	 print_json_indent(indent);
-	 printf("JSON True\n");
- }
-
- void print_json_false(json_t *element, int indent) {
-	 (void)element;
-	 print_json_indent(indent);
-	 printf("JSON False\n");
- }
-
- void print_json_null(json_t *element, int indent) {
-	 (void)element;
-	 print_json_indent(indent);
-	 printf("JSON Null\n");
  }

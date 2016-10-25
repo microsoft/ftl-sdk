@@ -2,6 +2,7 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 #include "ftl_private.h"
+#include <curl/curl.h>
 
 static BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);
 static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
@@ -19,6 +20,7 @@ FTL_API ftl_status_t ftl_init() {
   // Set pthread mutexes to recursive to mirror Windows mutex behavior
   pthread_mutexattr_settype(&ftl_default_mutexattr, PTHREAD_MUTEX_RECURSIVE);
 #endif
+  curl_global_init(CURL_GLOBAL_ALL);
   return FTL_SUCCESS;
 }
 
@@ -35,6 +37,8 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl->ingest_socket = -1;
   ftl->async_queue_alive = 0;
   ftl->ready_for_media = 0;
+  ftl->ingest_list = NULL;
+  _ingest_get_hosts(ftl);
   ftl->video.media_component.kbps = params->peak_kbps;
 
   ftl->key = NULL;
@@ -48,11 +52,14 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 		goto fail;
   }
 
+  _ingest_find_best(ftl);
+#if 0
 /*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
   if ( _lookup_ingest_ip(params->ingest_hostname, ftl->ingest_ip) == FALSE) {
     ret_status = FTL_DNS_FAILURE;
 		goto fail;
   }
+#endif
 
   ftl->audio.codec = params->audio_codec;
   ftl->video.codec = params->video_codec;
@@ -293,30 +300,4 @@ BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) 
 		return FALSE;
 }
 
-static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip) {
-	struct hostent *remoteHost;
-	struct in_addr addr;
-	BOOL success = FALSE;
-	ingest_ip[0] = '\0';
 
-	remoteHost = gethostbyname(ingest_location);
-
-	if (remoteHost) {
-		int i = 0;
-		if (remoteHost->h_addrtype == AF_INET)
-		{
-			while (remoteHost->h_addr_list[i] != 0) {
-				addr.s_addr = *(u_long *)remoteHost->h_addr_list[i++];
-
-				//revolving dns ensures this will change automatically so just use first ip found
-				if (!success) {
-					strcpy(ingest_ip, inet_ntoa(addr));
-					success = TRUE;
-          //break;
-				}
-			}
-		}
-	}
-
-	return success;
-}

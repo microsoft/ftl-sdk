@@ -4,6 +4,9 @@ project(libftl)
 
 find_package(Threads REQUIRED)
 
+set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 include_directories(libftl)
 
 SET(BUILD_CURL_EXE OFF CACHE BOOL "Building libcurl")
@@ -49,7 +52,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32 libcurl)
+  target_link_libraries(ftl ws2_32)
 endif()
 
 add_executable(ftl_app
@@ -61,9 +64,15 @@ add_executable(ftl_app
 	             ftl_app/gettimeofday.h
                ${FTL_PLATFORM_FILES})
 
+#SET(LIBCURL)
+#find_library(LIBCURL libcurl PATH_SUFFIXES ${CMAKE_CURRENT_BINARY_DIR}/libcurl/lib/$<CONFIG>)
+#${CMAKE_CURRENT_BINARY_DIR}/libcurl/lib/$<CONFIG>/libcurl 
+#MESSAGE( STATUS "Lib curl dir: "  ${CONFIG} )
 target_link_libraries(ftl_app ftl libcurl ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules
-install(TARGETS ftl libcurl DESTINATION lib)
+install(TARGETS ftl DESTINATION lib)
+#file (COPY ${CMAKE_CURRENT_SOURCE_DIR}/ftl-sdk/libftl/ftl.h
+#           DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include)
 

@@ -127,7 +127,6 @@ int main(int argc, char** argv) {
 		usage();
 	}	
 
-
 	_get_ingests(ingest_location);
 
 	FILE *video_fp = NULL;	

@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
    int speedtest_duration = 0;
    int c;
    int audio_pps = 50;
-   int target_bw_kbps = 5000;
+   int target_bw_kbps = 0;
 
 int success = 0;
 int verbose = 0;

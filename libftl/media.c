@@ -789,7 +789,8 @@ static void *send_thread(void *data)
 	int first_packet = 1;
 	int bytes_per_ms;
 	int pkt_sent;
-	int video_kbps = 0;
+	int video_kbps = -1;
+	int disable_flow_control = 0;
 
 	int transmit_level;
 	struct timeval start_tv, stop_tv, delta_tv;
@@ -806,6 +807,11 @@ static void *send_thread(void *data)
 			bytes_per_ms = video->kbps * 1000 / 8 / 1000;
 			transmit_level = 5 * bytes_per_ms; /*small initial level to prevent bursting at the start of a stream*/
 			video_kbps = video->kbps;
+
+			disable_flow_control = 0;
+			if (video_kbps <= 0) {
+				disable_flow_control = 1;
+			}
 		}
 
 #ifdef _WIN32
@@ -818,31 +824,36 @@ static void *send_thread(void *data)
 			break;
 		}
 
-		pkt_sent = 0;
-		while(!pkt_sent && media->send_thread_running) {
+		if (disable_flow_control) {
+			_media_send_packet(ftl, video);
+		}
+		else {
+			pkt_sent = 0;
+			while (!pkt_sent && media->send_thread_running) {
 
-			if (transmit_level <= 0) {
-				sleep_ms(MAX_MTU / bytes_per_ms + 1);
-			}
-
-			gettimeofday(&stop_tv, NULL);
-			if (!first_packet) {
-				timeval_subtract(&delta_tv, &stop_tv, &start_tv);
-				transmit_level += (int)timeval_to_ms(&delta_tv) * bytes_per_ms;
-
-				if (transmit_level > (MAX_XMIT_LEVEL_IN_MS * bytes_per_ms)) {
-					transmit_level = MAX_XMIT_LEVEL_IN_MS * bytes_per_ms;
+				if (transmit_level <= 0) {
+					sleep_ms(MAX_MTU / bytes_per_ms + 1);
 				}
-			}
-			else {
-				first_packet = 0;
-			}
 
-			start_tv = stop_tv;
+				gettimeofday(&stop_tv, NULL);
+				if (!first_packet) {
+					timeval_subtract(&delta_tv, &stop_tv, &start_tv);
+					transmit_level += (int)timeval_to_ms(&delta_tv) * bytes_per_ms;
 
-			if (transmit_level > 0 ) {
-				transmit_level -= _media_send_packet(ftl, video);
-				pkt_sent = 1;
+					if (transmit_level > (MAX_XMIT_LEVEL_IN_MS * bytes_per_ms)) {
+						transmit_level = MAX_XMIT_LEVEL_IN_MS * bytes_per_ms;
+					}
+				}
+				else {
+					first_packet = 0;
+				}
+
+				start_tv = stop_tv;
+
+				if (transmit_level > 0) {
+					transmit_level -= _media_send_packet(ftl, video);
+					pkt_sent = 1;
+				}
 			}
 		}
 

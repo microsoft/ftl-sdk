@@ -24,6 +24,31 @@
 
 #include "threads.h"
 
+int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_ROUTINE func, void *args) {
+	HANDLE thread;
+	thread = CreateThread(NULL, 0, func, args, 0, NULL);
+
+	if (thread == NULL) {
+		return -1;
+	}
+
+	*handle = thread;
+
+	return 0;
+}
+
+int os_destroy_thread(OS_THREAD_HANDLE *handle) {
+	CloseHandle(*handle);
+
+	return 0;
+}
+
+int os_wait_thread(OS_THREAD_HANDLE *handle) {
+	WaitForSingleObject(*handle, INFINITE);
+
+	return 0;
+}
+
 int os_init_mutex(OS_MUTEX *mutex) {
 
 	InitializeCriticalSection(mutex);

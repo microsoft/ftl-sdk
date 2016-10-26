@@ -251,7 +251,7 @@ typedef struct {
   ftl_video_component_t video;
   status_queue_t status_q;
   ftl_ingest_t *ingest_list;
-
+  int ingest_count;
 }  ftl_stream_configuration_private_t;
 
 struct MemoryStruct {

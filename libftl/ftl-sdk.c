@@ -38,7 +38,6 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   ftl->async_queue_alive = 0;
   ftl->ready_for_media = 0;
   ftl->ingest_list = NULL;
-  _ingest_get_hosts(ftl);
   ftl->video.media_component.kbps = params->peak_kbps;
 
   ftl->key = NULL;
@@ -51,15 +50,6 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
     ret_status = FTL_BAD_OR_INVALID_STREAM_KEY;
 		goto fail;
   }
-
-  _ingest_find_best(ftl);
-#if 0
-/*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
-  if ( _lookup_ingest_ip(params->ingest_hostname, ftl->ingest_ip) == FALSE) {
-    ret_status = FTL_DNS_FAILURE;
-		goto fail;
-  }
-#endif
 
   ftl->audio.codec = params->audio_codec;
   ftl->video.codec = params->video_codec;
@@ -99,6 +89,19 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->async_queue_alive = 1;
+
+  _ingest_get_hosts(ftl);
+
+  _ingest_find_best(ftl);
+ 
+#if 0
+  /*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
+  if (_lookup_ingest_ip(params->ingest_hostname, ftl->ingest_ip) == FALSE) {
+	  ret_status = FTL_DNS_FAILURE;
+	  goto fail;
+  }
+#endif
+
   ftl_handle->priv = ftl;
   return ret_status;
 

@@ -4,6 +4,7 @@
 #include <jansson.h>
 
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip);
+static int _ingest_compute_score(ftl_ingest_t *ingest);
 
 static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -27,10 +28,8 @@ static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, vo
 int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 	CURL *curl_handle;
 	CURLcode res;
-	char etcd_uri[100];
 	struct MemoryStruct chunk;
 	char *query_result = NULL;
-	char *etcd_host;
 	size_t i = 0;
 	int total_ingest_cnt = 0;
 	json_error_t error;
@@ -53,7 +52,7 @@ int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 		goto cleanup;
 	}
 
-	if ((ingests = json_loads(chunk.memory, chunk.size, 0, &error)) == NULL) {
+	if ((ingests = json_loadb(chunk.memory, chunk.size, 0, &error)) == NULL) {
 		goto cleanup;
 	}
 	
@@ -143,6 +142,13 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
 
+	//not sure how i can time response time from the GET without including the tcp connect other than to do this 2x
+	res = curl_easy_perform(curl_handle);
+
+	free(chunk.memory);
+	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
+	chunk.size = 0;    /* no data at this point */
+
 	gettimeofday(&start, NULL);
 	res = curl_easy_perform(curl_handle);
 	gettimeofday(&stop, NULL);
@@ -152,36 +158,63 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 
 	if (res != CURLE_OK) {
 		ingest->rtt = 1000;
-		ingest->cpu_load = -1;
+		ingest->cpu_load = 100;
 		goto cleanup;
 	}
 
-	if ((load = json_loads(chunk.memory, chunk.size, 0, &error)) == NULL) {
+	if ((load = json_loadb(chunk.memory, chunk.size, 0, &error)) == NULL) {
 		goto cleanup;
 	}
 
 	double cpu_load;
-	if (json_unpack(load, "{s:f}", "CPULoadAvg", &cpu_load) < 0) {
-		ingest->cpu_load = -1;
+	if (json_unpack(load, "{s:f}", "LoadPercent", &cpu_load) < 0) {
+		ingest->cpu_load = 100;
 	}
 	else {
-		ingest->cpu_load = cpu_load;
+		ingest->cpu_load = (float)cpu_load;
 	}
 
 cleanup:
 	free(chunk.memory);
 	curl_easy_cleanup(curl_handle);
 
-	return load;
+	return 0;
 }
 
-char * _ingest_find_best(ftl_stream_configuration_private_t *ftl) {
+char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {
+	if (ftl->ingest_list == NULL) {
+		if (_ingest_get_hosts(ftl) <= 0) {
+			return NULL;
+		}
+	}
+
+	ftl_ingest_t * elmt = ftl->ingest_list;
+
+	while (elmt != NULL) {
+		if (strcmp(host, elmt->host) == 0) {
+			/*just find first in list with matching host*/
+			return elmt->ip;
+		}
+
+		elmt = elmt->next;
+	}
+
+	return NULL;
+}
+
+char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
 	OS_THREAD_HANDLE *handle;
 	int i;
 	ftl_ingest_t *elmt, *best = NULL;
 	struct timeval start, stop, delta;
-	int shortest_rtt = 1000;
+	float best_ingest_score = 1000, ingest_score;
+
+	if (ftl->ingest_list == NULL) {
+		if (_ingest_get_hosts(ftl) <= 0) {
+			return NULL;
+		}
+	}
 
 	if ((handle = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE*) *ftl->ingest_count)) == NULL) {
 		return NULL;
@@ -207,8 +240,10 @@ char * _ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 			os_wait_thread(&handle[i]);
 		}
 
-		if (elmt->rtt < shortest_rtt) {
-			shortest_rtt = elmt->rtt;
+		ingest_score = _ingest_compute_score(elmt);
+
+		if (ingest_score < best_ingest_score ) {
+			best_ingest_score = ingest_score;
 			best = elmt;
 		}
 
@@ -232,6 +267,11 @@ char * _ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server load of %f\n", best->name, best->ip, best->rtt, best->cpu_load);
 
 	return best->ip;
+}
+
+static int _ingest_compute_score(ftl_ingest_t *ingest) {
+
+	return (int)ingest->cpu_load + ingest->rtt;
 }
 
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {

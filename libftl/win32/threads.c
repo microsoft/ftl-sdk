@@ -24,7 +24,7 @@
 
 #include "threads.h"
 
-int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_ROUTINE func, void *args) {
+int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_START_ROUTINE func, void *args) {
 	HANDLE thread;
 	thread = CreateThread(NULL, 0, func, args, 0, NULL);
 

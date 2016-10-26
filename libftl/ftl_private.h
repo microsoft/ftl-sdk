@@ -233,7 +233,7 @@ typedef struct {
   int connected;
   int async_queue_alive;
   int ready_for_media;
-  char ingest_ip[16];//ipv4 only
+  char ingest_ip[IPV4_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];
@@ -325,8 +325,8 @@ ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl);
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
-int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
-char * _ingest_find_best(ftl_stream_configuration_private_t *ftl);
+char * ingest_find_best(ftl_stream_configuration_private_t *ftl);
+char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);

@@ -89,19 +89,23 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->async_queue_alive = 1;
+  
+  char *ingest_ip = NULL;
 
-  _ingest_get_hosts(ftl);
+  if (strcmp(params->ingest_hostname, "auto") == 0) {
+	  ingest_ip = ingest_find_best(ftl);
+  }
+  else {
+	  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
+  }
 
-  _ingest_find_best(ftl);
- 
-#if 0
-  /*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
-  if (_lookup_ingest_ip(params->ingest_hostname, ftl->ingest_ip) == FALSE) {
+  if (ingest_ip == NULL) {
 	  ret_status = FTL_DNS_FAILURE;
 	  goto fail;
   }
-#endif
 
+  strcpy_s(ftl->ingest_ip, sizeof(ftl->ingest_ip), ingest_ip);
+ 
   ftl_handle->priv = ftl;
   return ret_status;
 
@@ -288,10 +292,10 @@ BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) 
 		/* find the comma that divides the stream key */
 		if (stream_key[i] == '-' || stream_key[i] == ',') {
 			/* stream key gets copied */
-			strcpy(key, stream_key+i+1);
+			strcpy_s(key, MAX_KEY_LEN, stream_key+i+1);
 
 			/* Now get the channel id */
-			char * copy_of_key = strdup(stream_key);
+			char * copy_of_key = _strdup(stream_key);
 			copy_of_key[i] = '\0';
 			*chan_id = atol(copy_of_key);
 			free(copy_of_key);

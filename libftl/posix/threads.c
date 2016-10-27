@@ -34,10 +34,7 @@ int os_destroy_thread(OS_THREAD_HANDLE handle) {
 }
 
 int os_wait_thread(OS_THREAD_HANDLE handle) {
-
-	pthread_join(handle, NULL);
-
-	return 0;
+	return pthread_join(handle, NULL);
 }
 
 int os_init_mutex(OS_MUTEX *mutex) {

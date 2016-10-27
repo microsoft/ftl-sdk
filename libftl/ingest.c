@@ -121,7 +121,7 @@ cleanup:
 OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 
 	ftl_ingest_t *ingest = (ftl_ingest_t *)data;
-
+	int ret = 0;
 	CURL *curl_handle;
 	CURLcode res;
 	struct MemoryStruct chunk;
@@ -129,6 +129,9 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 	json_t *load = NULL;
 	char ip_port[IPV4_ADDR_ASCII_LEN];
 	struct timeval start, stop, delta;
+
+        ingest->rtt = 1000;
+        ingest->cpu_load = 100;
 
 	curl_handle = curl_easy_init();
 
@@ -138,13 +141,18 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 	sprintf_s(ip_port, sizeof(ip_port), "%s:%d", ingest->ip, INGEST_LOAD_PORT);
 
 	curl_easy_setopt(curl_handle, CURLOPT_URL, ip_port);
-	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 2000);
+	curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1); //need this for linux otherwise subsecond timeouts dont work
+	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 500);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
 
 	//not sure how i can time response time from the GET without including the tcp connect other than to do this 2x
-	res = curl_easy_perform(curl_handle);
+	if( (res = curl_easy_perform(curl_handle)) != CURLE_OK){
+		ret = -1;
+		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		goto cleanup;		
+	}
 
 	free(chunk.memory);
 	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
@@ -155,31 +163,32 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 	gettimeofday(&stop, NULL);
 	timeval_subtract(&delta, &stop, &start);
 	int ms = (int)timeval_to_ms(&delta);
-	ingest->rtt = ms;
 
 	if (res != CURLE_OK) {
-		ingest->rtt = 1000;
-		ingest->cpu_load = 100;
+		ret = -2;
+		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		goto cleanup;
 	}
 
 	if ((load = json_loadb(chunk.memory, chunk.size, 0, &error)) == NULL) {
+		ret = -3;
 		goto cleanup;
 	}
 
 	double cpu_load;
 	if (json_unpack(load, "{s:f}", "LoadPercent", &cpu_load) < 0) {
-		ingest->cpu_load = 100;
+		ret = -4;
+		goto cleanup;
 	}
-	else {
-		ingest->cpu_load = (float)cpu_load;
-	}
+
+        ingest->rtt = ms;
+	ingest->cpu_load = (float)cpu_load;
 
 cleanup:
 	free(chunk.memory);
 	curl_easy_cleanup(curl_handle);
 
-	return 0;
+	return (OS_THREAD_ROUTINE)ret;
 }
 
 char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {
@@ -217,7 +226,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		}
 	}
 
-	if ((handle = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE*) *ftl->ingest_count)) == NULL) {
+	if ((handle = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) *ftl->ingest_count)) == NULL) {
 		return NULL;
 	}
 
@@ -254,6 +263,8 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	gettimeofday(&stop, NULL);
 	timeval_subtract(&delta, &stop, &start);
 	int ms = (int)timeval_to_ms(&delta);
+
+	printf("Took %d ms to query all ingests\n", ms);
 
 	elmt = ftl->ingest_list;
 	for (i = 0; i < ftl->ingest_count && elmt != NULL; i++) {

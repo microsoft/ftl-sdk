@@ -277,7 +277,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	if (best){
-		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server load of %f\n", best->name, best->ip, best->rtt, best->cpu_load);
+		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server load of %2.1f\n", best->name, best->ip, best->rtt, best->cpu_load * 100.f);
 		return best->ip;
 	}
 
@@ -288,7 +288,18 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 static int _ingest_compute_score(ftl_ingest_t *ingest) {
 
 	//TODO:  need to weight cpu load less on the low end (under 50%) and more agressively on the high end
-	return (int)ingest->cpu_load + ingest->rtt;
+	float rtt_percent = (float)ingest->rtt / 200.f;
+
+	if (rtt_percent > 1) {
+		rtt_percent = 1;
+	}
+
+	int load_score, rtt_score;
+
+	load_score = ingest->cpu_load * 30;
+	rtt_score = rtt_percent * 70;
+
+	return (int)load_score + rtt_score;
 }
 
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {

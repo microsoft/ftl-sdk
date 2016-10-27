@@ -307,6 +307,8 @@ cleanup:
 	 ftl_handle_t *handle = (ftl_handle_t*)data;
 	 ftl_status_msg_t status;
 	 ftl_status_t status_code;
+	 int retries = 10;
+	 int retry_sleep = 1000;
 
 	 while (1) {
 		 status_code = ftl_ingest_get_status(handle, &status, 1000);
@@ -325,13 +327,18 @@ cleanup:
 				 break;
 			 }
 			 //attempt reconnection
-			 sleep_ms(500);
-			 printf("Reconnecting to Ingest\n");
-			 if ((status_code = ftl_ingest_connect(handle)) != FTL_SUCCESS) {
+			 while (retries-- > 0) {
+				 sleep_ms(retry_sleep);
+				 printf("Attempting to reconnect to ingest (retires left %d)\n", retries);
+				 if ((status_code = ftl_ingest_connect(handle)) == FTL_SUCCESS) {
+					 break;
+				 }
 				 printf("Failed to connect to ingest %d\n", status_code);
+				 retry_sleep = retry_sleep * 2;
+			 }
+			 if (retries <= 0) {
 				 break;
 			 }
-			 printf("Done\n");
 		 }
 		 else if (status.type == FTL_STATUS_LOG)
 		 {

@@ -37,14 +37,14 @@ int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THR
 	return 0;
 }
 
-int os_destroy_thread(OS_THREAD_HANDLE *handle) {
-	CloseHandle(*handle);
+int os_destroy_thread(OS_THREAD_HANDLE handle) {
+	CloseHandle(handle);
 
 	return 0;
 }
 
-int os_wait_thread(OS_THREAD_HANDLE *handle) {
-	WaitForSingleObject(*handle, INFINITE);
+int os_wait_thread(OS_THREAD_HANDLE handle) {
+	WaitForSingleObject(handle, INFINITE);
 
 	return 0;
 }

@@ -237,7 +237,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	elmt = ftl->ingest_list;
 	for (i = 0; i < ftl->ingest_count && elmt != NULL; i++) {
 		if (handle[i] != 0) {
-			os_wait_thread(&handle[i]);
+			os_wait_thread(handle[i]);
 		}
 
 		ingest_score = _ingest_compute_score(elmt);
@@ -257,7 +257,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	elmt = ftl->ingest_list;
 	for (i = 0; i < ftl->ingest_count && elmt != NULL; i++) {
 		if (handle[i] != 0) {
-			os_destroy_thread(&handle[i]);
+			os_destroy_thread(handle[i]);
 		}
 
 		elmt = elmt->next;

@@ -24,6 +24,22 @@
 
 #include "threads.h"
 
+int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_START_ROUTINE func, void *args) {
+
+	return pthread_create(handle, NULL, func, arg);
+}
+
+int os_destroy_thread(OS_THREAD_HANDLE handle) {
+	return 0;
+}
+
+int os_wait_thread(OS_THREAD_HANDLE handle) {
+
+	pthread_join(handle, NULL);
+
+	return 0;
+}
+
 int os_init_mutex(OS_MUTEX *mutex) {
 	return pthread_mutex_init(mutex, &ftl_default_mutexattr);
 }

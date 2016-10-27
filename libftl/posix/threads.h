@@ -30,7 +30,7 @@ typedef pthread_mutex_t OS_MUTEX;
 typedef bool BOOL;
 
 typedef pthread_t OS_THREAD_HANDLE;
-typedef void* OS_THREAD_RETTYPE;
+typedef void* OS_THREAD_TYPE;
 typedef void* OS_THREAD_ROUTINE;
 typedef void* OS_THREAD_START_ROUTINE;
 typedef void OS_THREAD_ATTRIBS; //todo implement attributes

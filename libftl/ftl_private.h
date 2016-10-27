@@ -209,15 +209,8 @@ typedef struct {
 	int assigned_port;
 	BOOL recv_thread_running;
 	BOOL send_thread_running;
-#ifdef _WIN32
-	HANDLE recv_thread_handle;
-	DWORD recv_thread_id;
-	HANDLE send_thread_handle;
-	DWORD send_thread_id;
-#else
-	pthread_t recv_thread;
-	pthread_t send_thread;
-#endif
+	OS_THREAD_HANDLE recv_thread;
+	OS_THREAD_HANDLE send_thread;
 	int max_mtu;
 	struct timeval stats_tv;
 } ftl_media_config_t;

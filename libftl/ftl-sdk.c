@@ -169,7 +169,7 @@ FTL_API float ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, in
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 
-	float packet_loss = media_speed_test(ftl, speed_kbps, duration_ms);
+	float packet_loss = (float)media_speed_test(ftl, speed_kbps, duration_ms);
 
 	return packet_loss;
 }
@@ -284,7 +284,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 }
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
-	int len;
+	size_t len;
 	int i;
 	
 	len = strlen(stream_key);

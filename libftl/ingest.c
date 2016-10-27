@@ -150,7 +150,7 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 	//not sure how i can time response time from the GET without including the tcp connect other than to do this 2x
 	if( (res = curl_easy_perform(curl_handle)) != CURLE_OK){
 		ret = -1;
-		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		printf("Failed to query %s: %s\n", ingest->name, curl_easy_strerror(res));
 		goto cleanup;		
 	}
 
@@ -188,7 +188,7 @@ cleanup:
 	free(chunk.memory);
 	curl_easy_cleanup(curl_handle);
 
-	return (OS_THREAD_ROUTINE)ret;
+	return (OS_THREAD_TYPE)ret;
 }
 
 char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {
@@ -202,7 +202,7 @@ char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {
 
 	while (elmt != NULL) {
 		if (strcmp(host, elmt->host) == 0) {
-			/*just find first in list with matching host*/
+			/*just find first in list with matching host, these are on rr dns so first items will be different each time*/
 			return elmt->ip;
 		}
 
@@ -226,7 +226,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		}
 	}
 
-	if ((handle = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) *ftl->ingest_count)) == NULL) {
+	if ((handle = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ftl->ingest_count)) == NULL) {
 		return NULL;
 	}
 
@@ -239,6 +239,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		//if (strcmp(elmt->name, "EU: Milan") == 0) 
 		{
 			os_create_thread(&handle[i], NULL, _ingest_get_load, elmt);
+			sleep_ms(10); //prevents all the threads from hammering the network at the same time and gives a more reliable rtt
 		}
 		elmt = elmt->next;
 	}
@@ -286,6 +287,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
 static int _ingest_compute_score(ftl_ingest_t *ingest) {
 
+	//TODO:  need to weight cpu load less on the low end (under 50%) and more agressively on the high end
 	return (int)ingest->cpu_load + ingest->rtt;
 }
 

@@ -29,12 +29,14 @@
 typedef pthread_mutex_t OS_MUTEX;
 typedef bool BOOL;
 
-typedef CRITICAL_SECTION OS_MUTEX;
-
-typedef int OS_THREAD_HANDLE;
-typedef void* OS_THREAD_ROUTINE
+typedef pthread_t OS_THREAD_HANDLE;
+typedef void* OS_THREAD_ROUTINE;
 typedef void* OS_THREAD_START_ROUTINE;
 typedef void OS_THREAD_ATTRIBS; //todo implement attributes
+
+int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_START_ROUTINE func, void *args);
+int os_destroy_thread(OS_THREAD_HANDLE handle);
+int os_wait_thread(OS_THREAD_HANDLE handle);
 
 int os_init_mutex(OS_MUTEX *mutex);
 int os_lock_mutex(OS_MUTEX *mutex);

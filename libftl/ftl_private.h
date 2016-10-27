@@ -78,6 +78,9 @@
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
+#define sprintf_s(buf, bufsz, fmt, ...) sprintf(buf, fmt, __VA_ARGS__)
+#define strcpy_s(dst, dstsz, src) strcpy(dst, src)
+#define _strdup(src) strdup(src)
 #endif
 
 typedef enum {

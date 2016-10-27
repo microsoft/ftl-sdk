@@ -41,6 +41,7 @@ int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 	chunk.size = 0;    /* no data at this point */
 
 	curl_easy_setopt(curl_handle, CURLOPT_URL, INGEST_LIST_URI);
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, FALSE); //TODO: fix this, bad to bypass ssl
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
@@ -137,7 +138,7 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 	sprintf_s(ip_port, sizeof(ip_port), "%s:%d", ingest->ip, INGEST_LOAD_PORT);
 
 	curl_easy_setopt(curl_handle, CURLOPT_URL, ip_port);
-	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 500);
+	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 2000);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
@@ -208,7 +209,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	int i;
 	ftl_ingest_t *elmt, *best = NULL;
 	struct timeval start, stop, delta;
-	float best_ingest_score = 1000, ingest_score;
+	float best_ingest_score = 100000, ingest_score;
 
 	if (ftl->ingest_list == NULL) {
 		if (_ingest_get_hosts(ftl) <= 0) {
@@ -263,10 +264,13 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		elmt = elmt->next;
 	}
 
-	if (best)
+	if (best){
 		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server load of %f\n", best->name, best->ip, best->rtt, best->cpu_load);
+		return best->ip;
+	}
 
-	return best->ip;
+
+	return NULL;
 }
 
 static int _ingest_compute_score(ftl_ingest_t *ingest) {

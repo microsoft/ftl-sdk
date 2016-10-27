@@ -10,7 +10,7 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 include_directories(libftl)
 
 SET(BUILD_CURL_EXE OFF CACHE BOOL "Building libcurl")
-SET(HTTP_ONLY OFF CACHE BOOL "using compiling HTTP")
+SET(HTTP_ONLY ON CACHE BOOL "using compiling HTTP")
 SET(BUILD_TESTING OFF CACHE BOOL "Not building Tests")
 add_subdirectory(libcurl)
 include_directories(libcurl/include ${CMAKE_CURRENT_BINARY_DIR}/libcurl/include/curl)
@@ -28,15 +28,15 @@ if (WIN32)
                             ftl_app/win32/ctrlc_handler.c)
   set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
-							              libftl/win32/threads.c
-							              libftl/win32/threads.h)
+	                    libftl/win32/threads.c
+		            libftl/win32/threads.h)
 
   include_directories(libftl/win32)
 else()
   set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
   set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c
-							libftl/posix/threads.c
-							libftl/posix/threads.h)
+	        	    libftl/posix/threads.c
+			    libftl/posix/threads.h)
   include_directories(libftl/posix)
 endif()
 

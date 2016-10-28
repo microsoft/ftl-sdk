@@ -559,7 +559,7 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	os_lock_mutex(&slot->mutex);
 
 	if (slot->sn != sn) {
-		FTL_LOG(ftl, FTL_LOG_WARN, "[%d] expected sn %d in slot but found %d...discarding retransmit request\n", ssrc, sn, slot->sn);
+		FTL_LOG(ftl, FTL_LOG_WARN, "[%d] expected sn %d in slot but found %d...discarding retransmit request", ssrc, sn, slot->sn);
 		os_unlock_mutex(&slot->mutex);
 		return 0;
 	}
@@ -572,7 +572,7 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 
 	if (mc->nack_enabled) {
 		tx_len = _media_send_slot(ftl, slot);
-		FTL_LOG(ftl, FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms\n", ssrc, sn, req_delay);
+		FTL_LOG(ftl, FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms", ssrc, sn, req_delay);
 	}
 	mc->stats.nack_requests++;
 

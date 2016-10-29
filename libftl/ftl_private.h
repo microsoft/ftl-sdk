@@ -165,6 +165,7 @@ typedef struct {
 	int timestamp_clock;
 	int64_t prev_dts_usec;
 	uint16_t seq_num;
+	uint16_t tmp_seq_num; // used for stats only
 	BOOL nack_enabled;
 	int64_t min_nack_rtt;
 	int64_t max_nack_rtt;

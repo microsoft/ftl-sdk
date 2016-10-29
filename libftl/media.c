@@ -343,7 +343,6 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	uint8_t nalu_type = 0;
 	uint8_t nri;
 	int bytes_queued = 0;
-
 	int pkt_len;
 	int payload_size;
 	int consumed = 0;
@@ -367,6 +366,10 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 			}
 			return bytes_queued;
 		}
+	}
+
+	if (nalu_type == H264_NALU_TYPE_IDR) {
+		mc->tmp_seq_num = mc->seq_num;
 	}
 
 	while (remaining > 0) {
@@ -426,6 +429,10 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 
 		if (mc->stats.current_frame_size > mc->stats.max_frame_size) {
 			mc->stats.max_frame_size = mc->stats.current_frame_size;
+		}
+
+		if (nalu_type == H264_NALU_TYPE_IDR) {
+			FTL_LOG(ftl, FTL_LOG_INFO, "Sent IDR Frame of %d bytes: sn %d-%d\n", mc->stats.current_frame_size, mc->tmp_seq_num, mc->seq_num - 1);
 		}
 
 		mc->stats.current_frame_size = 0;

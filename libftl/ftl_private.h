@@ -75,6 +75,7 @@
 #define IPV4_ADDR_ASCII_LEN 24
 #define INGEST_LIST_URI "https://beam.pro/api/v1/ingests"
 #define INGEST_LOAD_PORT 8081
+#define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
@@ -314,6 +315,7 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
 int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
 int ftl_set_socket_enable_keepalive(SOCKET socket);
+int ftl_get_socket_send_buf(SOCKET socket, int *buffer_space);
 int ftl_set_socket_send_buf(SOCKET socket, int buffer_space);
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
 ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);

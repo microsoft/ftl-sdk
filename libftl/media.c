@@ -39,6 +39,16 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	{
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Could not create socket : %s", ftl_get_socket_error());
 	}
+
+	int peak_kbps = ftl->video.media_component.kbps;
+
+	if (peak_kbps == 0) {
+		peak_kbps = PEAK_BITRATE_KBPS;
+	}
+
+	int sendbuf = (peak_kbps * 1000 / 8) / (1000 / 10);
+	ftl_set_socket_send_buf(media->media_socket, sendbuf);
+
 	FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
 
 	if ((server = gethostbyname(ftl->ingest_ip)) == NULL) {
@@ -253,6 +263,11 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 
 	media_enable_nack(ftl, mc->ssrc, FALSE);
 
+	int prev_sendbuf = 0;
+	ftl_get_socket_send_buf(ftl->media.media_socket, &prev_sendbuf);
+	FTL_LOG(ftl, FTL_LOG_INFO, "Current sendbuf is %d, setting send buf to %d\n", prev_sendbuf, (speed_kbps * 1000 / 8) / (1000 / 10));
+	ftl_set_socket_send_buf(ftl->media.media_socket, (speed_kbps * 1000 / 8) / (1000 / 10));
+
 	int initial_nack_cnt = mc->stats.nack_requests;
 
 	gettimeofday(&start_tv, NULL);
@@ -287,6 +302,8 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt);
 
 	media_enable_nack(ftl, mc->ssrc, TRUE);
+
+	ftl_set_socket_send_buf(ftl->media.media_socket, prev_sendbuf);
 
 	return (int)((float)(mc->stats.nack_requests-initial_nack_cnt) * 100.f / (float)pkts_sent);
 }

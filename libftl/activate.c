@@ -25,6 +25,8 @@
  #define __FTL_INTERNAL
  #include "ftl.h"
 
+ int ftl_read_media_port(const char *response_str);
+
 ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
   ftl_stream_configuration_private_t* config = (ftl_stream_configuration_private_t*)stream_config->private;
   ftl_charon_response_code_t response_code = FTL_CHARON_UNKNOWN;
@@ -221,6 +223,17 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
       return FTL_STREAM_REJECTED;
   }
 
+  int port = ftl_read_media_port(buf);
+
+    FTL_LOG(FTL_LOG_ERROR, "FINAL FTL response string was %s port was %d\n", buf, port);  
+
+  if (port < 0) {
+	  config->media_port = 8082;
+  }
+  else {
+	  config->media_port = port;
+  }  
+
   // We're good to go, set the connected status to true, and save the socket
   config->connected = 1;
   config->ingest_socket = sock;
@@ -230,4 +243,20 @@ buffer_overflow:
   FTL_LOG(FTL_LOG_CRITICAL, "internal buffer overflow! Bailing out!");
   if (sock <= 0) ftl_close_socket(sock);
   return FTL_INTERNAL_ERROR;
+}
+
+int ftl_get_remote_port(ftl_stream_configuration_t *stream_config){
+  ftl_stream_configuration_private_t* config = (ftl_stream_configuration_private_t*)stream_config->private;
+
+  return config->media_port;
+}
+
+int ftl_read_media_port(const char *response_str) {
+	int port = -1;
+
+	if ((sscanf(response_str, "%*[^.]. Use UDP port %d\n", &port)) != 1) {
+		return -1;
+	}
+
+	return port;
 }

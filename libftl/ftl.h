@@ -287,6 +287,8 @@ FTL_API ftl_status_t ftl_deactivate_stream(ftl_stream_configuration_t *stream_co
 
 FTL_API void ftl_destory_stream(ftl_stream_configuration_t** stream_config);
 
+FTL_API	int ftl_get_remote_port(ftl_stream_configuration_t *stream_config);
+
 /*!
  * \ingroup ftl_public
  * \brief Registers a callback to get libftl messages

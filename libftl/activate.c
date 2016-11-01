@@ -225,8 +225,6 @@ ftl_status_t ftl_activate_stream(ftl_stream_configuration_t *stream_config) {
 
   int port = ftl_read_media_port(buf);
 
-    FTL_LOG(FTL_LOG_ERROR, "FINAL FTL response string was %s port was %d\n", buf, port);  
-
   if (port < 0) {
 	  config->media_port = 8082;
   }

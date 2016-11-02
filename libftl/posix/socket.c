@@ -72,12 +72,12 @@ int ftl_set_socket_enable_keepalive(int socket){
   return setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
 }
 
-int ftl_get_socket_send_buf(SOCKET socket, int *buffer_space) {
+int ftl_get_socket_send_buf(int socket, int *buffer_space) {
 	int len = sizeof(*buffer_space);
 	return getsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)buffer_space, &len);
 }
 
-int ftl_set_socket_send_buf(SOCKET socket, int buffer_space) {
+int ftl_set_socket_send_buf(int socket, int buffer_space) {
 	return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }
 

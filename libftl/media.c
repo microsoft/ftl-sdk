@@ -37,10 +37,10 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	//Create a socket
 	if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
-		FTL_LOG(ftl, FTL_LOG_ERROR, "Could not create socket : %s", ftl_get_socket_error());
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Could not create socket : %s", get_socket_error());
 	}
 
-	ftl_set_socket_send_buf(media->media_socket, 2048);
+	set_socket_send_buf(media->media_socket, 2048);
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
 
@@ -124,13 +124,9 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
 
-
 	media->recv_thread_running = FALSE;
-#ifdef _WIN32
-	ftl_close_socket(media->media_socket);
-#else
-	shutdown(media->media_socket, SHUT_RDWR);
-#endif
+	shutdown_socket(media->media_socket, SD_BOTH);
+	close_socket(media->media_socket);
 	os_wait_thread(media->recv_thread);
 	os_destroy_thread(media->recv_thread);
 
@@ -236,7 +232,6 @@ void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_compon
 
 		mc->timestamp += delta_ts;
 
-		//TODO:  figure out if i need to compensate for rounding error;
 		mc->prev_dts_usec = dts_usec;
 	}
 }
@@ -503,7 +498,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
 	os_lock_mutex(&ftl->media.mutex);
 	if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
 	{
-		FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", ftl_get_socket_error());
+		FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
 	}
 	os_unlock_mutex(&ftl->media.mutex);
 

@@ -251,7 +251,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 			os_wait_thread(handle[i]);
 		}
 
-		ingest_score = _ingest_compute_score(elmt);
+		ingest_score = (float)_ingest_compute_score(elmt);
 
 		if (ingest_score < best_ingest_score ) {
 			best_ingest_score = ingest_score;
@@ -296,8 +296,8 @@ static int _ingest_compute_score(ftl_ingest_t *ingest) {
 
 	int load_score, rtt_score;
 
-	load_score = ingest->cpu_load * 30;
-	rtt_score = rtt_percent * 70;
+	load_score = (int)(ingest->cpu_load * 30);
+	rtt_score = (int)(rtt_percent * 70);
 
 	return (int)load_score + rtt_score;
 }

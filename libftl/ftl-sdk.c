@@ -14,7 +14,7 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 0;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
-  ftl_init_sockets();
+  init_sockets();
 #ifndef _WIN32
   pthread_mutexattr_init(&ftl_default_mutexattr);
   // Set pthread mutexes to recursive to mirror Windows mutex behavior

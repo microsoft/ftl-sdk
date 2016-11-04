@@ -64,7 +64,7 @@ ftl_response_code_t ftl_read_response_code(const char * response_str) {
 int ftl_read_media_port(const char *response_str) {
 	int port = -1;
 
-	if ((sscanf(response_str, "%*[^.]. Use UDP port %d\n", &port)) != 1) {
+	if ((sscanf_s(response_str, "%*[^.]. Use UDP port %d\n", &port)) != 1) {
 		return -1;
 	}
 

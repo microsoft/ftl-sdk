@@ -28,15 +28,17 @@ if (WIN32)
                             ftl_app/win32/ctrlc_handler.c)
   set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
+                      libftl/win32/socket.h
 	                    libftl/win32/threads.c
-		            libftl/win32/threads.h)
+		                  libftl/win32/threads.h)
 
   include_directories(libftl/win32)
 else()
   set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
   set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c
-	        	    libftl/posix/threads.c
-			    libftl/posix/threads.h)
+                            libftl/posix/socket.h
+	        	                libftl/posix/threads.c
+			                      libftl/posix/threads.h)
   include_directories(libftl/posix)
 endif()
 

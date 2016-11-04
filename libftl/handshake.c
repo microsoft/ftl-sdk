@@ -72,29 +72,29 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 		sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 		if (sock == -1) {
 			/* try the next candidate */
-			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", ftl_get_socket_error());
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", get_socket_error());
 			continue;
 		}
 
 		/* Go for broke */
-		if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {
-			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to connect on candidate, error: %s", ftl_get_socket_error());
-			ftl_close_socket(sock);
+		if (connect(sock, p->ai_addr, (int)p->ai_addrlen) == -1) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to connect on candidate, error: %s", get_socket_error());
+			close_socket(sock);
 			sock = 0;
 			continue;
 		}
 
 		/* If we got here, we successfully connected */
-		if (ftl_set_socket_enable_keepalive(sock) != 0) {
-			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to enable keep alives.  error: %s", ftl_get_socket_error());
+		if (set_socket_enable_keepalive(sock) != 0) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to enable keep alives.  error: %s", get_socket_error());
 		}
 
-		if (ftl_set_socket_recv_timeout(sock, SOCKET_RECV_TIMEOUT_MS) != 0) {
-			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set recv timeout.  error: %s", ftl_get_socket_error());
+		if (set_socket_recv_timeout(sock, SOCKET_RECV_TIMEOUT_MS) != 0) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set recv timeout.  error: %s", get_socket_error());
 		}
 
-		if (ftl_set_socket_send_timeout(sock, SOCKET_SEND_TIMEOUT_MS) != 0) {
-			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set send timeout.  error: %s", ftl_get_socket_error());
+		if (set_socket_send_timeout(sock, SOCKET_SEND_TIMEOUT_MS) != 0) {
+			FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to set send timeout.  error: %s", get_socket_error());
 		}
 
 		break;
@@ -106,7 +106,7 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 	/* Check to see if we actually connected */
 	if (sock <= 0) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "failed to connect to ingest. Last error was: %s",
-			ftl_get_socket_error());
+			get_socket_error());
 		return FTL_CONNECT_ERROR;
 	}
 
@@ -230,7 +230,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
 fail:
   if (ftl->ingest_socket <= 0) {
-    ftl_close_socket(ftl->ingest_socket);
+    close_socket(ftl->ingest_socket);
   }
 
   response_code = _log_response(ftl, response_code);
@@ -270,7 +270,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	if (ftl->ingest_socket > 0) {
-		ftl_close_socket(ftl->ingest_socket);
+		close_socket(ftl->ingest_socket);
 	}
 
 	return FTL_SUCCESS;
@@ -296,7 +296,7 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
 	goto cleanup;
   }
 
-  sprintf(format, "%s\r\n\r\n", cmd_fmt);
+  sprintf_s(format, strlen(cmd_fmt) + 5, "%s\r\n\r\n", cmd_fmt);
 
   va_start(valist, cmd_fmt);
 
@@ -358,7 +358,7 @@ static void *connection_status_thread(void *data)
 			ftl->connected = 0;
 			ftl->ready_for_media = 0;
 
-			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", ftl_get_socket_error());
+			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
 			if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 				FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
 			}

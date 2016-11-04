@@ -50,6 +50,7 @@
 #endif
 
 #include "threads.h"
+#include "socket.h"
 
 
 #define MAX_INGEST_COMMAND_LEN 512
@@ -308,15 +309,8 @@ int ftl_read_media_port(const char *response_str);
 // FIXME: make this less global
 extern char error_message[1000];
 
-void ftl_init_sockets();
-int ftl_close_socket(SOCKET sock);
-char * ftl_get_socket_error();
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
-int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout);
-int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
-int ftl_set_socket_enable_keepalive(SOCKET socket);
-int ftl_get_socket_send_buf(SOCKET socket, int *buffer_space);
-int ftl_set_socket_send_buf(SOCKET socket, int buffer_space);
+
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
 ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
 ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);

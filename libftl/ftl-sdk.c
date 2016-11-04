@@ -2,6 +2,7 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 #include "ftl_private.h"
+#include <curl/curl.h>
 
 static BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);
 static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
@@ -13,12 +14,13 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 0;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
-  ftl_init_sockets();
+  init_sockets();
 #ifndef _WIN32
   pthread_mutexattr_init(&ftl_default_mutexattr);
   // Set pthread mutexes to recursive to mirror Windows mutex behavior
   pthread_mutexattr_settype(&ftl_default_mutexattr, PTHREAD_MUTEX_RECURSIVE);
 #endif
+  curl_global_init(CURL_GLOBAL_ALL);
   return FTL_SUCCESS;
 }
 
@@ -32,8 +34,10 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->connected = 0;
+  ftl->ingest_socket = -1;
   ftl->async_queue_alive = 0;
   ftl->ready_for_media = 0;
+  ftl->ingest_list = NULL;
   ftl->video.media_component.kbps = params->peak_kbps;
 
   ftl->key = NULL;
@@ -44,12 +48,6 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   if ( _get_chan_id_and_key(params->stream_key, &ftl->channel_id, ftl->key) == FALSE ) {
     ret_status = FTL_BAD_OR_INVALID_STREAM_KEY;
-		goto fail;
-  }
-
-/*because some of our ingests are behind revolving dns' we need to store the ip to ensure it doesnt change for handshake and media*/
-  if ( _lookup_ingest_ip(params->ingest_hostname, ftl->ingest_ip) == FALSE) {
-    ret_status = FTL_DNS_FAILURE;
 		goto fail;
   }
 
@@ -91,6 +89,23 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->async_queue_alive = 1;
+  
+  char *ingest_ip = NULL;
+
+  if (strcmp(params->ingest_hostname, "auto") == 0) {
+	  ingest_ip = ingest_find_best(ftl);
+  }
+  else {
+	  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
+  }
+
+  if (ingest_ip == NULL) {
+	  ret_status = FTL_DNS_FAILURE;
+	  goto fail;
+  }
+
+  strcpy_s(ftl->ingest_ip, sizeof(ftl->ingest_ip), ingest_ip);
+ 
   ftl_handle->priv = ftl;
   return ret_status;
 
@@ -110,6 +125,10 @@ fail:
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
   ftl_status_t status = FTL_SUCCESS;
+
+  if ((status = _init_control_connection(ftl)) != FTL_SUCCESS) {
+	  return status;
+  }
 
   if ((status = _ingest_connect(ftl)) != FTL_SUCCESS) {
 	  return status;
@@ -150,7 +169,7 @@ FTL_API float ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, in
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 
-	float packet_loss = media_speed_test(ftl, speed_kbps, duration_ms);
+	float packet_loss = (float)media_speed_test(ftl, speed_kbps, duration_ms);
 
 	return packet_loss;
 }
@@ -265,7 +284,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 }
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
-	int len;
+	size_t len;
 	int i;
 	
 	len = strlen(stream_key);
@@ -273,10 +292,10 @@ BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) 
 		/* find the comma that divides the stream key */
 		if (stream_key[i] == '-' || stream_key[i] == ',') {
 			/* stream key gets copied */
-			strcpy(key, stream_key+i+1);
+			strcpy_s(key, MAX_KEY_LEN, stream_key+i+1);
 
 			/* Now get the channel id */
-			char * copy_of_key = strdup(stream_key);
+			char * copy_of_key = _strdup(stream_key);
 			copy_of_key[i] = '\0';
 			*chan_id = atol(copy_of_key);
 			free(copy_of_key);
@@ -288,30 +307,4 @@ BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) 
 		return FALSE;
 }
 
-static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip) {
-	struct hostent *remoteHost;
-	struct in_addr addr;
-	BOOL success = FALSE;
-	ingest_ip[0] = '\0';
 
-	remoteHost = gethostbyname(ingest_location);
-
-	if (remoteHost) {
-		int i = 0;
-		if (remoteHost->h_addrtype == AF_INET)
-		{
-			while (remoteHost->h_addr_list[i] != 0) {
-				addr.s_addr = *(u_long *)remoteHost->h_addr_list[i++];
-
-				//revolving dns ensures this will change automatically so just use first ip found
-				if (!success) {
-					strcpy(ingest_ip, inet_ntoa(addr));
-					success = TRUE;
-          //break;
-				}
-			}
-		}
-	}
-
-	return success;
-}

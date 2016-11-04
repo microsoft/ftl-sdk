@@ -75,53 +75,54 @@ int main(int argc, char** argv) {
    int audio_pps = 50;
    int target_bw_kbps = 0;
 
-int success = 0;
-int verbose = 0;
+	int success = 0;
+	int verbose = 0;
 
-opterr = 0;
+	opterr = 0;
 
-charon_install_ctrlc_handler();
+	charon_install_ctrlc_handler();
 
-if (FTL_VERSION_MAINTENANCE != 0) {
-	printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
-}
-else {
-	printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
-}
-
-while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1) {
-	switch (c) {
-	case 'i':
-		ingest_location = optarg;
-		break;
-	case 'v':
-		video_input = optarg;
-		break;
-	case 'a':
-		audio_input = optarg;
-		break;
-	case 's':
-		stream_key = optarg;
-		break;
-	case 'f':
-		sscanf(optarg, "%d:%d", &fps_num, &fps_den);
-		break;
-	case 'b':
-		sscanf(optarg, "%d", &target_bw_kbps);
-		break;
-	case 't':
-		sscanf(optarg, "%d:%d", &speedtest_duration, &speedtest_kbps);
-		break;
-	case '?':
-		usage();
-		break;
+	if (FTL_VERSION_MAINTENANCE != 0) {
+		printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
 	}
-}
+	else {
+		printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
+	}
 
-/* Make sure we have all the required bits */
-if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration))) {
-	usage();
-}	
+	while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1) {
+		switch (c) {
+		case 'i':
+			ingest_location = optarg;
+			break;
+		case 'v':
+			video_input = optarg;
+			break;
+		case 'a':
+			audio_input = optarg;
+			break;
+		case 's':
+			stream_key = optarg;
+			break;
+		case 'f':
+			sscanf(optarg, "%d:%d", &fps_num, &fps_den);
+			break;
+		case 'b':
+			sscanf(optarg, "%d", &target_bw_kbps);
+			break;
+		case 't':
+			sscanf(optarg, "%d:%d", &speedtest_duration, &speedtest_kbps);
+			break;
+		case '?':
+			usage();
+			break;
+		}
+	}
+
+	/* Make sure we have all the required bits */
+	if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration))) {
+		usage();
+	}	
+
 	FILE *video_fp = NULL;	
 	uint32_t len = 0;
 	uint8_t *h264_frame;
@@ -306,6 +307,8 @@ cleanup:
 	 ftl_handle_t *handle = (ftl_handle_t*)data;
 	 ftl_status_msg_t status;
 	 ftl_status_t status_code;
+	 int retries = 10;
+	 int retry_sleep = 1000;
 
 	 while (1) {
 		 status_code = ftl_ingest_get_status(handle, &status, 1000);
@@ -324,13 +327,18 @@ cleanup:
 				 break;
 			 }
 			 //attempt reconnection
-			 sleep_ms(500);
-			 printf("Reconnecting to Ingest\n");
-			 if ((status_code = ftl_ingest_connect(handle)) != FTL_SUCCESS) {
+			 while (retries-- > 0) {
+				 sleep_ms(retry_sleep);
+				 printf("Attempting to reconnect to ingest (retires left %d)\n", retries);
+				 if ((status_code = ftl_ingest_connect(handle)) == FTL_SUCCESS) {
+					 break;
+				 }
 				 printf("Failed to connect to ingest %d\n", status_code);
+				 retry_sleep = retry_sleep * 2;
+			 }
+			 if (retries <= 0) {
 				 break;
 			 }
-			 printf("Done\n");
 		 }
 		 else if (status.type == FTL_STATUS_LOG)
 		 {

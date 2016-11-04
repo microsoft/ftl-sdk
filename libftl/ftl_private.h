@@ -50,6 +50,7 @@
 #endif
 
 #include "threads.h"
+#include "socket.h"
 
 
 #define MAX_INGEST_COMMAND_LEN 512
@@ -72,9 +73,17 @@
 #define VIDEO_RTP_TS_CLOCK_HZ 90000
 #define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_PACKET_DURATION_MS 20
+#define IPV4_ADDR_ASCII_LEN 24
+#define INGEST_LIST_URI "https://beam.pro/api/v1/ingests"
+#define INGEST_LOAD_PORT 8081
+#define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
+#define sprintf_s(buf, bufsz, fmt, ...) sprintf(buf, fmt, __VA_ARGS__)
+#define strcpy_s(dst, dstsz, src) strcpy(dst, src)
+#define _strdup(src) strdup(src)
+#define sscanf_s sscanf
 #endif
 
 typedef enum {
@@ -159,6 +168,7 @@ typedef struct {
 	int timestamp_clock;
 	int64_t prev_dts_usec;
 	uint16_t seq_num;
+	uint16_t tmp_seq_num; // used for stats only
 	BOOL nack_enabled;
 	int64_t min_nack_rtt;
 	int64_t max_nack_rtt;
@@ -203,25 +213,27 @@ typedef struct {
 	int assigned_port;
 	BOOL recv_thread_running;
 	BOOL send_thread_running;
-#ifdef _WIN32
-	HANDLE recv_thread_handle;
-	DWORD recv_thread_id;
-	HANDLE send_thread_handle;
-	DWORD send_thread_id;
-#else
-	pthread_t recv_thread;
-	pthread_t send_thread;
-#endif
+	OS_THREAD_HANDLE recv_thread;
+	OS_THREAD_HANDLE send_thread;
 	int max_mtu;
 	struct timeval stats_tv;
 } ftl_media_config_t;
+
+typedef struct _ftl_ingest_t {
+	char name[50];
+	char host[30];
+	char ip[IPV4_ADDR_ASCII_LEN];
+	float cpu_load;
+	int rtt;
+	struct _ftl_ingest_t *next;
+}ftl_ingest_t;
 
 typedef struct {
   SOCKET ingest_socket;
   int connected;
   int async_queue_alive;
   int ready_for_media;
-  char ingest_ip[16];//ipv4 only
+  char ingest_ip[IPV4_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];
@@ -237,12 +249,15 @@ typedef struct {
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
-
   status_queue_t status_q;
-
+  ftl_ingest_t *ingest_list;
+  int ingest_count;
 }  ftl_stream_configuration_private_t;
 
-
+struct MemoryStruct {
+	char *memory;
+	size_t size;
+};
 
 /**
  * Charon always responses with a three digit response code after each command
@@ -295,20 +310,17 @@ int ftl_read_media_port(const char *response_str);
 // FIXME: make this less global
 extern char error_message[1000];
 
-void ftl_init_sockets();
-int ftl_close_socket(SOCKET sock);
-char * ftl_get_socket_error();
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
-int ftl_set_socket_recv_timeout(SOCKET socket, int ms_timeout);
-int ftl_set_socket_send_timeout(SOCKET socket, int ms_timeout);
-int ftl_set_socket_enable_keepalive(SOCKET socket);
-int ftl_set_socket_send_buf(SOCKET socket, int buffer_space);
+
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
 ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
 ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
 
+ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl);
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
+char * ingest_find_best(ftl_stream_configuration_private_t *ftl);
+char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);

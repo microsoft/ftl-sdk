@@ -50,6 +50,7 @@ FTL_API extern const int FTL_VERSION_MAINTENANCE;
 
 typedef enum {
 	FTL_SUCCESS, /**< Operation was successful */
+	FTL_SOCKET_NOT_CONNECTED,
 	FTL_NON_ZERO_POINTER, /**< Function required a zero-ed pointer, but didn't get one */
 	FTL_MALLOC_FAILURE, /**< memory allocation failed */
 	FTL_DNS_FAILURE, /**< DNS probe failed */

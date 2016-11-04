@@ -26,6 +26,19 @@
 
 typedef CRITICAL_SECTION OS_MUTEX;
 
+typedef HANDLE* OS_THREAD_HANDLE;
+typedef DWORD OS_THREAD_TYPE;
+#define OS_THREAD_ROUTINE OS_THREAD_TYPE WINAPI
+typedef LPTHREAD_START_ROUTINE OS_THREAD_START_ROUTINE;
+typedef void OS_THREAD_ATTRIBS; //todo implement attributes
+
+
+#define OS_FOREVER INFINITE
+
+int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_START_ROUTINE func, void *args);
+int os_destroy_thread(OS_THREAD_HANDLE handle);
+int os_wait_thread(OS_THREAD_HANDLE handle);
+
 int os_init_mutex(OS_MUTEX *mutex);
 int os_lock_mutex(OS_MUTEX *mutex);
 int os_unlock_mutex(OS_MUTEX *mutex);

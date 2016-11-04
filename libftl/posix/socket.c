@@ -22,28 +22,31 @@
 * SOFTWARE.
 **/
 
-#define __FTL_INTERNAL
-
 #include "ftl.h"
+#include "ftl_private.h"
 
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <errno.h>
 
-void ftl_init_sockets() {
+void init_sockets() {
   //BSD sockets are smarter and don't need silly init
 }
 
-int ftl_close_socket(int sock) {
+int close_socket(SOCKET sock) {
   return close(sock);
 }
 
-char * ftl_get_socket_error() {
+int shutdown_socket(SOCKET sock, int how) {
+	return shutdown(sock, how);
+}
+
+char * get_socket_error() {
   return strerror(errno);
 }
 
-int ftl_set_socket_recv_timeout(int socket, int ms_timeout){
+int set_socket_recv_timeout(SOCKET socket, int ms_timeout){
   struct timeval tv = {0};
 
   while (ms_timeout >= 1000) {
@@ -55,7 +58,7 @@ int ftl_set_socket_recv_timeout(int socket, int ms_timeout){
   return setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv));  
 }
 
-int ftl_set_socket_send_timeout(int socket, int ms_timeout){
+int set_socket_send_timeout(SOCKET socket, int ms_timeout){
   struct timeval tv = {0};
 
   while (ms_timeout >= 1000) {
@@ -67,9 +70,18 @@ int ftl_set_socket_send_timeout(int socket, int ms_timeout){
   return setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
 }
 
-int ftl_set_socket_enable_keepalive(int socket){
+int set_socket_enable_keepalive(SOCKET socket){
   int keep_alive = 1;
   return setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&keep_alive, sizeof(keep_alive));
+}
+
+int get_socket_send_buf(SOCKET socket, int *buffer_space) {
+	int len = sizeof(*buffer_space);
+	return getsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)buffer_space, &len);
+}
+
+int set_socket_send_buf(SOCKET socket, int buffer_space) {
+	return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }
 
 

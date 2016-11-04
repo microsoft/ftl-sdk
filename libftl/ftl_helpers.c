@@ -22,10 +22,9 @@
  * SOFTWARE.
  **/
 
- #define __FTL_INTERNAL
- #include "ftl.h"
+#include "ftl.h"
 #include "ftl_private.h"
- #include "hmac/hmac.h"
+#include "hmac/hmac.h"
 
 /*
     Please note that throughout the code, we send "\r\n\r\n", where a normal newline ("\n") would suffice.

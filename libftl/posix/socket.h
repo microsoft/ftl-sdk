@@ -1,4 +1,8 @@
-typedef SOCKET int
+typedef int SOCKET;
+
+#define SD_RECEIVE SHUT_RD
+#define SD_SEND SHUT_WR
+#define SD_BOTH SHUT_RDWR
 
 void init_sockets();
 int close_socket(SOCKET sock);

@@ -190,12 +190,13 @@ typedef struct {
 
 typedef struct {
 	int period; //period of time in ms the stats were collected over
-	int frames_queued;
-	int frames_sent;
-	int bytes_queued;
-	int bytes_sent;
-	int queue_fullness;
-	int max_frame_size;
+	int frames_queued; //number of whole or partial frames pending transmission
+	int avg_queue_delay; //average delay over the period from when a video frame is provided to the sdk until the packet is sent
+	int frames_sent; //number of frames send over the period
+	int bytes_queued; //number of bytes pending transmission
+	int bytes_sent; //number of bytes sent over the period
+	int queue_fullness; //fullness level as a percentage between 0-100
+	int max_frame_size; //the largest frame seen over the period
 }ftl_video_frame_stats_msg_t;
 
 /*status messages*/

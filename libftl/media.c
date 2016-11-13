@@ -100,11 +100,6 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		return FTL_MALLOC_FAILURE;
 	}
 
-	media->ping_thread_running = TRUE;
-	if ((os_create_thread(&media->ping_thread, NULL, ping_thread, ftl)) != 0) {
-		return FTL_MALLOC_FAILURE;
-	}
-
 	return status;
 }
 
@@ -124,11 +119,7 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	ftl_media_config_t *media = &ftl->media;
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
-
-	media->ping_thread_running = FALSE;
-	os_wait_thread(media->ping_thread);
-	os_destroy_thread(media->ping_thread);
-
+	
 	media->recv_thread_running = FALSE;
 	shutdown_socket(media->media_socket, SD_BOTH);
 	close_socket(media->media_socket);
@@ -769,34 +760,6 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 				}
 			}
 		}
-		else if (1) { //TODO fix this if clause
-			ping_pkt_t *ping = (ping_pkt_t *)buf;
-
-			struct timeval now, delta;
-			int delay_ms;
-
-			gettimeofday(&now, NULL);
-
-			timeval_subtract(&delta, &ping->xmit_time, &now);
-			delay_ms = (int)timeval_to_ms(&delta);
-
-			if (delay_ms > media->rtt_info.max_rtt) {
-				media->rtt_info.max_rtt = delay_ms;
-			}
-
-			if (delay_ms < media->rtt_info.min_rtt) {
-				media->rtt_info.min_rtt = delay_ms;
-			}
-
-			media->rtt_info.rtt_ms_accumulator += delay_ms;
-			media->rtt_info.rtt_total_samples++;
-
-			media->rtt_info.avg_rtt = media->rtt_info.rtt_ms_accumulator / media->rtt_info.rtt_total_samples;
-
-			if (!(media->rtt_info.rtt_total_samples % 10)) {
-				FTL_LOG(ftl, FTL_LOG_INFO, "Last rtt %dms, avg rtt %d\n", delay_ms, media->rtt_info.avg_rtt);
-			}
-		}
 	}
 
 	free(buf);
@@ -945,44 +908,6 @@ static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_
 	v->avg_queue_delay = mc->stats.total_xmit_delay / mc->stats.xmit_delay_samples;
 
 	enqueue_status_msg(ftl, &m);
-
-	return 0;
-}
-
-OS_THREAD_ROUTINE ping_thread(void *data) {
-
-	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
-	ftl_media_config_t *media = &ftl->media;
-
-	ping_pkt_t *ping;
-	nack_slot_t slot;
-
-	ping = (ping_pkt_t*)slot.packet;
-
-	int rtp_hdr_len = 0;
-	slot.len = sizeof(ping_pkt_t);
-
-	media->rtt_info.rtt_ms_accumulator = 0;
-	media->rtt_info.rtt_total_samples = 0;
-	memset(media->rtt_info.last_n_samples, 0, sizeof(media->rtt_info.last_n_samples));
-	media->rtt_info.last_sample_pos = 0;
-	media->rtt_info.median_rtt = 0;
-	media->rtt_info.avg_rtt = 0;
-	media->rtt_info.min_rtt = 1000;
-	media->rtt_info.max_rtt = 0;
-
-	//TODO probably dont want rtp header, need to find some type of rtcp
-	if ((rtp_hdr_len = _write_rtp_header(ping->header, sizeof(ping->header), 1234, 0, 0, 0)) < 0) {
-		return -1;
-	}
-
-	while (media->ping_thread_running) {
-		sleep_ms(PING_TX_INTERVAL_MS);
-
-		gettimeofday(&ping->xmit_time, NULL);
-
-		_media_send_slot(ftl, &slot);
-	}
 
 	return 0;
 }

@@ -77,6 +77,7 @@
 #define INGEST_LIST_URI "https://beam.pro/api/v1/ingests"
 #define INGEST_LOAD_PORT 8081
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
+#define PING_TX_INTERVAL_MS 100
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
@@ -141,6 +142,11 @@ typedef struct {
 	int last; /*last packet in frame*/
 	OS_MUTEX mutex;
 }nack_slot_t;
+
+typedef struct _ping_pkt_t {
+	uint32_t header;
+	struct timeval xmit_time;
+}ping_pkt_t;
 
 typedef struct {
 	int frames_received;
@@ -207,16 +213,30 @@ typedef struct {
 } ftl_video_component_t;
 
 typedef struct {
+	int64_t rtt_ms_accumulator;
+	int rtt_total_samples;
+	int last_n_samples[10];
+	int last_sample_pos;
+	int median_rtt;
+	int avg_rtt;
+	int min_rtt;
+	int max_rtt;
+}rtt_info_t;
+
+typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
 	OS_MUTEX mutex;
 	int assigned_port;
 	BOOL recv_thread_running;
 	BOOL send_thread_running;
+	BOOL ping_thread_running;
 	OS_THREAD_HANDLE recv_thread;
 	OS_THREAD_HANDLE send_thread;
+	OS_THREAD_HANDLE ping_thread;
 	int max_mtu;
 	struct timeval stats_tv;
+	rtt_info_t rtt_info;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

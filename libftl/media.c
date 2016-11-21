@@ -2,13 +2,9 @@
 #include "ftl.h"
 #include "ftl_private.h"
 
-#ifdef _WIN32
-static DWORD WINAPI recv_thread(LPVOID data);
-static DWORD WINAPI send_thread(LPVOID data);
-#else
-static void *recv_thread(void *data);
-static void *send_thread(void *data);
-#endif
+OS_THREAD_ROUTINE send_thread(void *data);
+OS_THREAD_ROUTINE recv_thread(void *data);
+OS_THREAD_ROUTINE ping_thread(void *data);
 static int _nack_init(ftl_media_component_common_t *media);
 static int _nack_destroy(ftl_media_component_common_t *media);
 static ftl_media_component_common_t *_media_lookup(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
@@ -24,6 +20,8 @@ static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_co
 static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms);
 void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec);
 void _clear_stats(media_stats_t *stats);
+int _get_network_delay(ftl_stream_configuration_private_t *ftl);
+static float _media_get_queue_level_ms(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
@@ -104,6 +102,11 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		return FTL_MALLOC_FAILURE;
 	}
 
+	media->ping_thread_running = TRUE;
+	if ((os_create_thread(&media->ping_thread, NULL, ping_thread, ftl)) != 0) {
+		return FTL_MALLOC_FAILURE;
+	}
+
 	return status;
 }
 
@@ -123,6 +126,10 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	ftl_media_config_t *media = &ftl->media;
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
+
+	media->ping_thread_running = FALSE;
+	os_wait_thread(media->ping_thread);
+	os_destroy_thread(media->ping_thread);
 
 	media->recv_thread_running = FALSE;
 	shutdown_socket(media->media_socket, SD_BOTH);
@@ -353,6 +360,8 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 
 	_update_timestamp(ftl, mc, dts_usec);
 
+
+
 	if (ftl->video.wait_for_idr_frame) {
 		if (nalu_type == H264_NALU_TYPE_SPS) {
 			FTL_LOG(ftl, FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
@@ -364,6 +373,13 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 			}
 			return bytes_queued;
 		}
+	}
+
+	int queue_level_ms;
+	if ((queue_level_ms = _media_get_queue_level_ms(ftl, ftl->video.media_component.ssrc)) > 500) {
+		ftl->video.wait_for_idr_frame = TRUE;
+		FTL_LOG(ftl, FTL_LOG_INFO, "Video Queue has %d ms in it, discarding until next i frame\n", queue_level_ms);
+		return bytes_queued;
 	}
 
 	if (nalu_type == H264_NALU_TYPE_IDR) {
@@ -492,6 +508,33 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 	return (float)packets_queued / (float)NACK_RB_SIZE;
 }
 
+static int _media_get_queue_level_ms(ftl_stream_configuration_private_t *ftl, uint32_t ssrc) {
+	ftl_media_component_common_t *mc;
+	nack_slot_t *slot_head, *slot_tail;
+	struct timeval now, delta;
+	int delay_ms;
+
+	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
+		return -1;
+	}
+
+	if (mc->xmit_seq_num == mc->seq_num) {
+		return 0;
+	}
+
+	slot_head = mc->nack_slots[mc->xmit_seq_num % NACK_RB_SIZE];
+	gettimeofday(&now, NULL);
+	timeval_subtract(&delta, &now, &slot_head->insert_time);
+	delay_ms = (int)timeval_to_ms(&delta);
+
+	if (delay_ms < 0) {
+		delay_ms = 0;
+	}
+
+	return delay_ms;
+}
+
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
 	int tx_len;
 	
@@ -586,34 +629,49 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 	return tx_len;
 }
 
+static int _write_rtp_header(uint8_t *buf, size_t len, uint8_t ptype, uint16_t seq_num, uint32_t timestamp, uint32_t ssrc) {
+	uint32_t rtp_header;
+	
+	if (RTP_HEADER_BASE_LEN > len) {
+		return -1;
+	}
+
+	//TODO need to worry about alignment on some platforms
+	uint32_t *out_header = (uint32_t *)buf;
+
+	rtp_header = htonl((2 << 30) | (ptype << 16) | seq_num);
+
+	*out_header++ = rtp_header;
+	rtp_header = htonl((uint32_t)timestamp);
+	*out_header++ = rtp_header;
+	rtp_header = htonl(ssrc);
+	*out_header++ = rtp_header;
+
+	return (uint32_t)out_header - (uint32_t)buf;
+}
+
 static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt) {
 	uint8_t sbit, ebit;
 	int frag_len;
 	ftl_video_component_t *video = &ftl->video;
 	ftl_media_component_common_t *mc = &video->media_component;
+	int rtp_hdr_len = 0;
+
+	if ((rtp_hdr_len = _write_rtp_header(out, *out_len, mc->payload_type, mc->seq_num, mc->timestamp, mc->ssrc)) < 0) {
+		return -1;
+	}
+
+	out += rtp_hdr_len;
 
 	sbit = first_pkt ? 1 : 0;
-	ebit = (in_len + RTP_HEADER_BASE_LEN + RTP_FUA_HEADER_LEN) <= ftl->media.max_mtu;
-
-	uint32_t rtp_header;
-	uint32_t *out_header = (uint32_t *)out;
-
-	rtp_header = htonl((2 << 30) | (mc->payload_type << 16) | mc->seq_num);
-
-	*out_header++ = rtp_header;
-	rtp_header = htonl((uint32_t)mc->timestamp);
-	*out_header++ = rtp_header;
-	rtp_header = htonl(mc->ssrc);
-	*out_header++ = rtp_header;
-
-	out = (uint8_t *)out_header;
+	ebit = (in_len + rtp_hdr_len + RTP_FUA_HEADER_LEN) <= ftl->media.max_mtu;
 
 	mc->seq_num++;
 
 	if (sbit && ebit) {
 		sbit = ebit = 0;
 		frag_len = in_len;
-		*out_len = frag_len + RTP_HEADER_BASE_LEN;
+		*out_len = frag_len + rtp_hdr_len;
 		memcpy(out, in, frag_len);
 	}
 	else {
@@ -629,7 +687,7 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
 		out += 2;
 
-		frag_len = ftl->media.max_mtu - RTP_HEADER_BASE_LEN - RTP_FUA_HEADER_LEN;
+		frag_len = ftl->media.max_mtu - rtp_hdr_len - RTP_FUA_HEADER_LEN;
 
 		if (frag_len > in_len) {
 			frag_len = in_len;
@@ -645,21 +703,17 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
 static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len) {
 	int payload_len = in_len;
-
-	uint32_t rtp_header;
-	uint32_t *out_header = (uint32_t *)out;
-
+	
 	ftl_audio_component_t *audio = &ftl->audio;
 	ftl_media_component_common_t *mc = &audio->media_component;
 
-	rtp_header = htonl((2 << 30) | (1 << 23) | (mc->payload_type << 16) | mc->seq_num);
-	*out_header++ = rtp_header;
-	rtp_header = htonl((uint32_t)mc->timestamp);
-	*out_header++ = rtp_header;
-	rtp_header = htonl(mc->ssrc);
-	*out_header++ = rtp_header;
+	int rtp_hdr_len = 0;
 
-	out = (uint8_t *)out_header;
+	if ((rtp_hdr_len = _write_rtp_header(out, *out_len, mc->payload_type, mc->seq_num, mc->timestamp, mc->ssrc)) < 0) {
+		return -1;
+	}
+
+	out += rtp_hdr_len;
 
 	mc->seq_num++;
 
@@ -699,13 +753,6 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Failed to allocate recv buffer\n");
 		return (OS_THREAD_TYPE)-1;
 	}
-
-#if 0
-	if (ret >= 0 && recv_size > 0) {
-		if (!discard_recv_data(stream, (size_t)recv_size))
-			return -1;
-	}
-#endif
 
 	while (media->recv_thread_running) {
 
@@ -760,6 +807,40 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 				}
 			}
 		}
+		else if (feedbackType == 1 && ptype == 210) { //TODO fix this if clause
+			ping_pkt_t *ping = (ping_pkt_t *)buf;
+
+			struct timeval now, delta;
+			int delay_ms;
+
+			gettimeofday(&now, NULL);
+
+			timeval_subtract(&delta, &now, &ping->xmit_time);
+			delay_ms = (int)timeval_to_ms(&delta);
+
+			if (delay_ms > media->rtt_info.max_rtt) {
+				media->rtt_info.max_rtt = delay_ms;
+			}
+
+			if (delay_ms < media->rtt_info.min_rtt) {
+				media->rtt_info.min_rtt = delay_ms;
+			}
+
+			media->rtt_info.rtt_ms_accumulator += delay_ms;
+			media->rtt_info.rtt_total_samples++;
+
+			media->rtt_info.avg_rtt = media->rtt_info.rtt_ms_accumulator / media->rtt_info.rtt_total_samples;
+
+			if (++media->rtt_info.last_sample_pos >= sizeof(media->rtt_info.last_n_samples) / sizeof(media->rtt_info.last_n_samples[0])) {
+				media->rtt_info.last_sample_pos = 0;
+			}
+
+			media->rtt_info.last_n_samples[media->rtt_info.last_sample_pos] = delay_ms;
+
+			if (!(media->rtt_info.rtt_total_samples % 10)) {
+				FTL_LOG(ftl, FTL_LOG_INFO, "Last rtt %dms, avg rtt %d, lowest %d\n", delay_ms, media->rtt_info.avg_rtt, media->rtt_info.min_rtt);
+			}
+		}
 	}
 
 	free(buf);
@@ -780,6 +861,7 @@ OS_THREAD_ROUTINE send_thread(void *data)
 	int pkt_sent;
 	int video_kbps = -1;
 	int disable_flow_control = 0;
+	int network_delay;
 
 	int transmit_level;
 	struct timeval start_tv, stop_tv, delta_tv;
@@ -820,7 +902,12 @@ OS_THREAD_ROUTINE send_thread(void *data)
 			pkt_sent = 0;
 			while (!pkt_sent && media->send_thread_running) {
 
-				if (transmit_level <= 0) {
+				if (transmit_level <= 0 || (network_delay = _get_network_delay(ftl)) > (media->rtt_info.min_rtt * 1.5)) {
+
+					if (transmit_level > 0) {
+						FTL_LOG(ftl, FTL_LOG_INFO, "Throttling due to network delay (%dms), queue delay is %dms\n", network_delay, _media_get_queue_level_ms(ftl, video->ssrc));
+					}
+
 					sleep_ms(MAX_MTU / bytes_per_ms + 1);
 				}
 
@@ -851,6 +938,19 @@ OS_THREAD_ROUTINE send_thread(void *data)
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Exited Send Thread\n");
 	return (OS_THREAD_TYPE)0;
+}
+
+int _get_network_delay(ftl_stream_configuration_private_t *ftl) {
+	ftl_media_config_t *media = &ftl->media;
+	int elements = sizeof(media->rtt_info.last_n_samples) / sizeof(media->rtt_info.last_n_samples[0]);
+	int sum = 0;
+	int i;
+
+	for (i = 0; i < elements; i++) {
+		sum += media->rtt_info.last_n_samples[i];
+	}
+
+	return sum / elements;
 }
 
 static int _update_stats(ftl_stream_configuration_private_t *ftl) {
@@ -907,6 +1007,50 @@ static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_
 	v->max_frame_size = mc->stats.max_frame_size;
 
 	enqueue_status_msg(ftl, &m);
+
+	return 0;
+}
+
+OS_THREAD_ROUTINE ping_thread(void *data) {
+
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
+	ftl_media_config_t *media = &ftl->media;
+
+	ping_pkt_t *ping;
+	nack_slot_t slot;
+	uint8_t fmt = 1; //generic nack
+	uint8_t ptype = 210; //TODO: made up, need to find something valid
+	uint16_t len;
+
+	ping = (ping_pkt_t*)slot.packet;
+
+	int rtp_hdr_len = 0;
+	slot.len = sizeof(ping_pkt_t);
+
+	media->rtt_info.rtt_ms_accumulator = 0;
+	media->rtt_info.rtt_total_samples = 0;
+	memset(media->rtt_info.last_n_samples, 0, sizeof(media->rtt_info.last_n_samples));
+	media->rtt_info.last_sample_pos = 0;
+	media->rtt_info.median_rtt = 0;
+	media->rtt_info.avg_rtt = 0;
+	media->rtt_info.min_rtt = 1000;
+	media->rtt_info.max_rtt = 0;
+
+	//      0                   1                   2                   3
+	//    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+	//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	//   |V=2|P|   FMT   |       PT      |          length               |
+	//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+	ping->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | sizeof(ping_pkt_t));
+
+	while (media->ping_thread_running) {
+		sleep_ms(PING_TX_INTERVAL_MS);
+
+		gettimeofday(&ping->xmit_time, NULL);
+
+		_media_send_slot(ftl, &slot);
+	}
 
 	return 0;
 }

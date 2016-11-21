@@ -41,10 +41,16 @@ int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 	chunk.size = 0;    /* no data at this point */
 
 	curl_easy_setopt(curl_handle, CURLOPT_URL, INGEST_LIST_URI);
-	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, FALSE); //TODO: fix this, bad to bypass ssl
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, TRUE); //TODO: fix this, bad to bypass ssl
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2L);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
+
+#if LIBCURL_VERSION_NUM >= 0x072400
+	// A lot of servers don't yet support ALPN
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_ENABLE_ALPN, 0);
+#endif
 
 	res = curl_easy_perform(curl_handle);
 

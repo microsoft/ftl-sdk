@@ -144,7 +144,7 @@ typedef struct {
 }nack_slot_t;
 
 typedef struct _ping_pkt_t {
-	uint8_t header[12];
+	uint32_t header;
 	struct timeval xmit_time;
 }ping_pkt_t;
 

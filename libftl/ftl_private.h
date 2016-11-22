@@ -224,10 +224,19 @@ typedef struct {
 }rtt_info_t;
 
 typedef struct {
+	BOOL starting;
+	struct timeval start_tv;
+	int lots_pkts;
+	int bytes_dropped;
+	int bytes_sent;
+}auto_bw_t;
+
+typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
 	OS_MUTEX mutex;
 	int assigned_port;
+	BOOL ping_pkts_enabled;
 	BOOL recv_thread_running;
 	BOOL send_thread_running;
 	BOOL ping_thread_running;
@@ -237,6 +246,8 @@ typedef struct {
 	int max_mtu;
 	struct timeval stats_tv;
 	rtt_info_t rtt_info;
+	auto_bw_t auto_bw[10];
+	int auto_bw_active;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

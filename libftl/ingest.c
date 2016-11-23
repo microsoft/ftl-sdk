@@ -5,6 +5,12 @@
 
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip);
 static int _ingest_compute_score(ftl_ingest_t *ingest);
+static int _ping_server(const char *ip, int port);
+
+typedef struct {
+	ftl_ingest_t *ingest;
+	ftl_stream_configuration_private_t *ftl;
+}_tmp_ingest_thread_data_t;
 
 static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -41,7 +47,7 @@ int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 	chunk.size = 0;    /* no data at this point */
 
 	curl_easy_setopt(curl_handle, CURLOPT_URL, INGEST_LIST_URI);
-	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, TRUE); //TODO: fix this, bad to bypass ssl
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, TRUE);
 	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2L);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
@@ -88,8 +94,8 @@ int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 			strcpy_s(ingest_elmt->name, sizeof(ingest_elmt->name), name);
 			strcpy_s(ingest_elmt->host, sizeof(ingest_elmt->host), host);
 			strcpy_s(ingest_elmt->ip, sizeof(ingest_elmt->ip), ips[ii]);
-			ingest_elmt->rtt = 10000;
-			ingest_elmt->cpu_load = -1;
+			ingest_elmt->rtt = 500;
+			ingest_elmt->load_score = 100;
 			free(ips[ii]);
 
 			ingest_elmt->next = NULL;
@@ -126,54 +132,57 @@ cleanup:
 
 OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 
-	ftl_ingest_t *ingest = (ftl_ingest_t *)data;
+	_tmp_ingest_thread_data_t *thread_data = (_tmp_ingest_thread_data_t *)data;
+	ftl_stream_configuration_private_t *ftl = thread_data->ftl;
+	ftl_ingest_t *ingest = thread_data->ingest;
 	int ret = 0;
 	CURL *curl_handle;
 	CURLcode res;
 	struct MemoryStruct chunk;
 	json_error_t error;
 	json_t *load = NULL;
-	char ip_port[IPV4_ADDR_ASCII_LEN];
+	char score_url[1024];
+	char host_and_ip[100];
 	struct timeval start, stop, delta;
+	struct curl_slist *host = NULL;
+	int ping;
 
-        ingest->rtt = 1000;
-        ingest->cpu_load = 100;
+    ingest->rtt = 500;
+    ingest->load_score = 100;
 
+	if ((ping = _ping_server(ingest->ip, INGEST_PING_PORT)) >= 0) {
+		ingest->rtt = ping;
+	}
+	
 	curl_handle = curl_easy_init();
 
 	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
 	chunk.size = 0;    /* no data at this point */
 
-	sprintf_s(ip_port, sizeof(ip_port), "%s:%d", ingest->ip, INGEST_LOAD_PORT);
+	sprintf_s(score_url, sizeof(score_url), "https://%s:%d?id=%d&key=%s", ingest->host, INGEST_LOAD_PORT, ftl->channel_id, ftl->key);
+	sprintf_s(host_and_ip, sizeof(host_and_ip), "%s:%d:%s", ingest->host, INGEST_LOAD_PORT, ingest->ip);
 
-	curl_easy_setopt(curl_handle, CURLOPT_URL, ip_port);
+	host = curl_slist_append(NULL, host_and_ip);
+
+	curl_easy_setopt(curl_handle, CURLOPT_URL, score_url);
+	curl_easy_setopt(curl_handle, CURLOPT_RESOLVE, host);
 	curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1); //need this for linux otherwise subsecond timeouts dont work
-	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 500);
+	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 1000);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, TRUE);
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2L);
 
-	//not sure how i can time response time from the GET without including the tcp connect other than to do this 2x
+#if LIBCURL_VERSION_NUM >= 0x072400
+	// A lot of servers don't yet support ALPN
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_ENABLE_ALPN, 0);
+#endif
+
 	if( (res = curl_easy_perform(curl_handle)) != CURLE_OK){
 		ret = -1;
 		printf("Failed to query %s: %s\n", ingest->name, curl_easy_strerror(res));
 		goto cleanup;		
-	}
-
-	free(chunk.memory);
-	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
-	chunk.size = 0;    /* no data at this point */
-
-	gettimeofday(&start, NULL);
-	res = curl_easy_perform(curl_handle);
-	gettimeofday(&stop, NULL);
-	timeval_subtract(&delta, &stop, &start);
-	int ms = (int)timeval_to_ms(&delta);
-
-	if (res != CURLE_OK) {
-		ret = -2;
-		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		goto cleanup;
 	}
 
 	if ((load = json_loadb(chunk.memory, chunk.size, 0, &error)) == NULL) {
@@ -181,14 +190,13 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 		goto cleanup;
 	}
 
-	double cpu_load;
-	if (json_unpack(load, "{s:f}", "LoadPercent", &cpu_load) < 0) {
+	double load_score;
+	if (json_unpack(load, "{s:f}", "LoadScore", &load_score) < 0) {
 		ret = -4;
 		goto cleanup;
 	}
 
-        ingest->rtt = ms;
-	ingest->cpu_load = (float)cpu_load;
+	ingest->load_score = (float)load_score;
 
 cleanup:
 	free(chunk.memory);
@@ -221,10 +229,11 @@ char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {
 char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
 	OS_THREAD_HANDLE *handle;
+	_tmp_ingest_thread_data_t *data;
 	int i;
 	ftl_ingest_t *elmt, *best = NULL;
 	struct timeval start, stop, delta;
-	float best_ingest_score = 100000, ingest_score;
+	float best_ingest_score = 100, ingest_score;
 
 	if (ftl->ingest_list == NULL) {
 		if (_ingest_get_hosts(ftl) <= 0) {
@@ -236,23 +245,27 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		return NULL;
 	}
 
+	if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ftl->ingest_count)) == NULL) {
+		return NULL;
+	}
+
 	gettimeofday(&start, NULL);
 
 	/*query all the ingests about cpu and rtt*/
 	elmt = ftl->ingest_list;
 	for (i = 0; i < ftl->ingest_count && elmt != NULL; i++) {
 		handle[i] = 0;
-		//if (strcmp(elmt->name, "EU: Milan") == 0) 
-		{
-			os_create_thread(&handle[i], NULL, _ingest_get_load, elmt);
-			sleep_ms(10); //prevents all the threads from hammering the network at the same time and gives a more reliable rtt
-		}
+		data[i].ingest = elmt;
+		data[i].ftl = ftl;
+		os_create_thread(&handle[i], NULL, _ingest_get_load, &data[i]);
+		sleep_ms(5);
 		elmt = elmt->next;
 	}
 
 	/*wait for all the ingests to complete*/
 	elmt = ftl->ingest_list;
 	for (i = 0; i < ftl->ingest_count && elmt != NULL; i++) {
+
 		if (handle[i] != 0) {
 			os_wait_thread(handle[i]);
 		}
@@ -282,8 +295,11 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		elmt = elmt->next;
 	}
 
+	free(handle);
+	free(data);
+
 	if (best){
-		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server load of %2.1f\n", best->name, best->ip, best->rtt, best->cpu_load * 100.f);
+		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server score of %2.1f\n", best->name, best->ip, best->rtt, best->load_score * 100.f);
 		return best->ip;
 	}
 
@@ -293,17 +309,44 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
 static int _ingest_compute_score(ftl_ingest_t *ingest) {
 
-	//TODO:  need to weight cpu load less on the low end (under 50%) and more agressively on the high end
-	float rtt_percent = (float)ingest->rtt / 200.f;
+	float load_score, rtt_score;
+	float load_factor;
 
-	if (rtt_percent > 1) {
-		rtt_percent = 1;
+	load_score = ingest->load_score * 100.f;
+
+	if (load_score > 100) {
+		load_score = 100;
 	}
 
-	int load_score, rtt_score;
+	//the highest possible rtt will be 500ms
+	rtt_score = (float)ingest->rtt / 500.f * 100.f;
 
-	load_score = (int)(ingest->cpu_load * 30);
-	rtt_score = (int)(rtt_percent * 70);
+	if (rtt_score > 100) {
+		rtt_score = 100;
+	}
+
+	//unless the score is above 70, it use the rtt exclusively, when above 70 start weighting load score much higher than rtt
+	if (load_score <= 70) {
+		load_factor = 0;
+	}
+	else if (load_score < 80) {
+		load_factor = 0.2;
+	}
+	else if (load_score < 85) {
+		load_factor = 0.4;
+	}
+	else if (load_score < 90) {
+		load_factor = 0.6;
+	}
+	else if (load_score < 95) {
+		load_factor = 0.8;
+	}
+	else if (load_score >= 95) {
+		load_factor = 1;
+	}
+
+	load_score = load_score * load_factor;
+	rtt_score = rtt_score * (1 - load_factor);
 
 	return (int)load_score + rtt_score;
 }
@@ -346,4 +389,51 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
 	}
 
 	return ips_found;
+}
+
+static int _ping_server(const char *ip, int port) {
+
+	SOCKET sock;
+	struct hostent *server = NULL;
+	struct sockaddr_in server_addr;
+	uint8_t dummy[4];
+	struct timeval start, stop, delta;
+	int retval = -1;
+
+	do {
+		if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
+		{
+			break;
+		}
+
+		if ((server = gethostbyname(ip)) == NULL) {
+			break;
+		}
+
+		//Prepare the sockaddr_in structure
+		server_addr.sin_family = AF_INET;
+		memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
+		server_addr.sin_port = htons(port);
+
+		set_socket_recv_timeout(sock, 500);
+
+		gettimeofday(&start, NULL);
+
+		if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
+			break;
+		}
+
+		if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
+			break;
+		}
+
+		gettimeofday(&stop, NULL);
+		timeval_subtract(&delta, &stop, &start);
+		retval = (int)timeval_to_ms(&delta);
+	} while (0);
+
+	shutdown_socket(sock, SD_BOTH);
+	close_socket(sock);
+
+	return retval;
 }

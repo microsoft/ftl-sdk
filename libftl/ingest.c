@@ -5,6 +5,12 @@
 
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip);
 static int _ingest_compute_score(ftl_ingest_t *ingest);
+static int _ping_server(const char *ip, int port);
+
+typedef struct {
+	ftl_ingest_t *ingest;
+	ftl_stream_configuration_private_t *ftl;
+}_tmp_ingest_thread_data_t;
 
 static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -89,7 +95,7 @@ int _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 			strcpy_s(ingest_elmt->host, sizeof(ingest_elmt->host), host);
 			strcpy_s(ingest_elmt->ip, sizeof(ingest_elmt->ip), ips[ii]);
 			ingest_elmt->rtt = 10000;
-			ingest_elmt->cpu_load = -1;
+			ingest_elmt->load_score = -1;
 			free(ips[ii]);
 
 			ingest_elmt->next = NULL;
@@ -126,54 +132,58 @@ cleanup:
 
 OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 
-	ftl_ingest_t *ingest = (ftl_ingest_t *)data;
+	_tmp_ingest_thread_data_t *thread_data = (_tmp_ingest_thread_data_t *)data;
+	ftl_stream_configuration_private_t *ftl = thread_data->ftl;
+	ftl_ingest_t *ingest = thread_data->ingest;
 	int ret = 0;
 	CURL *curl_handle;
 	CURLcode res;
 	struct MemoryStruct chunk;
 	json_error_t error;
 	json_t *load = NULL;
-	char ip_port[IPV4_ADDR_ASCII_LEN];
+	char score_url[1024];
+	char host_and_ip[100];
 	struct timeval start, stop, delta;
+	struct curl_slist *host = NULL;
+	int ping;
 
-        ingest->rtt = 1000;
-        ingest->cpu_load = 100;
+    ingest->rtt = 1000;
+    ingest->load_score = 100;
 
 	curl_handle = curl_easy_init();
 
 	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
 	chunk.size = 0;    /* no data at this point */
 
-	sprintf_s(ip_port, sizeof(ip_port), "%s:%d", ingest->ip, INGEST_LOAD_PORT);
+	sprintf_s(score_url, sizeof(score_url), "https://%s:%d?id=%d&key=%s", ingest->host, INGEST_LOAD_PORT, ftl->channel_id, ftl->key);
 
-	curl_easy_setopt(curl_handle, CURLOPT_URL, ip_port);
+	sprintf_s(host_and_ip, sizeof(host_and_ip), "%s:%d:%s", ingest->host, INGEST_LOAD_PORT, ingest->ip);
+
+	host = curl_slist_append(NULL, host_and_ip);
+
+	curl_easy_setopt(curl_handle, CURLOPT_URL, score_url);
+	curl_easy_setopt(curl_handle, CURLOPT_RESOLVE, host);
 	curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1); //need this for linux otherwise subsecond timeouts dont work
-	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 500);
+	curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT_MS, 1000);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 	curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, TRUE); //TODO: fix this, bad to bypass ssl
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2L);
 
-	//not sure how i can time response time from the GET without including the tcp connect other than to do this 2x
+#if LIBCURL_VERSION_NUM >= 0x072400
+	// A lot of servers don't yet support ALPN
+	curl_easy_setopt(curl_handle, CURLOPT_SSL_ENABLE_ALPN, 0);
+#endif
+
 	if( (res = curl_easy_perform(curl_handle)) != CURLE_OK){
 		ret = -1;
 		printf("Failed to query %s: %s\n", ingest->name, curl_easy_strerror(res));
 		goto cleanup;		
 	}
 
-	free(chunk.memory);
-	chunk.memory = malloc(1);  /* will be grown as needed by realloc */
-	chunk.size = 0;    /* no data at this point */
-
-	gettimeofday(&start, NULL);
-	res = curl_easy_perform(curl_handle);
-	gettimeofday(&stop, NULL);
-	timeval_subtract(&delta, &stop, &start);
-	int ms = (int)timeval_to_ms(&delta);
-
-	if (res != CURLE_OK) {
-		ret = -2;
-		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		goto cleanup;
+	if ( (ping = _ping_server(ingest->ip, INGEST_PING_PORT)) >= 0) {
+		ingest->rtt = ping;
 	}
 
 	if ((load = json_loadb(chunk.memory, chunk.size, 0, &error)) == NULL) {
@@ -181,14 +191,13 @@ OS_THREAD_ROUTINE _ingest_get_load(void *data) {
 		goto cleanup;
 	}
 
-	double cpu_load;
-	if (json_unpack(load, "{s:f}", "LoadPercent", &cpu_load) < 0) {
+	double load_score;
+	if (json_unpack(load, "{s:f}", "LoadScore", &load_score) < 0) {
 		ret = -4;
 		goto cleanup;
 	}
 
-        ingest->rtt = ms;
-	ingest->cpu_load = (float)cpu_load;
+	ingest->load_score = (float)load_score;
 
 cleanup:
 	free(chunk.memory);
@@ -244,7 +253,12 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 		handle[i] = 0;
 		//if (strcmp(elmt->name, "EU: Milan") == 0) 
 		{
-			os_create_thread(&handle[i], NULL, _ingest_get_load, elmt);
+			_tmp_ingest_thread_data_t data;
+
+			data.ingest = elmt;
+			data.ftl = ftl;
+
+			os_create_thread(&handle[i], NULL, _ingest_get_load, &data);
 			sleep_ms(10); //prevents all the threads from hammering the network at the same time and gives a more reliable rtt
 		}
 		elmt = elmt->next;
@@ -283,7 +297,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	if (best){
-		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server load of %2.1f\n", best->name, best->ip, best->rtt, best->cpu_load * 100.f);
+		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server load of %2.1f\n", best->name, best->ip, best->rtt, best->load_score * 100.f);
 		return best->ip;
 	}
 
@@ -302,7 +316,7 @@ static int _ingest_compute_score(ftl_ingest_t *ingest) {
 
 	int load_score, rtt_score;
 
-	load_score = (int)(ingest->cpu_load * 30);
+	load_score = (int)(ingest->load_score * 30);
 	rtt_score = (int)(rtt_percent * 70);
 
 	return (int)load_score + rtt_score;
@@ -346,4 +360,51 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
 	}
 
 	return ips_found;
+}
+
+static int _ping_server(const char *ip, int port) {
+
+	SOCKET sock;
+	struct hostent *server = NULL;
+	struct sockaddr_in server_addr;
+	uint8_t dummy[4];
+	struct timeval start, stop, delta;
+	int retval = -1;
+
+	do {
+		if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
+		{
+			break;
+		}
+
+		if ((server = gethostbyname(ip)) == NULL) {
+			break;
+		}
+
+		//Prepare the sockaddr_in structure
+		server_addr.sin_family = AF_INET;
+		memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
+		server_addr.sin_port = htons(port);
+
+		set_socket_recv_timeout(sock, 500);
+
+		gettimeofday(&start, NULL);
+
+		if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
+			break;
+		}
+
+		if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
+			break;
+		}
+
+		gettimeofday(&stop, NULL);
+		timeval_subtract(&delta, &stop, &start);
+		retval = (int)timeval_to_ms(&delta);
+	} while (0);
+
+	shutdown_socket(sock, SD_BOTH);
+	close_socket(sock);
+
+	return retval;
 }

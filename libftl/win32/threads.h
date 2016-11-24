@@ -26,6 +26,10 @@
 
 typedef CRITICAL_SECTION OS_MUTEX;
 
+typedef HANDLE OS_SEM;
+#define MAX_SEM_COUNT 0x7FFFFFFF
+#define O_CREAT 0
+
 typedef HANDLE* OS_THREAD_HANDLE;
 typedef DWORD OS_THREAD_TYPE;
 #define OS_THREAD_ROUTINE OS_THREAD_TYPE WINAPI
@@ -44,3 +48,7 @@ int os_lock_mutex(OS_MUTEX *mutex);
 int os_unlock_mutex(OS_MUTEX *mutex);
 int os_delete_mutex(OS_MUTEX *mutex);
 
+int os_sem_create(OS_SEM *sem, const char *name, int oflag, unsigned int value);
+int os_sem_pend(OS_SEM *sem, int ms_timeout);
+int os_sem_post(OS_SEM *sem);
+int os_sem_delete(OS_SEM *sem);

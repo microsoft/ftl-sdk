@@ -76,3 +76,46 @@ int os_delete_mutex(OS_MUTEX *mutex) {
 
 	return 0;
 }
+
+char tmp[1024];
+
+int os_sem_create(OS_SEM *sem, const char *name, int oflag, unsigned int value) {
+
+	if (name == NULL) {
+		return -1;
+	}
+
+	if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, name)) == NULL){
+
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0, (LPTSTR)&tmp, 1000, NULL);
+
+		return -3;
+	}
+
+	return 0;
+}
+
+int os_sem_pend(OS_SEM *sem, int ms_timeout) {
+
+	if (WaitForSingleObject(*sem, ms_timeout) != WAIT_OBJECT_0) {
+		return -1;
+	}
+
+	return 0;
+}
+
+int os_sem_post(OS_SEM *sem) {
+	if (ReleaseSemaphore(*sem, 1, NULL)) {
+		return 0;
+	}
+
+	return -1;
+}
+
+int os_sem_delete(OS_SEM *sem) {
+	if (CloseHandle(*sem)) {
+		return 0;
+	}
+
+	return -1;
+}

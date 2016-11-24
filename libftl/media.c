@@ -91,11 +91,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	comp = &ftl->video.media_component;
 
-#ifdef _WIN32
-	if ((comp->pkt_ready = CreateSemaphore(NULL, 0, 1000000, NULL)) == NULL) {
-#else
-	if (sem_init(&comp->pkt_ready, 0 /* pshared */, 0 /* value */)) {
-#endif
+	if(os_sem_create(&comp->pkt_ready, "/VideoPkt", O_CREAT, 0) < 0){
 		return FTL_MALLOC_FAILURE;
 	}
 
@@ -131,17 +127,11 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	os_destroy_thread(media->recv_thread);
 
 	media->send_thread_running = FALSE;
-#ifdef _WIN32
-	ReleaseSemaphore(ftl->video.media_component.pkt_ready, 1, NULL); 
+
+	os_sem_post(&ftl->video.media_component.pkt_ready);
 	os_wait_thread(media->send_thread);
 	os_destroy_thread(media->send_thread);
-	CloseHandle(ftl->video.media_component.pkt_ready);
-#else
-	sem_post(&ftl->video.media_component.pkt_ready);
-	os_wait_thread(media->send_thread);
-	os_destroy_thread(media->send_thread);
-	sem_destroy(&ftl->video.media_component.pkt_ready);
-#endif
+	os_sem_delete(&ftl->video.media_component.pkt_ready);
 	os_delete_mutex(&media->mutex);
 
 	media->max_mtu = 0;
@@ -410,12 +400,8 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 		gettimeofday(&slot->insert_time, NULL);
 
 		os_unlock_mutex(&slot->mutex);
+		os_sem_post(&mc->pkt_ready);
 
-#ifdef _WIN32
-		ReleaseSemaphore(mc->pkt_ready, 1, NULL);
-#else
-		sem_post(&mc->pkt_ready);
-#endif
 		mc->stats.packets_queued++;
 		mc->stats.bytes_queued += pkt_len;
 	}
@@ -803,11 +789,7 @@ OS_THREAD_ROUTINE send_thread(void *data)
 			}
 		}
 
-#ifdef _WIN32
-		WaitForSingleObject(video->pkt_ready, INFINITE);
-#else
-		sem_wait(&video->pkt_ready);
-#endif
+		os_sem_pend(&video->pkt_ready, FOREVER);
 
 		if (!media->send_thread_running) {
 			break;

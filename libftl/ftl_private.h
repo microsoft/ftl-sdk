@@ -47,6 +47,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <semaphore.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #endif
 
 #include "threads.h"
@@ -116,11 +118,7 @@ typedef struct {
 	status_queue_elmt_t *head;
 	int count;
 	OS_MUTEX mutex;
-#ifdef _WIN32
-	HANDLE sem;
-#else
-	sem_t sem;
-#endif
+	OS_SEM sem;
 }status_queue_t;
 
 #ifndef _WIN32
@@ -180,11 +178,7 @@ typedef struct {
 	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
 	int kbps;
-#ifdef _WIN32
-	HANDLE pkt_ready;
-#else
-	sem_t pkt_ready;
-#endif
+	OS_SEM pkt_ready;
 	media_stats_t stats;
 }ftl_media_component_common_t;
 

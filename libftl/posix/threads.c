@@ -24,6 +24,8 @@
 
 #include "threads.h"
 
+pthread_mutexattr_t ftl_default_mutexattr;
+
 int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_START_ROUTINE func, void *args) {
 
 	return pthread_create(handle, NULL, func, args);
@@ -35,6 +37,12 @@ int os_destroy_thread(OS_THREAD_HANDLE handle) {
 
 int os_wait_thread(OS_THREAD_HANDLE handle) {
 	return pthread_join(handle, NULL);
+}
+
+int os_init(){
+  pthread_mutexattr_init(&ftl_default_mutexattr);
+  // Set pthread mutexes to recursive to mirror Windows mutex behavior
+  pthread_mutexattr_settype(&ftl_default_mutexattr, PTHREAD_MUTEX_RECURSIVE);
 }
 
 int os_init_mutex(OS_MUTEX *mutex) {
@@ -53,18 +61,10 @@ int os_delete_mutex(OS_MUTEX *mutex) {
 	return 0;
 }
 
-
-if (ms_timeout <= 0) {
-	sem_wait(&ftl->status_q.sem);
-}
-else {
-
-}
-
-int os_sem_create(OS_SEM *sem, const char *name, int oflag, unsigned int value) {
+int os_sem_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value) {
 
 	if ((sem->name = strdup(name)) == NULL) {
-		return -1
+		return -1;
 	}
 
 	if (name == NULL || name[0] != '/') {
@@ -78,9 +78,9 @@ int os_sem_create(OS_SEM *sem, const char *name, int oflag, unsigned int value) 
 	return 0;
 }
 
-int os_sem_pend(OS_SEM *sem, int ms_timeout) {
+int os_sem_pend(OS_SEMAPHORE *sem, int ms_timeout) {
 
-	if (ms_timeout == FOREVER) {
+	if (ms_timeout < 0) {
 		return sem_wait(sem->sem);
 	}
 	else {
@@ -108,11 +108,11 @@ int os_sem_pend(OS_SEM *sem, int ms_timeout) {
 	}
 }
 
-int os_sem_post(OS_SEM *sem) {
+int os_sem_post(OS_SEMAPHORE *sem) {
 	return sem_post(sem->sem);
 }
 
-int os_sem_delete(OS_SEM *sem) {
+int os_sem_delete(OS_SEMAPHORE *sem) {
 	
 	int retval = 0;
 

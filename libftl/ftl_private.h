@@ -38,17 +38,12 @@
 #include <WS2tcpip.h>
 #include <WinSock2.h>
 #else
-#include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <stdbool.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <semaphore.h>
-#include <fcntl.h>
-#include <sys/stat.h>
 #endif
 
 #include "threads.h"
@@ -118,12 +113,8 @@ typedef struct {
 	status_queue_elmt_t *head;
 	int count;
 	OS_MUTEX mutex;
-	OS_SEM sem;
+	OS_SEMAPHORE sem;
 }status_queue_t;
-
-#ifndef _WIN32
-pthread_mutexattr_t ftl_default_mutexattr;
-#endif
 
 /**
  * This configuration structure handles basic information for a struct such
@@ -178,7 +169,7 @@ typedef struct {
 	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
 	int kbps;
-	OS_SEM pkt_ready;
+	OS_SEMAPHORE pkt_ready;
 	media_stats_t stats;
 }ftl_media_component_common_t;
 

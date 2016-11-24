@@ -94,7 +94,7 @@ int os_sem_pend(OS_SEMAPHORE *sem, int ms_timeout) {
 				break;
 			}
 			sleep_ms(sleep_interval);
-			ms_timeout -= sleep_interval
+			ms_timeout -= sleep_interval;
 		}
 
 		return retval;

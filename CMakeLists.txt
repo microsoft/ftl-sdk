@@ -7,19 +7,26 @@ find_package(Threads REQUIRED)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-include_directories(libftl libftl/gettimeofday)
+FIND_PACKAGE(CURL)
 
+if (!CURL_FOUND)
 SET(BUILD_CURL_EXE OFF CACHE BOOL "Building libcurl")
 SET(HTTP_ONLY ON CACHE BOOL "using compiling HTTP")
 SET(BUILD_TESTING OFF CACHE BOOL "Not building Tests")
 add_subdirectory(libcurl)
-include_directories(libcurl/include ${CMAKE_CURRENT_BINARY_DIR}/libcurl/include/curl)
+SET(CURL_INCLUDE_DIRS libcurl/include ${CMAKE_CURRENT_BINARY_DIR}/libcurl/include/curl)
+SET(CURL_LIBRARIES libcurl)
+endif()
+MESSAGE( STATUS "Curl include dir: " ${CURL_INCLUDE_DIRS}) 
+include_directories(${CURL_INCLUDE_DIRS})
 
 SET(JANSSON_BUILD_DOCS OFF CACHE BOOL "Jansson docs off")
 SET(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Jansson build without tests")
 SET(JANSSON_EXAMPLES OFF CACHE BOOL "Jansson disable examples")
 add_subdirectory(libjansson)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/libjansson/include)
+
+include_directories(libftl libftl/gettimeofday)
 
 
 if (WIN32)
@@ -61,7 +68,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32 libcurl jansson)
+  target_link_libraries(ftl ws2_32 ${CURL_LIBRARIES} jansson)
 endif()
 
 add_executable(ftl_app
@@ -73,7 +80,7 @@ add_executable(ftl_app
 	             ftl_app/gettimeofday.h
                ${FTL_PLATFORM_FILES})
 
-target_link_libraries(ftl_app ftl libcurl jansson ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
+target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} jansson ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules

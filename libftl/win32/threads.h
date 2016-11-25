@@ -26,7 +26,7 @@
 
 typedef CRITICAL_SECTION OS_MUTEX;
 
-typedef HANDLE OS_SEM;
+typedef HANDLE OS_SEMAPHORE;
 #define MAX_SEM_COUNT 0x7FFFFFFF
 #define O_CREAT 0
 
@@ -50,7 +50,7 @@ int os_lock_mutex(OS_MUTEX *mutex);
 int os_unlock_mutex(OS_MUTEX *mutex);
 int os_delete_mutex(OS_MUTEX *mutex);
 
-int os_sem_create(OS_SEM *sem, const char *name, int oflag, unsigned int value);
-int os_sem_pend(OS_SEM *sem, int ms_timeout);
-int os_sem_post(OS_SEM *sem);
-int os_sem_delete(OS_SEM *sem);
+int os_sem_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value);
+int os_sem_pend(OS_SEMAPHORE *sem, int ms_timeout);
+int os_sem_post(OS_SEMAPHORE *sem);
+int os_sem_delete(OS_SEMAPHORE *sem);

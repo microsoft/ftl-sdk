@@ -83,7 +83,7 @@ int os_delete_mutex(OS_MUTEX *mutex) {
 
 char tmp[1024];
 
-int os_sem_create(OS_SEM *sem, const char *name, int oflag, unsigned int value) {
+int os_sem_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value) {
 
 	if (name == NULL) {
 		return -1;
@@ -99,7 +99,7 @@ int os_sem_create(OS_SEM *sem, const char *name, int oflag, unsigned int value) 
 	return 0;
 }
 
-int os_sem_pend(OS_SEM *sem, int ms_timeout) {
+int os_sem_pend(OS_SEMAPHORE *sem, int ms_timeout) {
 
 	if (WaitForSingleObject(*sem, ms_timeout) != WAIT_OBJECT_0) {
 		return -1;
@@ -108,7 +108,7 @@ int os_sem_pend(OS_SEM *sem, int ms_timeout) {
 	return 0;
 }
 
-int os_sem_post(OS_SEM *sem) {
+int os_sem_post(OS_SEMAPHORE *sem) {
 	if (ReleaseSemaphore(*sem, 1, NULL)) {
 		return 0;
 	}
@@ -116,7 +116,7 @@ int os_sem_post(OS_SEM *sem) {
 	return -1;
 }
 
-int os_sem_delete(OS_SEM *sem) {
+int os_sem_delete(OS_SEMAPHORE *sem) {
 	if (CloseHandle(*sem)) {
 		return 0;
 	}

@@ -331,6 +331,7 @@ cleanup:
 				 sleep_ms(retry_sleep);
 				 printf("Attempting to reconnect to ingest (retires left %d)\n", retries);
 				 if ((status_code = ftl_ingest_connect(handle)) == FTL_SUCCESS) {
+					 retries = 10;
 					 break;
 				 }
 				 printf("Failed to connect to ingest %d\n", status_code);

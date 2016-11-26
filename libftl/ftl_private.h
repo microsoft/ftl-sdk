@@ -75,7 +75,8 @@
 #define AUDIO_PACKET_DURATION_MS 20
 #define IPV4_ADDR_ASCII_LEN 24
 #define INGEST_LIST_URI "https://beam.pro/api/v1/ingests"
-#define INGEST_LOAD_PORT 8081
+#define INGEST_LOAD_PORT 8079
+#define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
 #define PING_TX_INTERVAL_MS 100
 
@@ -254,7 +255,7 @@ typedef struct _ftl_ingest_t {
 	char name[50];
 	char host[30];
 	char ip[IPV4_ADDR_ASCII_LEN];
-	float cpu_load;
+	float load_score;
 	int rtt;
 	struct _ftl_ingest_t *next;
 }ftl_ingest_t;

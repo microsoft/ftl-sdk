@@ -78,7 +78,7 @@
 #define INGEST_LOAD_PORT 8079
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
-#define PING_TX_INTERVAL_MS 100
+#define PING_TX_INTERVAL_MS 25
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
@@ -159,7 +159,7 @@ typedef struct {
 	int late_packets;
 	int lost_packets;
 	int nack_requests;
-	int dropped_frames;
+	int64_t dropped_frames;
 	int pkt_xmit_delay_max;
 	int pkt_xmit_delay_min;
 	int total_xmit_delay;
@@ -248,7 +248,8 @@ typedef struct {
 	struct timeval stats_tv;
 	rtt_info_t rtt_info;
 	auto_bw_t auto_bw[10];
-	int auto_bw_active;
+	int auto_bw_producer;
+	int auto_bw_consumer;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

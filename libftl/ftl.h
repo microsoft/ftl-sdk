@@ -158,7 +158,8 @@ typedef enum {
 	FTL_STATUS_AUDIO_PACKETS,
 	FTL_STATUS_VIDEO,
 	FTL_STATUS_AUDIO,
-	FTL_STATUS_FRAMES_DROPPED
+	FTL_STATUS_FRAMES_DROPPED,
+	FTL_STATUS_NETWORK
 } ftl_status_types_t;
 
 typedef enum {
@@ -185,26 +186,35 @@ typedef struct {
 }ftl_status_event_msg_t;
 
 typedef struct {
-	int period; //period of time in ms the stats were collected over
-	int sent;
-	int nack_reqs;
-	int lost;
-	int recovered;
-	int late;
+	int64_t period; //period of time in ms the stats were collected over
+	int64_t sent;
+	int64_t nack_reqs;
+	int64_t lost;
+	int64_t recovered;
+	int64_t late;
 	int min_xmit_delay;
 	int max_xmit_delay;
 	int avg_xmit_delay;
 }ftl_packet_stats_msg_t;
 
 typedef struct {
-	int period; //period of time in ms the stats were collected over
-	int frames_queued;
-	int frames_sent;
-	int bytes_queued;
-	int bytes_sent;
+	int64_t period; //period of time in ms the stats were collected over
+	int64_t frames_queued;
+	int64_t frames_sent;
+	int64_t bytes_queued;
+	int64_t bytes_sent;
+	int64_t bw_throttling_count;
 	int queue_fullness;
 	int max_frame_size;
 }ftl_video_frame_stats_msg_t;
+
+typedef struct {
+	int target_bitrate;//suggested target bitrate
+	int64_t queue_delay_ms;
+	int64_t network_delay_ms;
+	int64_t dropped_packets; 
+	int64_t bw_throttling_count;
+}ftl_network_msg_t;
 
 /**/
 typedef struct {
@@ -220,6 +230,7 @@ typedef struct {
 		ftl_packet_stats_msg_t pkt_stats;
 		ftl_video_frame_stats_msg_t video_stats;
 		ftl_video_frames_dropped_msg_t dropped;
+		ftl_network_msg_t network;
 	} msg;
 }ftl_status_msg_t;
 
@@ -245,7 +256,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 
-FTL_API float ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms);
+FTL_API int ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms);
 
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame);
 FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);

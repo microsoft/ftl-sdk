@@ -20,6 +20,7 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec);
 int _get_network_delay(ftl_stream_configuration_private_t *ftl);
 static int _media_get_queue_level_ms(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
+static int _check_and_update_bitrate(ftl_stream_configuration_private_t *ftl);
 
 void _clear_stats(media_stats_t *stats);
 static int _update_stats(ftl_stream_configuration_private_t *ftl);
@@ -77,6 +78,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		comp->consumer = 0;
 
 		_clear_stats(&comp->stats);
+		_clear_stats(&comp->auto_bw_stats);
 	}
 
 	ftl->video.media_component.timestamp_clock = VIDEO_RTP_TS_CLOCK_HZ;
@@ -209,6 +211,7 @@ static int _nack_destroy(ftl_media_component_common_t *media) {
 void _clear_stats(media_stats_t *stats) {
 	stats->frames_received = 0;
 	stats->frames_sent = 0;
+	stats->bw_throttling_count = 0;
 	stats->bytes_sent = 0;
 	stats->packets_sent = 0;
 	stats->late_packets = 0;
@@ -223,6 +226,7 @@ void _clear_stats(media_stats_t *stats) {
 	stats->xmit_delay_samples = 0;
 	stats->current_frame_size = 0;
 	stats->max_frame_size = 0;
+	gettimeofday(&stats->start_time, NULL);
 }
 
 void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec) {
@@ -295,7 +299,6 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 		_media_send_slot(ftl, &slot);
 		sleep_ms(10);
 	}
-
 
 	int initial_nack_cnt = mc->stats.nack_requests;
 
@@ -938,16 +941,16 @@ OS_THREAD_ROUTINE send_thread(void *data)
 	struct timeval start_tv, stop_tv, delta_tv;
 
 #ifdef _WIN32
-	//if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
-	//	FTL_LOG(ftl, FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
-	//}
+	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
+		FTL_LOG(ftl, FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
+	}
 #endif
 
 	while (1) {
 
 		if (video_kbps != video->kbps) {
 			bytes_per_ms = video->kbps * 1000 / 8 / 1000;
-			transmit_level = 5 * bytes_per_ms; /*small initial level to prevent bursting at the start of a stream*/
+			transmit_level = 50 * bytes_per_ms; /*small initial level to prevent bursting at the start of a stream*/
 			video_kbps = video->kbps;
 
 			disable_flow_control = 0;
@@ -980,6 +983,7 @@ OS_THREAD_ROUTINE send_thread(void *data)
 						FTL_LOG(ftl, FTL_LOG_INFO, "Throttling due to network delay (%dms), queue delay is %dms\n", network_delay, _media_get_queue_level_ms(ftl, video->ssrc));
 					}
 					*/
+					ftl->video.media_component.stats.bw_throttling_count++;
 
 					sleep_ms(MAX_MTU / bytes_per_ms + 1);
 				}
@@ -1005,6 +1009,8 @@ OS_THREAD_ROUTINE send_thread(void *data)
 				}
 			}
 		}
+
+		_check_and_update_bitrate(ftl);
 
 		_update_stats(ftl);
 	}
@@ -1048,6 +1054,57 @@ static int _update_stats(ftl_stream_configuration_private_t *ftl) {
 	return 0;
 }
 
+static int _check_and_update_bitrate(ftl_stream_configuration_private_t *ftl) {
+
+	ftl_status_msg_t m;
+	m.type = FTL_STATUS_NETWORK;
+	ftl_network_msg_t *n = &m.msg.network;
+	ftl_media_component_common_t *video = &ftl->video.media_component;
+	struct timeval now, delta;
+	int avg_queue_kbps;
+	media_stats_t prev_stats;
+	int elapsed;
+
+	gettimeofday(&now, NULL);
+	timeval_subtract(&delta, &now, &video->auto_bw_stats.start_time);
+	float stats_interval = timeval_to_ms(&delta);
+
+	if (stats_interval >= 500) {
+		
+		prev_stats.frames_received = video->stats.frames_received - video->auto_bw_stats.frames_received;
+		prev_stats.frames_sent = video->stats.frames_sent - video->auto_bw_stats.frames_sent;
+		prev_stats.bw_throttling_count = video->stats.bw_throttling_count - video->auto_bw_stats.bw_throttling_count;
+		prev_stats.bytes_queued = video->stats.bytes_queued - video->auto_bw_stats.bytes_queued;
+		prev_stats.packets_queued = video->stats.packets_queued - video->auto_bw_stats.packets_queued;
+		prev_stats.bytes_sent = video->stats.bytes_sent - video->auto_bw_stats.bytes_sent;
+		prev_stats.packets_sent = video->stats.packets_sent - video->auto_bw_stats.packets_sent;
+		prev_stats.late_packets = video->stats.late_packets - video->auto_bw_stats.late_packets;
+		prev_stats.lost_packets = video->stats.lost_packets - video->auto_bw_stats.lost_packets;
+		prev_stats.nack_requests = video->stats.nack_requests - video->auto_bw_stats.nack_requests;
+		prev_stats.dropped_frames = video->stats.dropped_frames - video->auto_bw_stats.dropped_frames;
+
+		video->auto_bw_stats = video->stats;
+		video->auto_bw_stats.start_time = now;
+
+		avg_queue_kbps = (float)prev_stats.bytes_queued / stats_interval * 8;
+
+		if (avg_queue_kbps > video->kbps) {
+			n->network_delay_ms = _get_network_delay(ftl);
+			n->dropped_packets;
+			n->queue_delay_ms;
+			n->bw_throttling_count;
+
+			gettimeofday(&now, NULL);
+			timeval_subtract(&delta, &now, &video->stats.start_time);
+			n->target_bitrate = (int)((float)video->kbps * 0.75f);
+
+			enqueue_status_msg(ftl, &m);
+		}
+	}
+
+	return 0;
+}
+
 static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms) {
 	ftl_status_msg_t m;
 	m.type = FTL_STATUS_VIDEO_PACKETS;
@@ -1070,11 +1127,17 @@ static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_co
 static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms) {
 	ftl_status_msg_t m;
 	ftl_video_frame_stats_msg_t *v = &m.msg.video_stats;
+	struct timeval now, delta;
+	
 	m.type = FTL_STATUS_VIDEO;
 
-	v->period = (int)interval_ms;
+	gettimeofday(&now, NULL);
+	timeval_subtract(&delta, &now, &mc->stats.start_time);
+	v->period = timeval_to_ms(&delta);
+
 	v->frames_queued = mc->stats.frames_received;
 	v->frames_sent = mc->stats.frames_sent;
+	v->bw_throttling_count = mc->stats.bw_throttling_count;
 	v->bytes_queued = mc->stats.bytes_queued;
 	v->bytes_sent = mc->stats.bytes_sent;
 	v->queue_fullness = (int)(_media_get_queue_fullness(ftl, mc->ssrc) * 100.f);

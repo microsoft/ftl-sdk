@@ -150,15 +150,17 @@ typedef struct _ping_pkt_t {
 }ping_pkt_t;
 
 typedef struct {
-	int frames_received;
-	int frames_sent;
-	int bytes_queued;
-	int packets_queued;
-	int bytes_sent;
-	int packets_sent;
-	int late_packets;
-	int lost_packets;
-	int nack_requests;
+	struct timeval start_time;
+	int64_t frames_received;
+	int64_t frames_sent;
+	int64_t bw_throttling_count;
+	int64_t bytes_queued;
+	int64_t packets_queued;
+	int64_t bytes_sent;
+	int64_t packets_sent;
+	int64_t late_packets;
+	int64_t lost_packets;
+	int64_t nack_requests;
 	int64_t dropped_frames;
 	int pkt_xmit_delay_max;
 	int pkt_xmit_delay_min;
@@ -191,7 +193,8 @@ typedef struct {
 #else
 	sem_t pkt_ready;
 #endif
-	media_stats_t stats;
+	media_stats_t stats; //cumulative since start of stream
+	media_stats_t auto_bw_stats;
 }ftl_media_component_common_t;
 
 typedef struct {

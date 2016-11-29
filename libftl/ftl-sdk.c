@@ -165,13 +165,13 @@ FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_inge
 	return status;
 }
 
-FTL_API float ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms) {
+FTL_API int ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms) {
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 
-	float packet_loss = (float)media_speed_test(ftl, speed_kbps, duration_ms);
+	int peak_bw = media_speed_test(ftl, speed_kbps, duration_ms);
 
-	return packet_loss;
+	return peak_bw;
 }
 
 FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame) {
@@ -275,7 +275,6 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		if (ftl->key != NULL) {
 			free(ftl->key);
 		}
-
 
 		free(ftl);
 	}

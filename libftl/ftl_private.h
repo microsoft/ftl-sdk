@@ -187,6 +187,7 @@ typedef struct {
 	int consumer;
 	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
+	int peak_kbps;
 	int kbps;
 #ifdef _WIN32
 	HANDLE pkt_ready;
@@ -225,15 +226,8 @@ typedef struct {
 	int avg_rtt;
 	int min_rtt;
 	int max_rtt;
+	OS_MUTEX mutex;
 }rtt_info_t;
-
-typedef struct {
-	BOOL starting;
-	struct timeval start_tv;
-	int lots_pkts;
-	int bytes_dropped;
-	int bytes_sent;
-}auto_bw_t;
 
 typedef struct {
 	struct sockaddr_in server_addr;
@@ -249,10 +243,9 @@ typedef struct {
 	OS_THREAD_HANDLE ping_thread;
 	int max_mtu;
 	struct timeval stats_tv;
-	rtt_info_t rtt_info;
-	auto_bw_t auto_bw[10];
-	int auto_bw_producer;
-	int auto_bw_consumer;
+	rtt_info_t rtt_full; //since the beginning of stream
+	rtt_info_t rtt_last; //since it was last reset
+	int total_adjust_kbps_requested;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

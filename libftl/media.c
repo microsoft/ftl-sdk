@@ -300,7 +300,7 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int retries = 0;
-
+	
 	_update_timestamp(ftl, mc, dts_usec);
 
 	while (remaining > 0) {
@@ -593,7 +593,7 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 	ftl_media_component_common_t *mc = &video->media_component;
 
 	sbit = first_pkt ? 1 : 0;
-	ebit = (in_len + RTP_HEADER_BASE_LEN + RTP_FUA_HEADER_LEN) <= ftl->media.max_mtu;
+	ebit = (in_len + RTP_HEADER_BASE_LEN) <= ftl->media.max_mtu;
 
 	uint32_t rtp_header;
 	uint32_t *out_header = (uint32_t *)out;

@@ -300,8 +300,6 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int retries = 0;
-
-	return len;
 	
 	_update_timestamp(ftl, mc, dts_usec);
 

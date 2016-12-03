@@ -300,6 +300,8 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int retries = 0;
+
+	return len;
 	
 	_update_timestamp(ftl, mc, dts_usec);
 
@@ -587,13 +589,10 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 }
 
 static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt) {
-	uint8_t sbit, ebit;
+	uint8_t sbit = 0, ebit = 0;
 	int frag_len;
 	ftl_video_component_t *video = &ftl->video;
 	ftl_media_component_common_t *mc = &video->media_component;
-
-	sbit = first_pkt ? 1 : 0;
-	ebit = (in_len + RTP_HEADER_BASE_LEN) <= ftl->media.max_mtu;
 
 	uint32_t rtp_header;
 	uint32_t *out_header = (uint32_t *)out;
@@ -610,18 +609,22 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
 	mc->seq_num++;
 
-	if (sbit && ebit) {
-		sbit = ebit = 0;
+	//if this packet can fit into a it's own packet then just use single nalu mode
+	if (first_pkt && in_len <= (ftl->media.max_mtu - RTP_HEADER_BASE_LEN)) {
 		frag_len = in_len;
 		*out_len = frag_len + RTP_HEADER_BASE_LEN;
 		memcpy(out, in, frag_len);
 	}
-	else {
+	else {//otherwise packetize using FU-A
 
-		if (sbit) {
+		if (first_pkt) {
+			sbit = 1;
 			video->fua_nalu_type = in[0];
 			in += 1;
 			in_len--;
+		}
+		else if (in_len <= (ftl->media.max_mtu - RTP_HEADER_BASE_LEN - RTP_FUA_HEADER_LEN)) {
+			ebit = 1;
 		}
 
 		out[0] = (video->fua_nalu_type & 0x60) | 28;

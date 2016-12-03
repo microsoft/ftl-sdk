@@ -44,9 +44,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
 
-	char *tmp = "10.0.0.28";
-
-	if ((server = gethostbyname(tmp)) == NULL) {
+	if ((server = gethostbyname(ftl->ingest_ip)) == NULL) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "No such host as %s\n", ftl->ingest_ip);
 		return FTL_DNS_FAILURE;
 	}
@@ -402,21 +400,6 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 		consumed += payload_size;
 		data += payload_size;
 		bytes_queued += pkt_len;
-
-		if (remaining == 0) {
-			if (pkt_buf[12] & 0x1f == 28) {
-				if (pkt_buf[13] & (1 << 6)) {
-					FTL_LOG(ftl, FTL_LOG_INFO, "ebit not set\n");
-				}
-			}
-		}
-		else {
-			if (pkt_buf[12] & 0x1f == 28) {
-				if (pkt_buf[13] & (1 << 6)) {
-					FTL_LOG(ftl, FTL_LOG_INFO, "ebit set!!!\n");
-				}
-			}
-		}
 
 		/*if all data has been consumed set marker bit*/
 		if (remaining <= 0 && end_of_frame ) {

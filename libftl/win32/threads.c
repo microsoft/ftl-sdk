@@ -123,3 +123,10 @@ int os_sem_delete(OS_SEMAPHORE *sem) {
 
 	return -1;
 }
+
+void sleep_ms(int ms)
+{
+        Sleep(ms);
+}
+
+

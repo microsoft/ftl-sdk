@@ -125,3 +125,10 @@ int os_sem_delete(OS_SEMAPHORE *sem) {
 
 	return retval;
 }
+
+void sleep_ms(int ms)
+{
+    usleep(ms * 1000);
+}
+
+

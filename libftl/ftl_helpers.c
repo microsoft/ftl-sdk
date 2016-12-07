@@ -255,11 +255,3 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	return retval;
 }
 
-void sleep_ms(int ms)
-{
-#ifdef _WIN32
-	Sleep(ms);
-#else
-	usleep(ms * 1000);
-#endif
-}

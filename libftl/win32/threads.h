@@ -54,3 +54,5 @@ int os_sem_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int v
 int os_sem_pend(OS_SEMAPHORE *sem, int ms_timeout);
 int os_sem_post(OS_SEMAPHORE *sem);
 int os_sem_delete(OS_SEMAPHORE *sem);
+
+void sleep_ms(int ms);

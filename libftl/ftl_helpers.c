@@ -218,11 +218,7 @@ ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	}
 	else {
 		ftl->status_q.count++;
-#ifdef _WIN32
-		ReleaseSemaphore(ftl->status_q.sem, 1, NULL);
-#else
-		sem_post(&ftl->status_q.sem);
-#endif
+		os_sem_post(&ftl->status_q.sem);
 	}
 
 	os_unlock_mutex(&ftl->status_q.mutex);
@@ -237,23 +233,10 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 		return FTL_NOT_INITIALIZED;
 	}
 
-#ifdef _WIN32
-	if (WaitForSingleObject(ftl->status_q.sem, ms_timeout) != WAIT_OBJECT_0) {
+	if (os_sem_pend(&ftl->status_q.sem, ms_timeout) < 0) {
 		return FTL_STATUS_TIMEOUT;
 	}
-#else
-	if (ms_timeout <= 0) {
-		sem_wait(&ftl->status_q.sem);
-	}
-	else {
-		struct timespec ts;
-		clock_gettime(CLOCK_REALTIME, &ts);
-		timespec_add_ms(&ts, ms_timeout);
-		if (sem_timedwait(&ftl->status_q.sem, &ts) != 0) {
-			return FTL_STATUS_TIMEOUT;
-		}
-	}
-#endif
+
 	os_lock_mutex(&ftl->status_q.mutex);
 
 	if (ftl->status_q.head != NULL) {
@@ -272,11 +255,3 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	return retval;
 }
 
-void sleep_ms(int ms)
-{
-#ifdef _WIN32
-	Sleep(ms);
-#else
-	usleep(ms * 1000);
-#endif
-}

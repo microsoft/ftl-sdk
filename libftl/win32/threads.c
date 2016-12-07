@@ -24,6 +24,10 @@
 
 #include "threads.h"
 
+int os_init(){
+    return 0;
+}
+
 int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_START_ROUTINE func, void *args) {
 	HANDLE thread;
 	thread = CreateThread(NULL, 0, func, args, 0, NULL);
@@ -76,3 +80,53 @@ int os_delete_mutex(OS_MUTEX *mutex) {
 
 	return 0;
 }
+
+char tmp[1024];
+
+int os_sem_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value) {
+
+	if (name == NULL) {
+		return -1;
+	}
+
+	if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, name)) == NULL){
+
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0, (LPTSTR)&tmp, 1000, NULL);
+
+		return -3;
+	}
+
+	return 0;
+}
+
+int os_sem_pend(OS_SEMAPHORE *sem, int ms_timeout) {
+
+	if (WaitForSingleObject(*sem, ms_timeout) != WAIT_OBJECT_0) {
+		return -1;
+	}
+
+	return 0;
+}
+
+int os_sem_post(OS_SEMAPHORE *sem) {
+	if (ReleaseSemaphore(*sem, 1, NULL)) {
+		return 0;
+	}
+
+	return -1;
+}
+
+int os_sem_delete(OS_SEMAPHORE *sem) {
+	if (CloseHandle(*sem)) {
+		return 0;
+	}
+
+	return -1;
+}
+
+void sleep_ms(int ms)
+{
+        Sleep(ms);
+}
+
+

@@ -15,11 +15,7 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 0;
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
   init_sockets();
-#ifndef _WIN32
-  pthread_mutexattr_init(&ftl_default_mutexattr);
-  // Set pthread mutexes to recursive to mirror Windows mutex behavior
-  pthread_mutexattr_settype(&ftl_default_mutexattr, PTHREAD_MUTEX_RECURSIVE);
-#endif
+  os_init();
   curl_global_init(CURL_GLOBAL_ALL);
   return FTL_SUCCESS;
 }
@@ -79,12 +75,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   os_init_mutex(&ftl->status_q.mutex);
 
-#ifdef _WIN32
-  if ((ftl->status_q.sem = CreateSemaphore(NULL, 0, MAX_STATUS_MESSAGE_QUEUED, NULL)) == NULL) {
-#else
-  if (sem_init(&ftl->status_q.sem, 0 /* pshared */, 0 /* value */)) {
-#endif
-	  fprintf(stderr, "Failed to allocate create status queue semaphore\n");
+  if (os_sem_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
 	  return FTL_MALLOC_FAILURE;
   }
 
@@ -266,11 +257,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		os_unlock_mutex(&ftl->status_q.mutex);
 		os_delete_mutex(&ftl->status_q.mutex);
 
-#ifdef _WIN32
-		CloseHandle(ftl->status_q.sem);
-#else
-		sem_destroy(&ftl->status_q.sem);
-#endif
+		os_sem_delete(&ftl->status_q.sem);
 
 		if (ftl->key != NULL) {
 			free(ftl->key);

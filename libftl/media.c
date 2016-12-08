@@ -136,10 +136,6 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
 
-	media->ping_thread_running = FALSE;
-	os_wait_thread(media->ping_thread);
-	os_destroy_thread(media->ping_thread);
-
 	media->recv_thread_running = FALSE;
 	shutdown_socket(media->media_socket, SD_BOTH);
 	close_socket(media->media_socket);
@@ -158,6 +154,10 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	os_destroy_thread(media->send_thread);
 	sem_destroy(&ftl->video.media_component.pkt_ready);
 #endif
+	media->ping_thread_running = FALSE;
+	os_wait_thread(media->ping_thread);
+	os_destroy_thread(media->ping_thread);
+
 	os_delete_mutex(&media->mutex);
 
 	media->max_mtu = 0;
@@ -281,7 +281,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	ping_pkt_t *ping;
 	nack_slot_t slot;
 	uint8_t fmt = 1; //generic nack
-	uint8_t ptype = 210; //TODO: made up, need to find something valid
+	uint8_t ptype = PING_PTYPE; //TODO: made up, need to find something valid
 	uint16_t len;
 	int i;
 	int wait_retries;
@@ -431,7 +431,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	}
 
 	int queue_level_ms;
-	if ((queue_level_ms = _media_get_queue_level_ms(ftl, ftl->video.media_component.ssrc)) > 500) {
+	if ((queue_level_ms = _media_get_queue_level_ms(ftl, ftl->video.media_component.ssrc)) > 150) {
 		ftl->video.wait_for_idr_frame = TRUE;
 		FTL_LOG(ftl, FTL_LOG_INFO, "Video Queue has %d ms in it, discarding until next i frame\n", queue_level_ms);
 		return bytes_queued;
@@ -561,23 +561,28 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 
 static int _media_get_queue_level_ms(ftl_stream_configuration_private_t *ftl, uint32_t ssrc) {
 	ftl_media_component_common_t *mc;
-	nack_slot_t *slot_head, *slot_tail;
+	nack_slot_t *slot;
 	struct timeval now, delta;
 	int delay_ms;
+	uint16_t in, out;
 
 	if ((mc = _media_lookup(ftl, ssrc)) == NULL) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to find ssrc %d\n", ssrc);
 		return -1;
 	}
 
-	if (mc->xmit_seq_num == mc->seq_num) {
+	in = mc->seq_num;
+	out = mc->xmit_seq_num;
+
+	if (in == out) {
 		return 0;
 	}
 
-	slot_head = mc->nack_slots[mc->xmit_seq_num % NACK_RB_SIZE];
 	gettimeofday(&now, NULL);
-	timeval_subtract(&delta, &now, &slot_head->insert_time);
-	delay_ms = (int)timeval_to_ms(&delta);
+	slot = mc->nack_slots[out % NACK_RB_SIZE];
+	os_lock_mutex(&slot->mutex);
+	delay_ms = timeval_subtract_to_ms(&now, &slot->insert_time);
+	os_unlock_mutex(&slot->mutex);
 
 	if (delay_ms < 0) {
 		delay_ms = 0;
@@ -858,7 +863,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 				}
 			}
 		}
-		else if (feedbackType == 1 && ptype == 210) { //TODO fix this if clause
+		else if (feedbackType == 1 && ptype == PING_PTYPE) {
 			ping_pkt_t *ping = (ping_pkt_t *)buf;
 
 			struct timeval now, delta;
@@ -1071,7 +1076,7 @@ static int _check_and_update_bitrate(ftl_stream_configuration_private_t *ftl) {
 		ftl_media_component_common_t *video = &ftl->video.media_component;
 
 		//if above 0.1% packet loss and if the best rtt in the last 500ms was more than 50% higher than the best every
-		if (prev_stats.nack_requests * 1000 / prev_stats.packets_sent >= 1 || media->rtt_last.min_rtt  > (media->rtt_full.min_rtt * 3 + 1) / 2) {
+		if (prev_stats.nack_requests * 1000 / prev_stats.packets_sent >= 1 || media->rtt_last.min_rtt  > media->rtt_full.avg_rtt) {
 			//decrease by 1%
 			adjust_kbps = -video->peak_kbps / 100;
 		}
@@ -1101,7 +1106,7 @@ static int _check_and_update_bitrate(ftl_stream_configuration_private_t *ftl) {
 		n->bw_throttling_count = prev_stats.bw_throttling_count;
 		n->target_bitrate = 0;
 
-		if(prev_stats.bw_throttling_count > 0 && queue_level_ms > 100){
+		if(prev_stats.bw_throttling_count > 0 && queue_level_ms > 50){
 
 			n->target_bitrate = -adjust_kbps;
 			media->total_adjust_kbps_requested += -adjust_kbps;
@@ -1198,8 +1203,8 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
 	ping_pkt_t *ping;
 	nack_slot_t slot;
-	uint8_t fmt = 1; //generic nack
-	uint8_t ptype = 210; //TODO: made up, need to find something valid
+	uint8_t fmt = 1; 
+	uint8_t ptype = PING_PTYPE;
 	uint16_t len;
 	ping = (ping_pkt_t*)slot.packet;
 

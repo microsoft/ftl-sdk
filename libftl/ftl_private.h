@@ -79,6 +79,7 @@
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
 #define PING_TX_INTERVAL_MS 25
+#define PING_PTYPE 250
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)

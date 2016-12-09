@@ -206,10 +206,9 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	free(data);
 
 	if (best){
-		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms with a server score of %2.1f\n", best->name, best->ip, best->rtt);
+		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms\n", best->name, best->ip, best->rtt);
 		return best->ip;
 	}
-
 
 	return NULL;
 }

@@ -97,11 +97,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	comp = &ftl->video.media_component;
 
-#ifdef _WIN32
-	if ((comp->pkt_ready = CreateSemaphore(NULL, 0, 1000000, NULL)) == NULL) {
-#else
-	if (sem_init(&comp->pkt_ready, 0 /* pshared */, 0 /* value */)) {
-#endif
+	if(os_sem_create(&comp->pkt_ready, "/VideoPkt", O_CREAT, 0) < 0){
 		return FTL_MALLOC_FAILURE;
 	}
 
@@ -143,21 +139,16 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	os_destroy_thread(media->recv_thread);
 
 	media->send_thread_running = FALSE;
-#ifdef _WIN32
-	ReleaseSemaphore(ftl->video.media_component.pkt_ready, 1, NULL); 
+
+	os_sem_post(&ftl->video.media_component.pkt_ready);
 	os_wait_thread(media->send_thread);
 	os_destroy_thread(media->send_thread);
-	CloseHandle(ftl->video.media_component.pkt_ready);
-#else
-	sem_post(&ftl->video.media_component.pkt_ready);
-	os_wait_thread(media->send_thread);
-	os_destroy_thread(media->send_thread);
-	sem_destroy(&ftl->video.media_component.pkt_ready);
-#endif
+
 	media->ping_thread_running = FALSE;
 	os_wait_thread(media->ping_thread);
 	os_destroy_thread(media->ping_thread);
 
+	os_sem_delete(&ftl->video.media_component.pkt_ready);
 	os_delete_mutex(&media->mutex);
 
 	media->max_mtu = 0;
@@ -363,7 +354,7 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int retries = 0;
-
+	
 	_update_timestamp(ftl, mc, dts_usec);
 
 	while (remaining > 0) {
@@ -481,12 +472,8 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 		gettimeofday(&slot->insert_time, NULL);
 
 		os_unlock_mutex(&slot->mutex);
+		os_sem_post(&mc->pkt_ready);
 
-#ifdef _WIN32
-		ReleaseSemaphore(mc->pkt_ready, 1, NULL);
-#else
-		sem_post(&mc->pkt_ready);
-#endif
 		mc->stats.packets_queued++;
 		mc->stats.bytes_queued += pkt_len;
 	}
@@ -707,7 +694,7 @@ static int _write_rtp_header(uint8_t *buf, size_t len, uint8_t ptype, uint16_t s
 }
 
 static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt) {
-	uint8_t sbit, ebit;
+	uint8_t sbit = 0, ebit = 0;
 	int frag_len;
 	ftl_video_component_t *video = &ftl->video;
 	ftl_media_component_common_t *mc = &video->media_component;
@@ -724,18 +711,22 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
 	mc->seq_num++;
 
-	if (sbit && ebit) {
-		sbit = ebit = 0;
+	//if this packet can fit into a it's own packet then just use single nalu mode
+	if (first_pkt && in_len <= (ftl->media.max_mtu - RTP_HEADER_BASE_LEN)) {
 		frag_len = in_len;
 		*out_len = frag_len + rtp_hdr_len;
 		memcpy(out, in, frag_len);
 	}
-	else {
+	else {//otherwise packetize using FU-A
 
-		if (sbit) {
+		if (first_pkt) {
+			sbit = 1;
 			video->fua_nalu_type = in[0];
 			in += 1;
 			in_len--;
+		}
+		else if (in_len <= (ftl->media.max_mtu - RTP_HEADER_BASE_LEN - RTP_FUA_HEADER_LEN)) {
+			ebit = 1;
 		}
 
 		out[0] = (video->fua_nalu_type & 0x60) | 28;
@@ -952,11 +943,7 @@ OS_THREAD_ROUTINE send_thread(void *data)
 			}
 		}
 
-#ifdef _WIN32
-		WaitForSingleObject(video->pkt_ready, INFINITE);
-#else
-		sem_wait(&video->pkt_ready);
-#endif
+		os_sem_pend(&video->pkt_ready, FOREVER);
 
 		if (!media->send_thread_running) {
 			break;

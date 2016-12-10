@@ -21,6 +21,7 @@ void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_compon
 int _get_network_delay(ftl_stream_configuration_private_t *ftl);
 static int _media_get_queue_level_ms(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 static int _check_and_update_bitrate(ftl_stream_configuration_private_t *ftl);
+static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *transmit_level, struct timeval *start_tv, int bytes_per_ms);
 void _init_rtt(rtt_info_t *rtt);
 
 void _clear_stats(media_stats_t *stats);
@@ -954,29 +955,19 @@ OS_THREAD_ROUTINE send_thread(void *data)
 		}
 		else {
 			pkt_sent = 0;
+			if (first_packet) {
+				gettimeofday(&start_tv, NULL);
+				first_packet = 0;
+			}
+
+			_update_xmit_level(ftl, &transmit_level, &start_tv, bytes_per_ms);
 			while (!pkt_sent && media->send_thread_running) {
 
 				if (transmit_level <= 0) {
-
 					ftl->video.media_component.stats.bw_throttling_count++;
-
 					sleep_ms(MAX_MTU / bytes_per_ms + 1);
+					_update_xmit_level(ftl, &transmit_level, &start_tv, bytes_per_ms);
 				}
-
-				gettimeofday(&stop_tv, NULL);
-				if (!first_packet) {
-					timeval_subtract(&delta_tv, &stop_tv, &start_tv);
-					transmit_level += (int)timeval_to_ms(&delta_tv) * bytes_per_ms;
-
-					if (transmit_level > (MAX_XMIT_LEVEL_IN_MS * bytes_per_ms)) {
-						transmit_level = MAX_XMIT_LEVEL_IN_MS * bytes_per_ms;
-					}
-				}
-				else {
-					first_packet = 0;
-				}
-
-				start_tv = stop_tv;
 
 				if (transmit_level > 0) {
 					transmit_level -= _media_send_packet(ftl, video);
@@ -992,6 +983,21 @@ OS_THREAD_ROUTINE send_thread(void *data)
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Exited Send Thread\n");
 	return (OS_THREAD_TYPE)0;
+}
+
+static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *transmit_level, struct timeval *start_tv, int bytes_per_ms) {
+
+	struct timeval stop_tv;
+
+	gettimeofday(&stop_tv, NULL);
+
+	transmit_level += (int)timeval_subtract_to_ms(&stop_tv, start_tv) * bytes_per_ms;
+
+	if (transmit_level > (MAX_XMIT_LEVEL_IN_MS * bytes_per_ms)) {
+		transmit_level = MAX_XMIT_LEVEL_IN_MS * bytes_per_ms;
+	}
+
+	*start_tv = stop_tv;
 }
 
 int _get_network_delay(ftl_stream_configuration_private_t *ftl) {

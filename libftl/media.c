@@ -60,7 +60,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	media->server_addr.sin_port = htons(media->assigned_port);
 
 	media->max_mtu = MAX_MTU;
-	media->total_adjust_kbps_requested = 0;
+	media->bitrate_adjust_requests = 0;
 	gettimeofday(&media->stats_tv, NULL);
 
 	ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
@@ -916,7 +916,7 @@ OS_THREAD_ROUTINE send_thread(void *data)
 	int initial_peak_kbps;
 
 	int transmit_level;
-	struct timeval start_tv, stop_tv, delta_tv;
+	struct timeval start_tv;
 
 #ifdef _WIN32
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
@@ -991,10 +991,10 @@ static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *tra
 
 	gettimeofday(&stop_tv, NULL);
 
-	transmit_level += (int)timeval_subtract_to_ms(&stop_tv, start_tv) * bytes_per_ms;
+	*transmit_level += (int)timeval_subtract_to_ms(&stop_tv, start_tv) * bytes_per_ms;
 
-	if (transmit_level > (MAX_XMIT_LEVEL_IN_MS * bytes_per_ms)) {
-		transmit_level = MAX_XMIT_LEVEL_IN_MS * bytes_per_ms;
+	if (*transmit_level > (MAX_XMIT_LEVEL_IN_MS * bytes_per_ms)) {
+		*transmit_level = MAX_XMIT_LEVEL_IN_MS * bytes_per_ms;
 	}
 
 	*start_tv = stop_tv;
@@ -1091,30 +1091,25 @@ static int _check_and_update_bitrate(ftl_stream_configuration_private_t *ftl) {
 
 		int queue_level_ms = _media_get_queue_level_ms(ftl, ftl->video.media_component.ssrc);
 
-		adjust_kbps = adjust_kbps = video->peak_kbps / 100;
-
 		n->network_delay_ms = media->rtt_last.min_rtt;
 		n->dropped_packets = prev_stats.nack_requests;
 		n->queue_delay_ms = queue_level_ms;
 		n->bw_throttling_count = prev_stats.bw_throttling_count;
-		n->target_bitrate = 0;
+		n->cmd = FTL_NETWORK_CMD_INFO;
 
 		if(prev_stats.bw_throttling_count > 0 && queue_level_ms > 50){
-
-			n->target_bitrate = -adjust_kbps;
-			media->total_adjust_kbps_requested += -adjust_kbps;
+			n->cmd = FTL_NETWORK_CMD_DECREASE_BITRATE;
+			//n->target_bitrate = -adjust_kbps;
+			media->bitrate_adjust_requests--;
 		}
-		else if (media->total_adjust_kbps_requested < 0) {
-			//dont ask for more increases than decreases (prevents encoder from sending more than what was started with
-			if (adjust_kbps + media->total_adjust_kbps_requested > 0) {
-				adjust_kbps = -media->total_adjust_kbps_requested;
-			}
+		else if (media->bitrate_adjust_requests < 0) {
+			n->cmd = FTL_NETWORK_CMD_INCREASE_BITRATE;
+			//dont ask for more increases than decreases
 
-			n->target_bitrate = adjust_kbps;
-			media->total_adjust_kbps_requested += adjust_kbps;
+			media->bitrate_adjust_requests++;
 		}
 
-		if (n->target_bitrate) {
+		if (n->cmd == FTL_NETWORK_CMD_DECREASE_BITRATE  || n->cmd == FTL_NETWORK_CMD_INCREASE_BITRATE) {
 			enqueue_status_msg(ftl, &m);
 		}
 

@@ -231,7 +231,7 @@ typedef struct {
 	struct timeval stats_tv;
 	rtt_info_t rtt_full; //since the beginning of stream
 	rtt_info_t rtt_last; //since it was last reset
-	int total_adjust_kbps_requested;
+	int bitrate_adjust_requests;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

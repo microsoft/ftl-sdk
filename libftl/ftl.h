@@ -208,8 +208,14 @@ typedef struct {
 	int max_frame_size;
 }ftl_video_frame_stats_msg_t;
 
+typedef enum {
+	FTL_NETWORK_CMD_INFO = 0,
+	FTL_NETWORK_CMD_DECREASE_BITRATE = 1,
+	FTL_NETWORK_CMD_INCREASE_BITRATE = 2,
+} ftl_network_msg_cmd_t;
+
 typedef struct {
-	int target_bitrate;//suggested target bitrate
+	ftl_network_msg_cmd_t cmd;
 	int64_t queue_delay_ms;
 	int64_t network_delay_ms;
 	int64_t dropped_packets; 

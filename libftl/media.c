@@ -1143,6 +1143,10 @@ static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_co
 	m.msg.pkt_stats.max_xmit_delay = mc->stats.pkt_xmit_delay_max;
 	m.msg.pkt_stats.avg_xmit_delay = mc->stats.total_xmit_delay / mc->stats.xmit_delay_samples;
 
+	mc->stats.pkt_xmit_delay_max = 0;
+	mc->stats.pkt_xmit_delay_min = 10000;
+	mc->stats.nack_requests = 0;
+
 	enqueue_status_msg(ftl, &m);
 
 	return 0;
@@ -1167,6 +1171,7 @@ static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_
 	v->queue_fullness = (int)(_media_get_queue_fullness(ftl, mc->ssrc) * 100.f);
 	v->max_frame_size = mc->stats.max_frame_size;
 
+	mc->stats.max_frame_size = 0;
 	enqueue_status_msg(ftl, &m);
 
 	return 0;

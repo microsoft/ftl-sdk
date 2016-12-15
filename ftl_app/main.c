@@ -308,7 +308,7 @@ cleanup:
 	 ftl_status_msg_t status;
 	 ftl_status_t status_code;
 	 int retries = 10;
-	 int retry_sleep = 1000;
+	 int retry_sleep = 5000;
 
 	 while (1) {
 		 status_code = ftl_ingest_get_status(handle, &status, 1000);
@@ -335,7 +335,7 @@ cleanup:
 					 break;
 				 }
 				 printf("Failed to connect to ingest %d\n", status_code);
-				 retry_sleep = retry_sleep * 2;
+				 retry_sleep = retry_sleep * 3 / 2;
 			 }
 			 if (retries <= 0) {
 				 break;

@@ -73,7 +73,11 @@ typedef enum {
 	FTL_QUEUE_FULL,
 	FTL_STATUS_WAITING_FOR_KEY_FRAME,
 	FTL_QUEUE_EMPTY,
-	FTL_NOT_INITIALIZED
+	FTL_NOT_INITIALIZED,
+	FTL_CHANNEL_IN_USE,//the channel is already actively streaming
+	FTL_REGION_UNSUPPORTED,//the region you are attempting to stream from is not authorized to stream by local governments
+	FTL_NO_MEDIA_TIMEOUT,
+	FTL_USER_DISCONNECT
 } ftl_status_t;
 
 typedef enum {
@@ -156,7 +160,8 @@ typedef enum {
 typedef enum {
 	FTL_STATUS_EVENT_TYPE_UNKNOWN,
 	FTL_STATUS_EVENT_TYPE_CONNECTED,
-	FTL_STATUS_EVENT_TYPE_DISCONNECTED
+	FTL_STATUS_EVENT_TYPE_DISCONNECTED,
+	FTL_STATUS_EVENT_INGEST_ERROR_CODE
 } ftl_status_event_types_t;
 
 typedef enum {
@@ -174,6 +179,7 @@ typedef struct {
 typedef struct {
 	ftl_status_event_types_t type;
 	ftl_status_event_reasons_t reason;
+	ftl_status_t error_code;
 }ftl_status_event_msg_t;
 
 typedef struct {

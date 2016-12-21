@@ -329,7 +329,7 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
 
 	while (ftl->connected) {
 
-		sleep_ms(5000);
+		sleep_ms(30000);
 
 		if ((response_code = _ftl_send_command(ftl, FALSE, NULL, 0, "PING %d", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest ping failed with %d\n", response_code);

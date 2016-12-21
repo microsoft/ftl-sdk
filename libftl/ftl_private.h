@@ -225,6 +225,7 @@ typedef struct {
   char vendor_name[20];
   char vendor_version[20];
   OS_THREAD_HANDLE connection_thread;
+  OS_THREAD_HANDLE keepalive_thread;
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;

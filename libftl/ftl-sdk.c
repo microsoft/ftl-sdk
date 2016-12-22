@@ -9,7 +9,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
-FTL_API const int FTL_VERSION_MINOR = 7;
+FTL_API const int FTL_VERSION_MINOR = 8;
 FTL_API const int FTL_VERSION_MAINTENANCE = 0;
 
 // Initializes all sublibraries used by FTL

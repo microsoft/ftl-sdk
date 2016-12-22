@@ -225,6 +225,7 @@ typedef struct {
   char vendor_name[20];
   char vendor_version[20];
   OS_THREAD_HANDLE connection_thread;
+  OS_THREAD_HANDLE keepalive_thread;
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
@@ -247,6 +248,7 @@ struct MemoryStruct {
 typedef enum {
   FTL_INGEST_RESP_UNKNOWN = 0,
   FTL_INGEST_RESP_OK = 200,
+  FTL_INGEST_RESP_PING = 201,
   FTL_INGEST_RESP_BAD_REQUEST= 400,//the handshake was not formatted correctly
   FTL_INGEST_RESP_UNAUTHORIZED = 401,//this channel id is not authorized to stream
   FTL_INGEST_RESP_OLD_VERSION = 402, //this ftl api version is no longer supported

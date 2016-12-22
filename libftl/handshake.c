@@ -27,7 +27,8 @@
 #include "ftl_private.h"
 #include <stdarg.h>
 
-OS_THREAD_START_ROUTINE* connection_status_thread(void *data);
+OS_THREAD_ROUTINE  connection_status_thread(void *data);
+OS_THREAD_ROUTINE  control_keepalive_thread(void *data);
 static ftl_response_code_t _ftl_get_response(ftl_stream_configuration_private_t *ftl, char *response_buf, int response_len);
 
 static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...);
@@ -214,6 +215,10 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 	  if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
 		  return FTL_MALLOC_FAILURE;
 	  }
+
+	  if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
+		  return FTL_MALLOC_FAILURE;
+	  }
 	
 	  return FTL_SUCCESS;
   } while (0);
@@ -315,7 +320,29 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
   return resp_code;
 }
 
-OS_THREAD_START_ROUTINE* connection_status_thread(void *data)
+OS_THREAD_ROUTINE control_keepalive_thread(void *data)
+{
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
+	char buf[1024];
+	ftl_status_msg_t status;
+	ftl_response_code_t response_code;
+
+	while (ftl->connected) {
+
+		sleep_ms(30000);
+
+		if ((response_code = _ftl_send_command(ftl, FALSE, NULL, 0, "PING %d", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
+			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest ping failed with %d\n", response_code);
+		}
+
+	}
+
+	FTL_LOG(ftl, FTL_LOG_INFO, "Exited control_keepalive_thread\n");
+
+	return 0;
+}
+
+OS_THREAD_ROUTINE connection_status_thread(void *data)
 {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
 	char buf[1024];
@@ -350,9 +377,12 @@ OS_THREAD_START_ROUTINE* connection_status_thread(void *data)
 			break;
 		}
 		else if (ret > 0) {
+
 			int resp_code = _ftl_get_response(ftl, &buf, sizeof(buf));
 
-			if (resp_code > 0) {
+			if (resp_code == FTL_INGEST_RESP_PING) {
+				continue;
+			} else if (resp_code > 0) {
 				int error_code;
 				error_code = _log_response(ftl, resp_code);
 
@@ -383,6 +413,8 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
     case FTL_INGEST_RESP_OK:
       FTL_LOG(ftl, FTL_LOG_DEBUG, "ingest accepted our paramteres");
       break;
+	case FTL_INGEST_RESP_PING:
+		break;//dont log this
     case FTL_INGEST_RESP_BAD_REQUEST:
       FTL_LOG(ftl, FTL_LOG_ERROR, "ingest responded bad request. Possible charon bug?");
       return FTL_BAD_REQUEST;

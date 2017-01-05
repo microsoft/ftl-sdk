@@ -415,8 +415,11 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
       break;
 	case FTL_INGEST_RESP_PING:
 		break;//dont log this
+	case FTL_INTERNAL_ERROR:
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Got internal error");
+		return FTL_INTERNAL_ERROR;
     case FTL_INGEST_RESP_BAD_REQUEST:
-      FTL_LOG(ftl, FTL_LOG_ERROR, "ingest responded bad request. Possible charon bug?");
+      FTL_LOG(ftl, FTL_LOG_ERROR, "ingest responded bad request");
       return FTL_BAD_REQUEST;
     case FTL_INGEST_RESP_UNAUTHORIZED:
       FTL_LOG(ftl, FTL_LOG_ERROR, "channel is not authorized for FTL");

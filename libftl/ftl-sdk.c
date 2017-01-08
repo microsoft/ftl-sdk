@@ -75,7 +75,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   os_init_mutex(&ftl->status_q.mutex);
 
-  if (os_sem_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
+  if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
 	  return FTL_MALLOC_FAILURE;
   }
 
@@ -258,7 +258,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		os_unlock_mutex(&ftl->status_q.mutex);
 		os_delete_mutex(&ftl->status_q.mutex);
 
-		os_sem_delete(&ftl->status_q.sem);
+		os_semaphore_delete(&ftl->status_q.sem);
 
 		if (ftl->key != NULL) {
 			free(ftl->key);

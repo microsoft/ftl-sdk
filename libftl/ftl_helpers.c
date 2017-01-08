@@ -199,7 +199,7 @@ ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	}
 	else {
 		ftl->status_q.count++;
-		os_sem_post(&ftl->status_q.sem);
+		os_semaphore_post(&ftl->status_q.sem);
 	}
 
 	os_unlock_mutex(&ftl->status_q.mutex);
@@ -214,7 +214,7 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 		return FTL_NOT_INITIALIZED;
 	}
 
-	if (os_sem_pend(&ftl->status_q.sem, ms_timeout) < 0) {
+	if (os_semaphore_pend(&ftl->status_q.sem, ms_timeout) < 0) {
 		return FTL_STATUS_TIMEOUT;
 	}
 

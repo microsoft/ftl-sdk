@@ -312,7 +312,7 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
 int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);
 int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len);
 int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms);
-
+ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl);
 void sleep_ms(int ms);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900

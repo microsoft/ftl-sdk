@@ -10,7 +10,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 8;
-FTL_API const int FTL_VERSION_MAINTENANCE = 0;
+FTL_API const int FTL_VERSION_MAINTENANCE = 1;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -224,6 +224,13 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	status.msg.event.error_code = FTL_USER_DISCONNECT;
 
 	enqueue_status_msg(ftl, &status);
+
+	return _internal_ingest_disconnect(ftl);
+}
+
+ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
+
+	ftl_status_t status_code;
 
 	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);

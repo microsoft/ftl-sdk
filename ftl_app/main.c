@@ -42,8 +42,6 @@ void sleep_ms(int ms)
 #endif
 }
 
-int send_media = 1;
-
 void log_test(ftl_log_severity_t log_level, const char *message)
 {
   fprintf(stderr, "libftl message: %s\n", message);
@@ -241,13 +239,12 @@ int main(int argc, char **argv)
     uint8_t nalu_type;
     int audio_read_len;
 
-    if (feof(h264_handle.fp) || feof(opus_handle.fp))
-    {
-      printf("Restarting Stream\n");
-      reset_video(&h264_handle);
-      reset_audio(&opus_handle);
-	  send_media = 0;
-      continue;
+	if (feof(h264_handle.fp) || feof(opus_handle.fp))
+	{
+		printf("Restarting Stream\n");
+		reset_video(&h264_handle);
+		reset_audio(&opus_handle);
+		continue;
     }
 
     if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)
@@ -255,10 +252,7 @@ int main(int argc, char **argv)
       continue;
     }
 
-    if (send_media)
-    {
-      ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len, end_of_frame);
-    }
+    ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len, end_of_frame);
 
     audio_pkts_sent = 0;
     while (audio_send_accumulator > audio_time_step)
@@ -267,10 +261,8 @@ int main(int argc, char **argv)
       {
         break;
       }
-      if (send_media)
-      {
-        ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
-      }
+
+	  ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
       audio_send_accumulator -= audio_time_step;
       audio_pkts_sent++;
     }
@@ -341,7 +333,7 @@ static void *ftl_status_thread(void *data)
   ftl_status_msg_t status;
   ftl_status_t status_code;
   int retries = 10;
-  int retry_sleep = 25000;
+  int retry_sleep = 5000;
 
   while (1)
   {
@@ -366,7 +358,6 @@ static void *ftl_status_thread(void *data)
       //attempt reconnection
       while (retries-- > 0)
       {
-        send_media = 1;
         sleep_ms(retry_sleep);
         printf("Attempting to reconnect to ingest (retires left %d)\n", retries);
         if ((status_code = ftl_ingest_connect(handle)) == FTL_SUCCESS)

@@ -361,52 +361,40 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 
 		int ret = recv(ftl->ingest_socket, &buf, sizeof(buf), MSG_PEEK);
 
-		if (ret == 0 && ftl->connected) {
+		if (ret == 0 && ftl->connected || ret > 0) {
 			ftl_status_t status_code;
+			int error_code = FTL_SUCCESS;
+
+			if (ret > 0) {
+				int resp_code;
+				if ((resp_code = _ftl_get_response(ftl, &buf, sizeof(buf))) == FTL_INGEST_RESP_PING) {
+					continue;
+				}
+
+				if (resp_code > 0) {
+					error_code = _log_response(ftl, resp_code);
+				}
+			}
 
 			ftl->connected = 0;
 			ftl->ready_for_media = 0;
 
 			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
-			if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
-				FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
-			}
 
-			if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
-				FTL_LOG(ftl, FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
-			}
+			_internal_ingest_disconnect(ftl);
 
 			status.type = FTL_STATUS_EVENT;
-			status.msg.event.reason = FTL_STATUS_EVENT_REASON_UNKNOWN;
+			if (error_code == FTL_NO_MEDIA_TIMEOUT) {
+				status.msg.event.reason = FTL_STATUS_EVENT_REASON_NO_MEDIA;
+			}
+			else {
+				status.msg.event.reason = FTL_STATUS_EVENT_REASON_UNKNOWN;
+			}
 			status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
-			status.msg.event.error_code = FTL_SUCCESS;
+			status.msg.event.error_code = error_code;
 			enqueue_status_msg(ftl, &status);
 			break;
 		}
-		else if (ret > 0) {
-
-			int resp_code = _ftl_get_response(ftl, &buf, sizeof(buf));
-
-			if (resp_code == FTL_INGEST_RESP_PING) {
-				continue;
-			} else if (resp_code > 0) {
-				int error_code;
-				error_code = _log_response(ftl, resp_code);
-
-				status.type = FTL_STATUS_EVENT;
-				if (error_code == FTL_NO_MEDIA_TIMEOUT) {
-					status.msg.event.reason = FTL_STATUS_EVENT_REASON_NO_MEDIA;
-				}
-				else {
-					status.msg.event.reason = FTL_STATUS_EVENT_REASON_UNKNOWN;
-				}
-				status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
-				status.msg.event.error_code = error_code;
-
-				enqueue_status_msg(ftl, &status);
-			}
-		}
-
 	}
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Exited connection_status_thread\n");

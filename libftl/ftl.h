@@ -250,4 +250,6 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 
+FTL_API char* ftl_status_code_to_string(ftl_status_t status);
+
 #endif // __FTL_H

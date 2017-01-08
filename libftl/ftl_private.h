@@ -57,6 +57,7 @@
 #define AUDIO_PTYPE 97
 #define SOCKET_RECV_TIMEOUT_MS 1000
 #define SOCKET_SEND_TIMEOUT_MS 1000
+#define KEEPALIVE_FREQUENCY_MS 30000
 #define MAX_PACKET_BUFFER 1500  //Max length of buffer
 #define MAX_MTU 1392
 #define FTL_UDP_MEDIA_PORT 8082   //legacy port

@@ -323,18 +323,25 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
 OS_THREAD_ROUTINE control_keepalive_thread(void *data)
 {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
-	char buf[1024];
-	ftl_status_msg_t status;
 	ftl_response_code_t response_code;
+	struct timeval start, end;
+
+	gettimeofday(&start, NULL);
 
 	while (ftl->connected) {
-
-		sleep_ms(30000);
+		gettimeofday(&end, NULL);
+		if (timeval_subtract_to_ms(&end, &start) < KEEPALIVE_FREQUENCY_MS)
+		{
+			sleep_ms(250);
+			continue;
+		}
 
 		if ((response_code = _ftl_send_command(ftl, FALSE, NULL, 0, "PING %d", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest ping failed with %d\n", response_code);
 		}
 
+		start = end;
+		gettimeofday(&start, NULL);
 	}
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Exited control_keepalive_thread\n");

@@ -1,7 +1,6 @@
 /**
- * charon_protocol.c - Activates an FTL stream
+ * ftl_helpers.c - 
  *
- * Copyright (c) 2015 Michael Casadevall
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,35 +28,17 @@
 /*
     Please note that throughout the code, we send "\r\n\r\n", where a normal newline ("\n") would suffice.
     This is done due to some firewalls / anti-malware systems not passing our packets through when we don't send those double-windows-newlines.
-    They seem to detect our protocol as HTTP wrongly.
+    They seem to incorrectly detect our protocol as HTTP.
 */
 
-ftl_response_code_t ftl_read_response_code(const char * response_str) {
-    char response_code_char[4];
-    snprintf(response_code_char, 4, "%s", response_str);
+int ftl_read_response_code(const char * response_str) {
+	int response_code = 0;
+	int count;
+	
+	count = sscanf_s(response_str, "%d", &response_code);
 
-    int response_code = atoi(response_code_char);
-
-    /* Part of me feels like I've coded this stupidly */
-    switch (response_code) {
-        case FTL_INGEST_RESP_OK: /* Sucess */
-            return FTL_INGEST_RESP_OK;
-        case FTL_INGEST_RESP_BAD_REQUEST:
-            return FTL_INGEST_RESP_BAD_REQUEST;
-        case FTL_INGEST_RESP_UNAUTHORIZED:
-            return FTL_INGEST_RESP_UNAUTHORIZED;
-        case FTL_INGEST_RESP_OLD_VERSION:
-            return FTL_INGEST_RESP_OLD_VERSION;
-        case FTL_INGEST_RESP_AUDIO_SSRC_COLLISION:
-            return FTL_INGEST_RESP_AUDIO_SSRC_COLLISION;
-        case FTL_INGEST_RESP_VIDEO_SSRC_COLLISION:
-            return FTL_INGEST_RESP_VIDEO_SSRC_COLLISION;
-        case FTL_INGEST_RESP_INTERNAL_SERVER_ERROR:
-            return FTL_INGEST_RESP_INTERNAL_SERVER_ERROR;
-   }
-
-   /* Got an invalid or unknown response code */
-   return FTL_INGEST_RESP_UNKNOWN;
+	return count ? response_code : -1;
+	
  }
 
 int ftl_read_media_port(const char *response_str) {
@@ -218,7 +199,7 @@ ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 	}
 	else {
 		ftl->status_q.count++;
-		os_sem_post(&ftl->status_q.sem);
+		os_semaphore_post(&ftl->status_q.sem);
 	}
 
 	os_unlock_mutex(&ftl->status_q.mutex);
@@ -233,7 +214,7 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 		return FTL_NOT_INITIALIZED;
 	}
 
-	if (os_sem_pend(&ftl->status_q.sem, ms_timeout) < 0) {
+	if (os_semaphore_pend(&ftl->status_q.sem, ms_timeout) < 0) {
 		return FTL_STATUS_TIMEOUT;
 	}
 

@@ -57,6 +57,7 @@
 #define AUDIO_PTYPE 97
 #define SOCKET_RECV_TIMEOUT_MS 1000
 #define SOCKET_SEND_TIMEOUT_MS 1000
+#define KEEPALIVE_FREQUENCY_MS 30000
 #define MAX_PACKET_BUFFER 1500  //Max length of buffer
 #define MAX_MTU 1392
 #define FTL_UDP_MEDIA_PORT 8082   //legacy port
@@ -71,7 +72,7 @@
 #define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_PACKET_DURATION_MS 20
 #define IPV4_ADDR_ASCII_LEN 24
-#define INGEST_LIST_URI "https://beam.pro/api/v1/ingests"
+#define INGEST_LIST_URI "https://beam.pro/api/v1/ingests/best"
 #define INGEST_LOAD_PORT 8079
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
@@ -235,10 +236,8 @@ typedef struct {
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {
-	char name[50];
-	char host[30];
+	char name[30];
 	char ip[IPV4_ADDR_ASCII_LEN];
-	float load_score;
 	int rtt;
 	struct _ftl_ingest_t *next;
 }ftl_ingest_t;
@@ -255,12 +254,8 @@ typedef struct {
   int video_kbps;
   char vendor_name[20];
   char vendor_version[20];
-#ifdef _WIN32
-  HANDLE connection_thread_handle;
-  DWORD connection_thread_id;
-#else
-  pthread_t connection_thread;
-#endif
+  OS_THREAD_HANDLE connection_thread;
+  OS_THREAD_HANDLE keepalive_thread;
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
@@ -283,12 +278,16 @@ struct MemoryStruct {
 typedef enum {
   FTL_INGEST_RESP_UNKNOWN = 0,
   FTL_INGEST_RESP_OK = 200,
-  FTL_INGEST_RESP_BAD_REQUEST= 400,
-  FTL_INGEST_RESP_UNAUTHORIZED = 401,
-  FTL_INGEST_RESP_OLD_VERSION = 402,
+  FTL_INGEST_RESP_PING = 201,
+  FTL_INGEST_RESP_BAD_REQUEST= 400,//the handshake was not formatted correctly
+  FTL_INGEST_RESP_UNAUTHORIZED = 401,//this channel id is not authorized to stream
+  FTL_INGEST_RESP_OLD_VERSION = 402, //this ftl api version is no longer supported
   FTL_INGEST_RESP_AUDIO_SSRC_COLLISION = 403,
   FTL_INGEST_RESP_VIDEO_SSRC_COLLISION = 404,
-  FTL_INGEST_RESP_INVALID_STREAM_KEY = 405,
+  FTL_INGEST_RESP_INVALID_STREAM_KEY = 405, //the corresponding channel does not match this key
+  FTL_INGEST_RESP_CHANNEL_IN_USE = 406, //the channel ID successfully authenticated however it is already actively streaming
+  FTL_INGEST_RESP_REGION_UNSUPPORTED = 407, //streaming from this country or region is not authorized by local governments
+  FTL_INGEST_RESP_NO_MEDIA_TIMEOUT = 408,
   FTL_INGEST_RESP_INTERNAL_SERVER_ERROR = 500,
   FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR = 900,
   FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR = 901
@@ -315,7 +314,7 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec);
 int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator);
 
 int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst);
-ftl_response_code_t ftl_read_response_code(const char * response_str);
+int ftl_read_response_code(const char * response_str);
 int ftl_read_media_port(const char *response_str);
 
 /**
@@ -342,7 +341,7 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
 int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);
 int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len);
 int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms);
-
+ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl);
 void sleep_ms(int ms);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900

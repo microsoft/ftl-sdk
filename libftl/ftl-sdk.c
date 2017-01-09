@@ -9,8 +9,8 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
-FTL_API const int FTL_VERSION_MINOR = 5;
-FTL_API const int FTL_VERSION_MAINTENANCE = 0;
+FTL_API const int FTL_VERSION_MINOR = 8;
+FTL_API const int FTL_VERSION_MAINTENANCE = 2;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -75,7 +75,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   os_init_mutex(&ftl->status_q.mutex);
 
-  if (os_sem_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
+  if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
 	  return FTL_MALLOC_FAILURE;
   }
 
@@ -221,8 +221,20 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	status.type = FTL_STATUS_EVENT;
 	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
 	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
+	status.msg.event.error_code = FTL_USER_DISCONNECT;
 
 	enqueue_status_msg(ftl, &status);
+
+	return _internal_ingest_disconnect(ftl);
+}
+
+ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
+
+	ftl_status_t status_code;
+
+	if (!ftl->connected) {
+		return FTL_SUCCESS;
+	}
 
 	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
@@ -257,16 +269,87 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		os_unlock_mutex(&ftl->status_q.mutex);
 		os_delete_mutex(&ftl->status_q.mutex);
 
-		os_sem_delete(&ftl->status_q.sem);
+		os_semaphore_delete(&ftl->status_q.sem);
 
 		if (ftl->key != NULL) {
 			free(ftl->key);
 		}
 
+		os_wait_thread(ftl->keepalive_thread);
+		os_destroy_thread(ftl->keepalive_thread);
+
+		os_wait_thread(ftl->connection_thread);
+		os_destroy_thread(ftl->connection_thread);
+
 		free(ftl);
+		ftl_handle->priv = NULL;
 	}
 
 	return status;
+}
+
+char* ftl_status_code_to_string(ftl_status_t status) {
+
+	switch (status) {
+	case FTL_SUCCESS:
+		return "Success";
+	case FTL_SOCKET_NOT_CONNECTED:
+		return "The socket is no longer connected";
+	case FTL_MALLOC_FAILURE:
+		return "Internal memory allocation error";
+	case FTL_INTERNAL_ERROR:
+		return "An Internal error occurred";
+	case FTL_CONFIG_ERROR:
+		return "The parameters supplied are invalid or incomplete";
+	case FTL_NOT_ACTIVE_STREAM:
+		return "The stream is not active";
+	case FTL_NOT_CONNECTED:
+		return "The channel is not connected";
+	case FTL_ALREADY_CONNECTED:
+		return "The channel is already connected";
+	case FTL_STATUS_TIMEOUT:
+		return "Timed out waiting for status message";
+	case FTL_QUEUE_FULL:
+		return "The status queue is full";
+	case FTL_STATUS_WAITING_FOR_KEY_FRAME:
+		return "dropping packets until a key frame is recevied";
+	case FTL_QUEUE_EMPTY:
+		return "The status queue is empty";
+	case FTL_NOT_INITIALIZED:
+		return "The parameters were not correctly initialized";
+	case FTL_BAD_REQUEST:
+		return "A request to the ingest was invalid";
+	case FTL_DNS_FAILURE:
+		return "Failed to get an ip address for the specified ingest (DNS lookup failure)";
+	case FTL_CONNECT_ERROR:
+		return "An unknown error occurred connecting to the socket";
+	case FTL_UNSUPPORTED_MEDIA_TYPE:
+		return "The specified media type is not supported";
+	case FTL_OLD_VERSION:
+		return "The current version of the FTL-SDK is no longer supported";
+	case FTL_UNAUTHORIZED:
+		return "This channel is not authorized to connect to this ingest";
+	case FTL_AUDIO_SSRC_COLLISION:
+		return "The Audio SSRC is already in use";
+	case FTL_VIDEO_SSRC_COLLISION:
+		return "The Video SSRC is already in use";
+	case FTL_STREAM_REJECTED:
+		return "The Ingest rejected the stream";
+	case FTL_BAD_OR_INVALID_STREAM_KEY:
+		return "Invalid stream key";
+	case FTL_CHANNEL_IN_USE:
+		return "Channel is already actively streaming";
+	case FTL_REGION_UNSUPPORTED:
+		return "The location you are attempting to stream from is not authorized to do so by the local government";
+	case FTL_NO_MEDIA_TIMEOUT:
+		return "The ingest did not receive any audio or video media for an extended period of time";
+	case FTL_USER_DISCONNECT:
+		return "ftl ingest disconnect api was called";
+	case FTL_UNKNOWN_ERROR_CODE:
+	default:
+		/* Unknown FTL error */
+		return "Unknown status code";
+	}
 }
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {

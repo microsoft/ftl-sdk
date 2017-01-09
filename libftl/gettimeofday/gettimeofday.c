@@ -27,7 +27,7 @@
 */
 
 #include "gettimeofday.h"
-
+#include <stdint.h>
 #ifdef _WIN32
 #include <stdint.h>
 #include <Windows.h>
@@ -95,7 +95,6 @@ int timeval_subtract_to_ms(const struct timeval *end, const struct timeval *star
 
 	d = e - s;
 
-	/* Return 1 if result is negative. */
 	return (int)d;
 }
 

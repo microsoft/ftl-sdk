@@ -232,6 +232,10 @@ ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl
 
 	ftl_status_t status_code;
 
+	if (!ftl->connected) {
+		return FTL_SUCCESS;
+	}
+
 	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
 	}
@@ -278,6 +282,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		os_destroy_thread(ftl->connection_thread);
 
 		free(ftl);
+		ftl_handle->priv = NULL;
 	}
 
 	return status;

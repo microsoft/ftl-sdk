@@ -16,7 +16,7 @@ node {
                 sh 'git submodule update --init'
             }
             stage("make all") {
-                sh "mkdir build; cd build && cmake .. && make"
+                sh "mkdir -p build && cd build && cmake .. && make"
             }
             stage("deploy") {
                 archiveArtifacts artifacts: "build/ftl_app,build/libftl.so*", fingerprint: true

@@ -217,6 +217,35 @@ typedef struct {
 }rtt_info_t;
 
 typedef struct {
+	int tmp;
+}pkt_loss_t;
+
+typedef struct {
+	rtt_info_t rtt;
+	pkt_loss_t pkt_loss;
+}xmit_quality_t;
+
+typedef struct {
+	int tmp;
+}output_rate_t;
+
+typedef struct {
+	int tmp;
+}leaky_bucket_t;
+
+typedef struct {
+	int total_bytes;
+	int prev_avg_kbps;
+}input_rate_t;
+
+typedef struct {
+	xmit_quality_t xmit_quality;
+	output_rate_t flow_rate;
+	leaky_bucket_t leaky_bucket;
+	input_rate_t input_rate;
+}auto_bw_t;
+
+typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
 	OS_MUTEX mutex;

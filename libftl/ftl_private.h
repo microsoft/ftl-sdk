@@ -76,6 +76,8 @@
 #define INGEST_LOAD_PORT 8079
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
+#define PING_TX_INTERVAL_MS 25
+#define PING_PTYPE 250
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
@@ -133,17 +135,24 @@ typedef struct {
 	OS_MUTEX mutex;
 }nack_slot_t;
 
+typedef struct _ping_pkt_t {
+	uint32_t header;
+	struct timeval xmit_time;
+}ping_pkt_t;
+
 typedef struct {
-	int frames_received;
-	int frames_sent;
-	int bytes_queued;
-	int packets_queued;
-	int bytes_sent;
-	int packets_sent;
-	int late_packets;
-	int lost_packets;
-	int nack_requests;
-	int dropped_frames;
+	struct timeval start_time;
+	int64_t frames_received;
+	int64_t frames_sent;
+	int64_t bw_throttling_count;
+	int64_t bytes_queued;
+	int64_t packets_queued;
+	int64_t bytes_sent;
+	int64_t packets_sent;
+	int64_t late_packets;
+	int64_t lost_packets;
+	int64_t nack_requests;
+	int64_t dropped_frames;
 	int pkt_xmit_delay_max;
 	int pkt_xmit_delay_min;
 	int total_xmit_delay;
@@ -169,9 +178,10 @@ typedef struct {
 	int consumer;
 	uint16_t xmit_seq_num;
 	nack_slot_t *nack_slots[NACK_RB_SIZE];
+	int peak_kbps;
 	int kbps;
+	media_stats_t stats; //cumulative since start of stream
 	OS_SEMAPHORE pkt_ready;
-	media_stats_t stats;
 }ftl_media_component_common_t;
 
 typedef struct {
@@ -198,12 +208,16 @@ typedef struct {
 	SOCKET media_socket;
 	OS_MUTEX mutex;
 	int assigned_port;
+	BOOL ping_pkts_enabled;
 	BOOL recv_thread_running;
 	BOOL send_thread_running;
+	BOOL ping_thread_running;
 	OS_THREAD_HANDLE recv_thread;
 	OS_THREAD_HANDLE send_thread;
+	OS_THREAD_HANDLE ping_thread;
 	int max_mtu;
 	struct timeval stats_tv;
+	int last_rtt_delay;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

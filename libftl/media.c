@@ -1033,7 +1033,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 		}
 
 		gettimeofday(&ping->xmit_time, NULL);
-		//_media_send_slot(ftl, &slot);
+		_media_send_slot(ftl, &slot);
 	}
 	
 	return 0;

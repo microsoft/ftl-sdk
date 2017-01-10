@@ -1,41 +1,67 @@
-==========================
-Building FTLSDK on Windows
-==========================
+![FTL-SDK](https://dl.dropboxusercontent.com/u/20701844/tachyon.png) FTL-SDK
 
-++++++++++++
-Dependancies
-++++++++++++
-Visual Studio 2015 (Community is fine, older versions might work also but are untested)
-Microsoft Build Tools (if you want to build outside of Visual Studio on command line: https://www.microsoft.com/en-us/download/details.aspx?id=48159)
-cmake 3.5.2 (or greater: https://cmake.org/download/)
+FTL-SDK is a cross platform SDK written in C to enable sending audio/video to beam using our FTL service
 
-+++++++++++++++++++++
-Visual Studio Project
-+++++++++++++++++++++
+### Support Platforms
+
+ - [x] Windows
+ - [x] iOS/OSX
+ - [x] Android/Linux
+
+### Requirements
+
+Due to the nature of WebRTC the following audio and video formats are required
+
+#### Audio
+ - Opus at 48khz
+
+#### video
+ - H.264 (most profiles are supported including baseline, main and high)
+ - for the lowest delay B Frames should be disabled
+
+### Building
+
+Prerequisites:
+
+ - cmake 2.8.0 or later
+ - gcc or Visual Studio 2015 Community (or better) and many other tool chains
+
+getting the code:
+
+```
+git clone https://github.com/WatchBeam/ftl-sdk
+cd ftl-sdk
+git submodule update --init
+```
+
+#### Linux/Android/OSX/etc command line instructions
+in the directory containing CMakeList.txt (ftl-sdk) create a folder
+```
+mkdir build
+cd build
+cmake ..
+make 
+```
+
+#### Windows (specifically for Visual Studio 2015) command line instructions 
+in the directory containing CMakeList.txt (ftl-sdk) create a folder
+```
 mkdir build
 cd build
 cmake -G "Visual Studio 14 2015 Win64" ..
+msbuild /p:Configuration=Release ALL_BUILD.vcxproj `OR` open libftl.sln in Visual Studio
+*ftl_app.exe will be placed in build/release directory*
+```
 
-+++++++++++++++++++++++++
-Building in Visual Studio
-+++++++++++++++++++++++++
-open build\libftl.sln in Visual Studio
+### Running Test Application
 
-+++++++++++++++++++++++++
-Building in Command Prompt
-+++++++++++++++++++++++++
-cd build
-msbuild /p:Configuration=Release,Platform=x64 ALL_BUILD.vcxproj
-*compiled dll and ftp_app.exe will be in \Release\
+download the following test files:
 
-++++++++++++
-Test Files
-++++++++++++
-For your convenience there are test files available to stream:
-sintel.h264: https://dl.dropboxusercontent.com/u/20701844/sintel.h264
-sintel.opus: https://dl.dropboxusercontent.com/u/20701844/sintel.opus
+ - sintel.h264: https://dl.dropboxusercontent.com/u/20701844/sintel.h264
+ - sintel.opus: https://dl.dropboxusercontent.com/u/20701844/sintel.opus
 
-++++++++++++++++++++++++
-Running Test Application
-++++++++++++++++++++++++
-ftl_app.exe -i ingest-sea.beam.pro -s "<beam stream key>" -v c:\test\sintel.h264 -a c:\test\sintel.opus -f 24
+In the directory containing ftl_app
+
+```
+ftl_app -i auto -s "<beam stream key>" -v path\to\sintel.h264 -a path\to\sintel.opus -f 24
+```

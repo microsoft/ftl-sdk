@@ -181,7 +181,6 @@ typedef struct {
 	int peak_kbps;
 	int kbps;
 	media_stats_t stats; //cumulative since start of stream
-	media_stats_t auto_bw_stats;
 	OS_SEMAPHORE pkt_ready;
 }ftl_media_component_common_t;
 
@@ -205,45 +204,6 @@ typedef struct {
 } ftl_video_component_t;
 
 typedef struct {
-	int64_t sum;
-	int count;
-	int avg;
-	int min;
-	int max;
-	int prev_avg;
-	OS_MUTEX mutex;
-}rtt_info_t;
-
-typedef struct {
-	int tmp;
-}pkt_loss_t;
-
-typedef struct {
-	rtt_info_t rtt;
-	pkt_loss_t pkt_loss;
-}xmit_quality_t;
-
-typedef struct {
-	int tmp;
-}output_rate_t;
-
-typedef struct {
-	int tmp;
-}leaky_bucket_t;
-
-typedef struct {
-	int total_bytes;
-	int prev_avg_kbps;
-}input_rate_t;
-
-typedef struct {
-	xmit_quality_t xmit_quality;
-	output_rate_t flow_rate;
-	leaky_bucket_t leaky_bucket;
-	input_rate_t input_rate;
-}auto_bw_t;
-
-typedef struct {
 	struct sockaddr_in server_addr;
 	SOCKET media_socket;
 	OS_MUTEX mutex;
@@ -257,10 +217,7 @@ typedef struct {
 	OS_THREAD_HANDLE ping_thread;
 	int max_mtu;
 	struct timeval stats_tv;
-	rtt_info_t rtt_full; //since the beginning of stream
-	rtt_info_t rtt_last; //since it was last reset
-	int bitrate_adjust_requests;
-	auto_bw_t auto_bw;
+	int last_rtt_delay;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

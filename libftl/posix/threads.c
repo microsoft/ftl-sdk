@@ -39,10 +39,10 @@ int os_wait_thread(OS_THREAD_HANDLE handle) {
 	return pthread_join(handle, NULL);
 }
 
-int os_init(){
-  pthread_mutexattr_init(&ftl_default_mutexattr);
-  // Set pthread mutexes to recursive to mirror Windows mutex behavior
-  pthread_mutexattr_settype(&ftl_default_mutexattr, PTHREAD_MUTEX_RECURSIVE);
+int os_init() {
+    pthread_mutexattr_init(&ftl_default_mutexattr);
+    // Set pthread mutexes to recursive to mirror Windows mutex behavior
+    return pthread_mutexattr_settype(&ftl_default_mutexattr, PTHREAD_MUTEX_RECURSIVE);
 }
 
 int os_init_mutex(OS_MUTEX *mutex) {

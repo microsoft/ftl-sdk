@@ -132,13 +132,6 @@ typedef void(*ftl_logging_function_t)(ftl_log_severity_t log_level, const char *
 typedef void(*ftl_status_function_t)(ftl_connection_status_t status);
 
 typedef struct {
-	int frame_drop_level_ms; //if the pending queue has frames older than this value the sdk will drop frames until the next i frame
-	int warning_level_ms;
-	int max_rtt_factor;
-	int reporting_interval_ms;
-}ftl_tune_t;
-
-typedef struct {
 	char *ingest_hostname;
 	char *stream_key;
 	ftl_video_codec_t video_codec;
@@ -214,25 +207,6 @@ typedef struct {
 	int max_frame_size;
 }ftl_video_frame_stats_msg_t;
 
-typedef enum {
-	FTL_NETWORK_CMD_INFO = 0,
-	FTL_NETWORK_CMD_DECREASE_BITRATE = 1,
-	FTL_NETWORK_CMD_INCREASE_BITRATE = 2,
-} ftl_network_msg_cmd_t;
-
-typedef struct {
-	ftl_network_msg_cmd_t cmd;
-	int64_t queue_delay_ms;
-	int64_t network_delay_ms;
-	int64_t dropped_packets; 
-	int64_t bw_throttling_count;
-}ftl_network_msg_t;
-
-/**/
-typedef struct {
-	int64_t frames_dropped;
-}ftl_video_frames_dropped_msg_t;
-
 /*status messages*/
 typedef struct {
 	ftl_status_types_t type;
@@ -241,8 +215,6 @@ typedef struct {
 		ftl_status_event_msg_t event;
 		ftl_packet_stats_msg_t pkt_stats;
 		ftl_video_frame_stats_msg_t video_stats;
-		ftl_video_frames_dropped_msg_t dropped;
-		ftl_network_msg_t network;
 	} msg;
 }ftl_status_msg_t;
 

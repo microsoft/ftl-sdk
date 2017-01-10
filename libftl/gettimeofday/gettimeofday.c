@@ -29,7 +29,6 @@
 #include "gettimeofday.h"
 #include <stdint.h>
 #ifdef _WIN32
-#include <stdint.h>
 #include <Windows.h>
 
 /* FILETIME of Jan 1 1970 00:00:00. */
@@ -110,7 +109,6 @@ void timeval_add_ms(struct timeval *tv, int ms)
 
 	tv->tv_sec += sec_a + sec_b;
 }
-
 
 
 float timeval_to_ms(struct timeval *tv) {

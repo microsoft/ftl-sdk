@@ -123,7 +123,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 	  return FTL_ALREADY_CONNECTED;
   }
 
-  if (ftl->ingest_socket < 0) {
+  if (ftl->ingest_socket <= 0) {
 	  return FTL_SOCKET_NOT_CONNECTED;
   }
 
@@ -228,6 +228,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
   if (ftl->ingest_socket <= 0) {
     close_socket(ftl->ingest_socket);
+	ftl->ingest_socket = 0;
   }
 
   response_code = _log_response(ftl, response_code);
@@ -263,7 +264,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
 	if (ftl->ingest_socket > 0) {
 		close_socket(ftl->ingest_socket);
-		ftl->ingest_socket = -1;
+		ftl->ingest_socket = 0;
 	}
 
 	return FTL_SUCCESS;

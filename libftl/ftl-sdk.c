@@ -30,7 +30,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->connected = 0;
-  ftl->ingest_socket = -1;
+  ftl->ingest_socket = 0;
   ftl->async_queue_alive = 0;
   ftl->ready_for_media = 0;
   ftl->ingest_list = NULL;

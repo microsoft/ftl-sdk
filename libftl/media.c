@@ -125,29 +125,34 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
 
+	//close while socket still active
 	if (media->ping_thread_running) {
 		media->ping_thread_running = FALSE;
 		os_wait_thread(media->ping_thread);
 		os_destroy_thread(media->ping_thread);
 	}
 
-	if (media->media_socket > 0) {
-		shutdown_socket(media->media_socket, SD_BOTH);
-	}
-
-	if (media->ping_thread_running) {
-		media->recv_thread_running = FALSE;
-		close_socket(media->media_socket);
-		media->media_socket = -1;
-		os_wait_thread(media->recv_thread);
-		os_destroy_thread(media->recv_thread);
-	}
-
+	//close while socket still active
 	if (media->send_thread_running) {
 		media->send_thread_running = FALSE;
 		os_semaphore_post(&ftl->video.media_component.pkt_ready);
 		os_wait_thread(media->send_thread);
 		os_destroy_thread(media->send_thread);
+	}
+
+	if (media->recv_thread_running) {
+		media->recv_thread_running = FALSE;
+		//shutdown will cause recv to return with an error so we can exit the thread
+		shutdown_socket(media->media_socket, SD_BOTH);
+		close_socket(media->media_socket);
+		os_wait_thread(media->recv_thread);
+		os_destroy_thread(media->recv_thread);
+		media->media_socket = 0;
+	}
+
+	if (media->media_socket > 0) {
+		shutdown_socket(media->media_socket, SD_BOTH);
+		media->media_socket = -1;
 	}
 
 	os_semaphore_delete(&ftl->video.media_component.pkt_ready);

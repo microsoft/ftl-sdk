@@ -656,9 +656,6 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
 	out += rtp_hdr_len;
 
-	sbit = first_pkt ? 1 : 0;
-	ebit = (in_len + rtp_hdr_len + RTP_FUA_HEADER_LEN) <= ftl->media.max_mtu;
-
 	mc->seq_num++;
 
 	//if this packet can fit into a it's own packet then just use single nalu mode

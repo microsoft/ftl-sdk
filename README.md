@@ -35,7 +35,7 @@ git submodule update --init
 ```
 
 #### Linux/Android/OSX/etc command line instructions
-in the directory containing CMakeList.txt (ftl-sdk) create a folder
+in the directory containing CMakeList.txt (ftl-sdk/) create a folder
 ```
 mkdir build
 cd build

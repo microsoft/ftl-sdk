@@ -275,12 +275,6 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 			free(ftl->key);
 		}
 
-		os_wait_thread(ftl->keepalive_thread);
-		os_destroy_thread(ftl->keepalive_thread);
-
-		os_wait_thread(ftl->connection_thread);
-		os_destroy_thread(ftl->connection_thread);
-
 		free(ftl);
 		ftl_handle->priv = NULL;
 	}

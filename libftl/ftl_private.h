@@ -205,14 +205,12 @@ typedef struct {
 } ftl_video_component_t;
 
 typedef struct {
-	int64_t rtt_ms_accumulator;
-	int rtt_total_samples;
-	int last_n_samples[10];
-	int last_sample_pos;
-	int median_rtt;
-	int avg_rtt;
-	int min_rtt;
-	int max_rtt;
+	int64_t sum;
+	int count;
+	int avg;
+	int min;
+	int max;
+	int prev_avg;
 	OS_MUTEX mutex;
 }rtt_info_t;
 
@@ -262,6 +260,7 @@ typedef struct {
 	rtt_info_t rtt_full; //since the beginning of stream
 	rtt_info_t rtt_last; //since it was last reset
 	int bitrate_adjust_requests;
+	auto_bw_t auto_bw;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

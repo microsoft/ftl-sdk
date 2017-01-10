@@ -1,4 +1,3 @@
-#define __FTL_INTERNAL
 #include "ftl.h"
 #include "ftl_private.h"
 
@@ -857,41 +856,16 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 			}
 		}
 		else if (feedbackType == 1 && ptype == PING_PTYPE) {
+
 			ping_pkt_t *ping = (ping_pkt_t *)buf;
 
 			struct timeval now, delta;
 			int delay_ms;
 
 			gettimeofday(&now, NULL);
+			delay_ms = timeval_subtract_to_ms(&now, &ping->xmit_time);
 
-			timeval_subtract(&delta, &now, &ping->xmit_time);
-			delay_ms = (int)timeval_to_ms(&delta);
-
-			if (delay_ms > media->rtt_full.max_rtt) {
-				media->rtt_full.max_rtt = delay_ms;
-			}
-
-			if (delay_ms < media->rtt_full.min_rtt) {
-				media->rtt_full.min_rtt = delay_ms;
-			}
-
-			os_lock_mutex(&media->rtt_last.mutex);
-			
-			if (delay_ms > media->rtt_last.max_rtt) {
-				media->rtt_last.max_rtt = delay_ms;
-			}
-
-			if (delay_ms < media->rtt_last.min_rtt) {
-				media->rtt_last.min_rtt = delay_ms;
-			}
-
-			os_unlock_mutex(&media->rtt_last.mutex);
-
-			media->rtt_full.rtt_ms_accumulator += delay_ms;
-			media->rtt_full.rtt_total_samples++;
-
-			media->rtt_full.avg_rtt = media->rtt_full.rtt_ms_accumulator / media->rtt_full.rtt_total_samples;
-
+			auto_bw_add_rtt_sample(ftl, delay_ms);
 		}
 	}
 

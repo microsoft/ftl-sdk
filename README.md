@@ -49,7 +49,7 @@ in the directory containing CMakeList.txt (ftl-sdk) create a folder
 mkdir build
 cd build
 cmake -G "Visual Studio 14 2015 Win64" ..
-msbuild /p:Configuration=Release ALL_BUILD.vcxproj `OR` open libftl.sln in Visual Studio
+msbuild /p:Configuration=Release ALL_BUILD.vcxproj OR open libftl.sln in Visual Studio
 *ftl_app.exe will be placed in build/release directory*
 ```
 

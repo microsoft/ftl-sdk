@@ -241,25 +241,26 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
 	char response[MAX_INGEST_COMMAND_LEN];
 
+	if (ftl->keepalive_thread_running) {
+		ftl->keepalive_thread_running = FALSE;
+		os_wait_thread(ftl->keepalive_thread);
+		os_destroy_thread(ftl->keepalive_thread);
+	}
+
+	if (ftl->connection_thread_running) {
+		ftl->connection_thread_running = FALSE;
+		os_wait_thread(ftl->connection_thread);
+		os_destroy_thread(ftl->connection_thread);
+	}
+
 	if (ftl->connected) {
-		ftl->connected = 0;
 
 		FTL_LOG(ftl, FTL_LOG_INFO, "light-saber disconnect\n");
 		if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "DISCONNECT", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest Disconnect failed with %d (%s)\n", response_code, response);
 		}
 
-		if (ftl->keepalive_thread_running) {
-			ftl->keepalive_thread_running = FALSE;
-			os_wait_thread(ftl->keepalive_thread);
-			os_destroy_thread(ftl->keepalive_thread);
-		}
-
-		if (ftl->connection_thread_running) {
-			ftl->connection_thread_running = FALSE;
-			os_wait_thread(ftl->connection_thread);
-			os_destroy_thread(ftl->connection_thread);
-		}
+		ftl->connected = 0;
 	}
 
 	if (ftl->ingest_socket > 0) {

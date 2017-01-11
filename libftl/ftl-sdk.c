@@ -278,6 +278,10 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		ftl_handle->priv = NULL;
 	}
 
+#ifdef _WIN32
+	_CrtDumpMemoryLeaks();
+#endif
+
 	return status;
 }
 

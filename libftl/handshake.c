@@ -208,28 +208,26 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
 	  ftl->media.assigned_port = port;
 
-	  FTL_LOG(ftl, FTL_LOG_INFO, "Successfully connected to ingest.  Media will be sent to port %d\n", ftl->media.assigned_port);
-
 	  ftl->connected = 1;
 
 	  ftl->connection_thread_running = TRUE;
 	  if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
-		  return FTL_MALLOC_FAILURE;
+		  response_code = FTL_MALLOC_FAILURE;
+		  break;
 	  }
 
 	  ftl->keepalive_thread_running = TRUE;
 	  if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
-		  return FTL_MALLOC_FAILURE;
+		  response_code = FTL_MALLOC_FAILURE;
+		  break;
 	  }
+
+	  FTL_LOG(ftl, FTL_LOG_INFO, "Successfully connected to ingest.  Media will be sent to port %d\n", ftl->media.assigned_port);
 	
 	  return FTL_SUCCESS;
   } while (0);
 
-
-  if (ftl->ingest_socket <= 0) {
-    close_socket(ftl->ingest_socket);
-	ftl->ingest_socket = 0;
-  }
+  _ingest_disconnect(ftl);
 
   response_code = _log_response(ftl, response_code);
 

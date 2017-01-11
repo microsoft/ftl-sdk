@@ -25,6 +25,12 @@
 #ifndef __FTL_PRIVATE_H
 #define __FTL_PRIVATE_H
 
+#ifdef _WIN32
+#define _CRTDBG_MAP_ALLOC  
+#include <stdlib.h>  
+#include <crtdbg.h> 
+#endif
+
 #define __STDC_WANT_LIB_EXT1__ 1
 
 #include <stdio.h>

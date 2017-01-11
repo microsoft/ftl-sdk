@@ -212,6 +212,8 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 		return FTL_SUCCESS;
 	}
 
+	status_code = _internal_ingest_disconnect(ftl);
+
 	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
 	ftl_status_msg_t status;
 	status.type = FTL_STATUS_EVENT;
@@ -221,7 +223,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 
 	enqueue_status_msg(ftl, &status);
 
-	return _internal_ingest_disconnect(ftl);
+	return status_code;
 }
 
 ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {

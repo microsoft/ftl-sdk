@@ -376,15 +376,14 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 
 		sleep_ms(500);
 
-		int ret = recv(ftl->ingest_socket, &buf, sizeof(buf), MSG_PEEK);
+		int ret = recv(ftl->ingest_socket, buf, sizeof(buf), MSG_PEEK);
 
 		if (ret == 0 && ftl->connection_thread_running || ret > 0) {
-			ftl_status_t status_code;
 			int error_code = FTL_SUCCESS;
 
 			if (ret > 0) {
 				int resp_code;
-				if ((resp_code = _ftl_get_response(ftl, &buf, sizeof(buf))) == FTL_INGEST_RESP_PING) {
+				if ((resp_code = _ftl_get_response(ftl, buf, sizeof(buf))) == FTL_INGEST_RESP_PING) {
 					continue;
 				}
 

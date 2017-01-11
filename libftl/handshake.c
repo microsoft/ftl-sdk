@@ -391,10 +391,7 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 					error_code = _log_response(ftl, resp_code);
 				}
 			}
-
-			ftl->connected = 0;
-			ftl->ready_for_media = 0;
-
+			
 			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
 
 			ftl->connection_thread_running = FALSE;

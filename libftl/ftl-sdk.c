@@ -128,9 +128,7 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   if ((status = media_init(ftl)) != FTL_SUCCESS) {
 	  return status;
   }
-
-  ftl->ready_for_media = 1;
-
+  
   return status;
 }
 
@@ -169,10 +167,6 @@ FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	int bytes_sent = 0;
-
-	if (!ftl->ready_for_media) {
-		return bytes_sent;
-	}
 
 	if (media_type == FTL_AUDIO_DATA) {
 		bytes_sent = media_send_audio(ftl, dts_usec, data, len);
@@ -217,8 +211,6 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	if (!ftl->connected) {
 		return FTL_SUCCESS;
 	}
-
-	ftl->ready_for_media = 0;
 
 	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
 	ftl_status_msg_t status;

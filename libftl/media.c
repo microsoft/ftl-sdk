@@ -105,6 +105,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		return FTL_MALLOC_FAILURE;
 	}
 
+	ftl->ready_for_media = 1;
+
 	return status;
 }
 
@@ -124,6 +126,12 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	ftl_media_config_t *media = &ftl->media;
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
+
+	if (!ftl->ready_for_media) {
+		return FTL_SUCCESS;
+	}
+
+	ftl->ready_for_media = 0;
 
 	//close while socket still active
 	if (media->ping_thread_running) {
@@ -358,6 +366,10 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int retries = 0;
+
+	if (!ftl->ready_for_media) {
+		return 0;
+	}
 	
 	_update_timestamp(ftl, mc, dts_usec);
 
@@ -405,6 +417,10 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int first_fu = 1;
+
+	if (!ftl->ready_for_media) {
+		return 0;
+	}
 
 	nalu_type = data[0] & 0x1F;
 	nri = (data[0] >> 5) & 0x3;
@@ -1033,7 +1049,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 		}
 
 		gettimeofday(&ping->xmit_time, NULL);
-		_media_send_slot(ftl, &slot);
+		//_media_send_slot(ftl, &slot);
 	}
 	
 	return 0;

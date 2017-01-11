@@ -123,7 +123,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 	  return FTL_ALREADY_CONNECTED;
   }
 
-  if (ftl->ingest_socket < 0) {
+  if (ftl->ingest_socket <= 0) {
 	  return FTL_SOCKET_NOT_CONNECTED;
   }
 
@@ -212,10 +212,12 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
 	  ftl->connected = 1;
 
+	  ftl->connection_thread_running = TRUE;
 	  if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
 		  return FTL_MALLOC_FAILURE;
 	  }
 
+	  ftl->keepalive_thread_running = TRUE;
 	  if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
 		  return FTL_MALLOC_FAILURE;
 	  }
@@ -226,6 +228,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
   if (ftl->ingest_socket <= 0) {
     close_socket(ftl->ingest_socket);
+	ftl->ingest_socket = 0;
   }
 
   response_code = _log_response(ftl, response_code);
@@ -238,17 +241,31 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
 	char response[MAX_INGEST_COMMAND_LEN];
 
+	if (ftl->keepalive_thread_running) {
+		ftl->keepalive_thread_running = FALSE;
+		os_wait_thread(ftl->keepalive_thread);
+		os_destroy_thread(ftl->keepalive_thread);
+	}
+
+	if (ftl->connection_thread_running) {
+		ftl->connection_thread_running = FALSE;
+		os_wait_thread(ftl->connection_thread);
+		os_destroy_thread(ftl->connection_thread);
+	}
+
 	if (ftl->connected) {
-		ftl->connected = 0;
 
 		FTL_LOG(ftl, FTL_LOG_INFO, "light-saber disconnect\n");
 		if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "DISCONNECT", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest Disconnect failed with %d (%s)\n", response_code, response);
 		}
+
+		ftl->connected = 0;
 	}
 
 	if (ftl->ingest_socket > 0) {
 		close_socket(ftl->ingest_socket);
+		ftl->ingest_socket = 0;
 	}
 
 	return FTL_SUCCESS;
@@ -328,7 +345,7 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
 
 	gettimeofday(&start, NULL);
 
-	while (ftl->connected) {
+	while (ftl->keepalive_thread_running) {
 		gettimeofday(&end, NULL);
 		if (timeval_subtract_to_ms(&end, &start) < KEEPALIVE_FREQUENCY_MS)
 		{
@@ -355,19 +372,18 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 	char buf[1024];
 	ftl_status_msg_t status;
 
-	while (ftl->connected) {
+	while (ftl->connection_thread_running) {
 
 		sleep_ms(500);
 
-		int ret = recv(ftl->ingest_socket, &buf, sizeof(buf), MSG_PEEK);
+		int ret = recv(ftl->ingest_socket, buf, sizeof(buf), MSG_PEEK);
 
-		if (ret == 0 && ftl->connected || ret > 0) {
-			ftl_status_t status_code;
+		if (ret == 0 && ftl->connection_thread_running || ret > 0) {
 			int error_code = FTL_SUCCESS;
 
 			if (ret > 0) {
 				int resp_code;
-				if ((resp_code = _ftl_get_response(ftl, &buf, sizeof(buf))) == FTL_INGEST_RESP_PING) {
+				if ((resp_code = _ftl_get_response(ftl, buf, sizeof(buf))) == FTL_INGEST_RESP_PING) {
 					continue;
 				}
 
@@ -375,12 +391,10 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 					error_code = _log_response(ftl, resp_code);
 				}
 			}
-
-			ftl->connected = 0;
-			ftl->ready_for_media = 0;
-
+			
 			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
 
+			ftl->connection_thread_running = FALSE;
 			_internal_ingest_disconnect(ftl);
 
 			status.type = FTL_STATUS_EVENT;

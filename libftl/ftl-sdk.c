@@ -10,7 +10,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 8;
-FTL_API const int FTL_VERSION_MAINTENANCE = 3;
+FTL_API const int FTL_VERSION_MAINTENANCE = 4;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -30,7 +30,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
   }
 
   ftl->connected = 0;
-  ftl->ingest_socket = -1;
+  ftl->ingest_socket = 0;
   ftl->async_queue_alive = 0;
   ftl->ready_for_media = 0;
   ftl->ingest_list = NULL;
@@ -128,15 +128,17 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   if ((status = media_init(ftl)) != FTL_SUCCESS) {
 	  return status;
   }
-
-  ftl->ready_for_media = 1;
-
+  
   return status;
 }
 
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status = FTL_SUCCESS;
+
+	if (ftl == NULL) {
+		return FTL_NOT_INITIALIZED;
+	}
 
 	return dequeue_status_msg(ftl, msg, ms_timeout);
 }
@@ -169,10 +171,6 @@ FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	int bytes_sent = 0;
-
-	if (!ftl->ready_for_media) {
-		return bytes_sent;
-	}
 
 	if (media_type == FTL_AUDIO_DATA) {
 		bytes_sent = media_send_audio(ftl, dts_usec, data, len);
@@ -214,7 +212,11 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status_code;
 
-	ftl->ready_for_media = 0;
+	if (!ftl->connected) {
+		return FTL_SUCCESS;
+	}
+
+	status_code = _internal_ingest_disconnect(ftl);
 
 	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
 	ftl_status_msg_t status;
@@ -225,16 +227,12 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 
 	enqueue_status_msg(ftl, &status);
 
-	return _internal_ingest_disconnect(ftl);
+	return status_code;
 }
 
 ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
 	ftl_status_t status_code;
-
-	if (!ftl->connected) {
-		return FTL_SUCCESS;
-	}
 
 	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
@@ -256,6 +254,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		os_lock_mutex(&ftl->status_q.mutex);
 
 		ftl->async_queue_alive = 0;
+		os_semaphore_post(&ftl->status_q.sem); //if someone is blocked on the semaphore, unblock it
 
 		status_queue_elmt_t *elmt;
 
@@ -274,12 +273,6 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		if (ftl->key != NULL) {
 			free(ftl->key);
 		}
-
-		os_wait_thread(ftl->keepalive_thread);
-		os_destroy_thread(ftl->keepalive_thread);
-
-		os_wait_thread(ftl->connection_thread);
-		os_destroy_thread(ftl->connection_thread);
 
 		free(ftl);
 		ftl_handle->priv = NULL;

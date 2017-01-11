@@ -105,6 +105,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 		return FTL_MALLOC_FAILURE;
 	}
 
+	ftl->ready_for_media = 1;
+
 	return status;
 }
 
@@ -125,21 +127,41 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	struct hostent *server = NULL;
 	ftl_status_t status = FTL_SUCCESS;
 
-	media->recv_thread_running = FALSE;
-	shutdown_socket(media->media_socket, SD_BOTH);
-	close_socket(media->media_socket);
-	os_wait_thread(media->recv_thread);
-	os_destroy_thread(media->recv_thread);
+	if (!ftl->ready_for_media) {
+		return FTL_SUCCESS;
+	}
 
-	media->send_thread_running = FALSE;
+	ftl->ready_for_media = 0;
 
-	os_semaphore_post(&ftl->video.media_component.pkt_ready);
-	os_wait_thread(media->send_thread);
-	os_destroy_thread(media->send_thread);
+	//close while socket still active
+	if (media->ping_thread_running) {
+		media->ping_thread_running = FALSE;
+		os_wait_thread(media->ping_thread);
+		os_destroy_thread(media->ping_thread);
+	}
 
-	media->ping_thread_running = FALSE;
-	os_wait_thread(media->ping_thread);
-	os_destroy_thread(media->ping_thread);
+	//close while socket still active
+	if (media->send_thread_running) {
+		media->send_thread_running = FALSE;
+		os_semaphore_post(&ftl->video.media_component.pkt_ready);
+		os_wait_thread(media->send_thread);
+		os_destroy_thread(media->send_thread);
+	}
+
+	if (media->recv_thread_running) {
+		media->recv_thread_running = FALSE;
+		//shutdown will cause recv to return with an error so we can exit the thread
+		shutdown_socket(media->media_socket, SD_BOTH);
+		close_socket(media->media_socket);
+		os_wait_thread(media->recv_thread);
+		os_destroy_thread(media->recv_thread);
+		media->media_socket = 0;
+	}
+
+	if (media->media_socket > 0) {
+		shutdown_socket(media->media_socket, SD_BOTH);
+		media->media_socket = -1;
+	}
 
 	os_semaphore_delete(&ftl->video.media_component.pkt_ready);
 
@@ -344,6 +366,10 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int retries = 0;
+
+	if (!ftl->ready_for_media) {
+		return 0;
+	}
 	
 	_update_timestamp(ftl, mc, dts_usec);
 
@@ -391,6 +417,10 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	nack_slot_t *slot;
 	int remaining = len;
 	int first_fu = 1;
+
+	if (!ftl->ready_for_media) {
+		return 0;
+	}
 
 	nalu_type = data[0] & 0x1F;
 	nri = (data[0] >> 5) & 0x3;

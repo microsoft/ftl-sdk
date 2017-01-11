@@ -112,10 +112,10 @@ void timeval_add_ms(struct timeval *tv, int ms)
 
 
 float timeval_to_ms(struct timeval *tv) {
-	float sec, usec;
+	double sec, usec;
 
-	sec = tv->tv_sec;
-	usec = tv->tv_usec;
+	sec = (double)tv->tv_sec;
+	usec = (double)tv->tv_usec;
 
-	return sec * 1000 + usec / 1000;
+	return (float)(sec * 1000 + usec / 1000);
 }

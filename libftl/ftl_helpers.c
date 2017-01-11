@@ -218,6 +218,10 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
 		return FTL_STATUS_TIMEOUT;
 	}
 
+	if (!ftl->async_queue_alive) {
+		return FTL_NOT_INITIALIZED;
+	}
+
 	os_lock_mutex(&ftl->status_q.mutex);
 
 	if (ftl->status_q.head != NULL) {

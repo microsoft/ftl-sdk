@@ -214,6 +214,10 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status_code;
 
+	if (!ftl->connected) {
+		return FTL_SUCCESS;
+	}
+
 	ftl->ready_for_media = 0;
 
 	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
@@ -231,10 +235,6 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
 	ftl_status_t status_code;
-
-	if (!ftl->connected) {
-		return FTL_SUCCESS;
-	}
 
 	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
@@ -256,6 +256,7 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 		os_lock_mutex(&ftl->status_q.mutex);
 
 		ftl->async_queue_alive = 0;
+		os_semaphore_post(&ftl->status_q.sem); //if someone is blocked on the semaphore, unblock it
 
 		status_queue_elmt_t *elmt;
 

@@ -335,9 +335,9 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	gettimeofday(&ping->xmit_time, NULL);
 	_media_send_slot(ftl, &slot);
 
-	wait_retries = 5;
+	wait_retries = 1000/ PING_TX_INTERVAL_MS; // waiting up to 1s for ping to come back
 	while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
-		sleep_ms(25);
+		sleep_ms(PING_TX_INTERVAL_MS);
 	};
 
 	final_rtt = ftl->media.last_rtt_delay;
@@ -347,12 +347,20 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 		initial_rtt = final_rtt = 0;
 	}
 
-	FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets.  Estimated peak bitrate %d kbps\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt, total_sent * 8 / (total_ms + final_rtt - initial_rtt));
+	FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets (first rtt: %d, last %d). Estimated peak bitrate %d kbps\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt, initial_rtt, final_rtt, total_sent * 8 / (total_ms + final_rtt - initial_rtt));
+
+	int lost_pkts = mc->stats.nack_requests - initial_nack_cnt;
+	float pkt_loss_percent = (float)lost_pkts / (float)pkts_sent;
+
+	float adjusted_bytes_sent = (float)total_sent * (1.f-pkt_loss_percent);
+	int actual_send_time = total_ms + final_rtt - initial_rtt;
+	int effective_kbps = adjusted_bytes_sent * 8.f * 1000.f / actual_send_time;
 
 	media_enable_nack(ftl, mc->ssrc, TRUE);
 	media->ping_pkts_enabled = TRUE;
 
-	return (int)((float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt, total_sent * 8 / (total_ms + final_rtt - initial_rtt));
+
+	return effective_kbps;
 }
 
 int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len) {

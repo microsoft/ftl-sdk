@@ -10,7 +10,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 8;
-FTL_API const int FTL_VERSION_MAINTENANCE = 3;
+FTL_API const int FTL_VERSION_MAINTENANCE = 4;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -135,6 +135,10 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status = FTL_SUCCESS;
+
+	if (ftl == NULL) {
+		return FTL_NOT_INITIALIZED;
+	}
 
 	return dequeue_status_msg(ftl, msg, ms_timeout);
 }

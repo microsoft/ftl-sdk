@@ -369,7 +369,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	}
 
 	//if we didnt get the last ping packet assume the worst for rtt
-	if (wait_retries >= 0) {
+	if (wait_retries <= 0) {
 		initial_rtt = 0;
 		final_rtt = 1000;
 	}

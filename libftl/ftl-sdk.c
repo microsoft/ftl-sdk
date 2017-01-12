@@ -118,11 +118,11 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
 		  break;
 	  }
 
-	  break;
-
 	  if ((status = media_init(ftl)) != FTL_SUCCESS) {
 		  break;
 	  }
+
+	  return status;
   } while (0);
 
   internal_ingest_disconnect(ftl);

@@ -210,13 +210,11 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
 	  ftl_set_state(ftl, FTL_CONNECTED);
 
-	  ftl_set_state(ftl, FTL_CXN_STATUS_THRD);
 	  if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
 		  response_code = FTL_MALLOC_FAILURE;
 		  break;
 	  }
 
-	  ftl_set_state(ftl, FTL_KEEPALIVE_THRD);
 	  if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
 		  response_code = FTL_MALLOC_FAILURE;
 		  break;
@@ -343,6 +341,8 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
 
 	gettimeofday(&start, NULL);
 
+	ftl_set_state(ftl, FTL_KEEPALIVE_THRD);
+
 	while (ftl_get_state(ftl, FTL_KEEPALIVE_THRD)) {
 		gettimeofday(&end, NULL);
 		if (timeval_subtract_to_ms(&end, &start) < KEEPALIVE_FREQUENCY_MS)
@@ -369,6 +369,8 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
 	char buf[1024];
 	ftl_status_msg_t status;
+
+	ftl_set_state(ftl, FTL_CXN_STATUS_THRD);
 
 	while (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
 

@@ -9,7 +9,8 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 FIND_PACKAGE(CURL)
 
-if (NOT CURL_FOUND)
+if (NOT CURL_FOUND AND NOT WIN32)
+MESSAGE( STATUS "Hi there") 
 SET(BUILD_CURL_EXE OFF CACHE BOOL "Building libcurl")
 SET(HTTP_ONLY ON CACHE BOOL "using compiling HTTP")
 SET(BUILD_TESTING OFF CACHE BOOL "Not building Tests")
@@ -68,7 +69,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32 ${CURL_LIBRARIES} jansson)
+  target_link_libraries(ftl ws2_32 Winhttp jansson)
 endif()
 
 add_executable(ftl_app

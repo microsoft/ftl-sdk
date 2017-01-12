@@ -2,7 +2,9 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 #include "ftl_private.h"
+#ifndef WIN32
 #include <curl/curl.h>
+#endif
 
 static BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);
 static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
@@ -16,7 +18,9 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 4;
 FTL_API ftl_status_t ftl_init() {
   init_sockets();
   os_init();
+#ifndef WIN32
   curl_global_init(CURL_GLOBAL_ALL);
+#endif
   return FTL_SUCCESS;
 }
 

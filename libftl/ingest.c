@@ -1,7 +1,13 @@
 #include "ftl.h"
 #include "ftl_private.h"
+#ifndef WIN32
 #include <curl/curl.h>
+#endif
 #include <jansson.h>
+
+#ifdef WIN32
+#include <Winhttp.h>
+#endif
 
 OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
 OS_THREAD_ROUTINE _ingest_get_rtt(void *data);
@@ -33,6 +39,155 @@ static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, vo
 	return realsize;
 }
 
+#ifdef WIN32
+OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
+	char *query_result = NULL;
+	size_t i = 0;
+	int total_ingest_cnt = 0;
+	json_error_t error;
+	json_t *ingests = NULL, *ingest_item = NULL;
+
+	DWORD data;
+	DWORD dwSize = sizeof(DWORD);
+	HINTERNET hSession = NULL, hConnect = NULL, hRequest = NULL;
+	BOOL  bResults = FALSE;
+	char *response = NULL;
+
+	do {
+
+		// Use WinHttpOpen to obtain an HINTERNET handle.
+		if ((hSession = WinHttpOpen(L"ftlsdk/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)) == NULL) {
+			break;
+		}
+
+		URL_COMPONENTS urlComp;
+
+		// Initialize the URL_COMPONENTS structure.
+		ZeroMemory(&urlComp, sizeof(urlComp));
+		urlComp.dwStructSize = sizeof(urlComp);
+
+		// Set required component lengths to non-zero 
+		// so that they are cracked.
+		urlComp.dwSchemeLength = (DWORD)-1;
+		urlComp.dwHostNameLength = (DWORD)-1;
+		urlComp.dwUrlPathLength = (DWORD)-1;
+		urlComp.dwExtraInfoLength = (DWORD)-1;
+
+		if (!WinHttpCrackUrl(L"https://beam.pro/api/v1/ingests/best", 0, 0, &urlComp))
+		{
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpCrackUrl failed with %u\n", GetLastError());
+			break;
+		}
+
+		if ((hConnect = WinHttpConnect(hSession, L"beam.pro", INTERNET_DEFAULT_HTTP_PORT, 0)) == NULL) {
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpConnect failed with %u\n", GetLastError());
+			break;
+		}
+
+		if ((hRequest = WinHttpOpenRequest(hConnect, L"GET", urlComp.lpszUrlPath, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_REFRESH)) == NULL) {
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpOpenRequest failed with %u\n", GetLastError());
+			break;
+		}
+
+		if ((bResults = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0)) == NULL) {
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpSendRequest failed with %u\n", GetLastError());
+			break;
+		}
+
+		if ((bResults = WinHttpReceiveResponse(hRequest, NULL)) == FALSE) {
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpReceiveResponse failed with %u\n", GetLastError());
+			break;
+		}
+
+		DWORD dwDownloaded = 0;
+
+		// Verify available data.
+		dwSize = 0;
+		if (!WinHttpQueryDataAvailable(hRequest, &dwSize)) {
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpQueryDataAvailable failed with %u\n", GetLastError());
+			break;
+		}
+
+		// Allocate space for the buffer.
+		if ((response = malloc(1 + dwSize)) == NULL)
+		{
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpQueryDataAvailable failed with %u\n", GetLastError());
+			break;
+		}
+
+		// Read the Data.
+		memset(response, 0, dwSize + 1);
+
+		if (!WinHttpReadData(hRequest, (LPVOID)response, dwSize, &dwDownloaded)) {
+			FTL_LOG(ftl, FTL_LOG_INFO, "WinHttpReadData failed with %u\n", GetLastError());
+			break;
+		}
+
+		if ((ingests = json_loads(response, 0, &error)) == NULL) {
+			break;
+		}
+
+		size_t size = json_array_size(ingests);
+
+		for (i = 0; i < size; i++) {
+			const char *name, *ip;
+			ingest_item = json_array_get(ingests, i);
+			json_unpack(ingest_item, "{s:s, s:s}", "name", &name, "ip", &ip);
+
+			ftl_ingest_t *ingest_elmt;
+
+			if ((ingest_elmt = malloc(sizeof(ftl_ingest_t))) == NULL) {
+				goto cleanup;
+			}
+
+			strcpy_s(ingest_elmt->name, sizeof(ingest_elmt->name), name);
+			strcpy_s(ingest_elmt->ip, sizeof(ingest_elmt->ip), ip);
+			ingest_elmt->rtt = 500;
+
+			ingest_elmt->next = NULL;
+
+			if (ftl->ingest_list == NULL) {
+				ftl->ingest_list = ingest_elmt;
+			}
+			else {
+				ftl_ingest_t *tail = ftl->ingest_list;
+				while (tail->next != NULL) {
+					tail = tail->next;
+				}
+
+				tail->next = ingest_elmt;
+			}
+
+			total_ingest_cnt++;
+		}
+
+	} while (0);
+
+cleanup:
+	// Close any open handles.
+	if (hRequest) {
+		WinHttpCloseHandle(hRequest);
+	}
+	if (hConnect) {
+		WinHttpCloseHandle(hConnect);
+	}
+	if (hSession) {
+		WinHttpCloseHandle(hSession);
+	}
+
+	if (response != NULL) {
+		free(response);
+	}
+
+	if (ingests != NULL) {
+		json_decref(ingests);
+	}
+
+	ftl->ingest_count = total_ingest_cnt;
+
+	return total_ingest_cnt;
+}
+#else
 OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 	CURL *curl_handle;
 	CURLcode res;
@@ -116,6 +271,7 @@ cleanup:
 
 	return total_ingest_cnt;
 }
+#endif
 
 OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
 	_tmp_ingest_thread_data_t *thread_data = (_tmp_ingest_thread_data_t *)data;

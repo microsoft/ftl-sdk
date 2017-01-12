@@ -25,12 +25,6 @@
 #ifndef __FTL_PRIVATE_H
 #define __FTL_PRIVATE_H
 
-#ifdef _WIN32
-#define _CRTDBG_MAP_ALLOC  
-#include <stdlib.h>  
-#include <crtdbg.h> 
-#endif
-
 #define __STDC_WANT_LIB_EXT1__ 1
 
 #include <stdio.h>
@@ -103,6 +97,18 @@ typedef enum {
 	H264_NALU_TYPE_FILLER = 12
 }h264_nalu_type_t;
 
+typedef enum {
+	FTL_CONNECTED = 0x0001,
+	FTL_MEDIA_READY = 0x0002,
+	FTL_STATUS_QUEUE = 0x0004,
+	FTL_CXN_STATUS_THRD = 0x0008,
+	FTL_KEEPALIVE_THRD = 0x0010,
+	FTL_PING_THRD = 0x0020,
+	FTL_RX_THRD = 0x0040,
+	FTL_TX_THRD = 0x0080,
+	FTL_TX_PING_PKTS = 0x0100,
+}ftl_state_t;
+
 #ifndef _WIN32
 typedef int SOCKET;
 typedef bool BOOL;
@@ -121,6 +127,7 @@ typedef struct _status_queue_t {
 typedef struct {
 	status_queue_elmt_t *head;
 	int count;
+	int thread_waiting;
 	OS_MUTEX mutex;
 	OS_SEMAPHORE sem;
 }status_queue_t;
@@ -214,10 +221,6 @@ typedef struct {
 	SOCKET media_socket;
 	OS_MUTEX mutex;
 	int assigned_port;
-	BOOL ping_pkts_enabled;
-	BOOL recv_thread_running;
-	BOOL send_thread_running;
-	BOOL ping_thread_running;
 	OS_THREAD_HANDLE recv_thread;
 	OS_THREAD_HANDLE send_thread;
 	OS_THREAD_HANDLE ping_thread;
@@ -235,9 +238,7 @@ typedef struct _ftl_ingest_t {
 
 typedef struct {
   SOCKET ingest_socket;
-  int connected;
-  int async_queue_alive;
-  int ready_for_media;
+  ftl_state_t state;
   char ingest_ip[IPV4_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;
   char *key;
@@ -246,9 +247,7 @@ typedef struct {
   char vendor_name[20];
   char vendor_version[20];
   OS_THREAD_HANDLE connection_thread;
-  int connection_thread_running;
   OS_THREAD_HANDLE keepalive_thread;
-  int keepalive_thread_running;
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
@@ -318,7 +317,9 @@ int ftl_read_media_port(const char *response_str);
 extern char error_message[1000];
 
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
-
+void ftl_set_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
+void ftl_clear_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
+BOOL ftl_get_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
 ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
 ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
@@ -328,13 +329,15 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
 char * ingest_find_best(ftl_stream_configuration_private_t *ftl);
 char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host);
+void ingest_release(ftl_stream_configuration_private_t *ftl);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
 int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);
 int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len);
 int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms);
-ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl);
+ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl);
+ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl);
 void sleep_ms(int ms);
 
 #if defined(_MSC_VER) && _MSC_VER < 1900

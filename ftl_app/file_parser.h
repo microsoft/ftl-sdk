@@ -28,6 +28,7 @@ int init_video(h264_obj_t *handle, const char *video_file);
 int reset_video(h264_obj_t *handle);
 int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *end_of_frame);
 int init_audio(opus_obj_t *handle, const char *audio_file);
+void close_audio(opus_obj_t *handle);
 int reset_audio(opus_obj_t *handle);
 int get_audio_packet(opus_obj_t *handle, uint8_t *buf, uint32_t *length);
 

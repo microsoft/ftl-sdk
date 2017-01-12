@@ -76,6 +76,12 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get
 	 return 1;
  }
 
+ void close_audio(opus_obj_t *handle) {
+	 if (handle->page_buf != NULL) {
+		 free(handle->page_buf);
+	 }
+ }
+
  int reset_audio(opus_obj_t *handle) {
 	 fseek(handle->fp, 0, SEEK_SET);
 

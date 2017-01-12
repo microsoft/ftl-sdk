@@ -213,6 +213,20 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	return NULL;
 }
 
+void ingest_release(ftl_stream_configuration_private_t *ftl) {
+
+	ftl_ingest_t *elmt, *tmp;
+	int i;
+
+	elmt = ftl->ingest_list;
+
+	while (elmt != NULL) {
+		tmp = elmt->next;
+		free(elmt);
+		elmt = tmp;
+	}
+}
+
 static int _ping_server(const char *ip, int port) {
 
 	SOCKET sock;

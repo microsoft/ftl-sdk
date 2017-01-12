@@ -109,17 +109,23 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
   ftl_status_t status = FTL_SUCCESS;
 
-  if ((status = _init_control_connection(ftl)) != FTL_SUCCESS) {
-	  return status;
-  }
+  do {
+	  if ((status = _init_control_connection(ftl)) != FTL_SUCCESS) {
+		  break;
+	  }
 
-  if ((status = _ingest_connect(ftl)) != FTL_SUCCESS) {
-	  return status;
-  }
+	  if ((status = _ingest_connect(ftl)) != FTL_SUCCESS) {
+		  break;
+	  }
 
-  if ((status = media_init(ftl)) != FTL_SUCCESS) {
+	  if ((status = media_init(ftl)) != FTL_SUCCESS) {
+		  break;
+	  }
+
 	  return status;
-  }
+  } while (0);
+
+  internal_ingest_disconnect(ftl);
   
   return status;
 }

@@ -24,6 +24,7 @@ include_directories(${CURL_INCLUDE_DIRS})
 SET(JANSSON_BUILD_DOCS OFF CACHE BOOL "Jansson docs off")
 SET(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Jansson build without tests")
 SET(JANSSON_EXAMPLES OFF CACHE BOOL "Jansson disable examples")
+SET(USE_WINDOWS_CRYPTOAPI OFF CACHE BOOL "Disable use of windows CryptGenRandom")
 add_subdirectory(libjansson)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/libjansson/include)
 

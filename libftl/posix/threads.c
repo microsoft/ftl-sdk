@@ -71,7 +71,15 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
 		return -2;
 	}
 
+#ifdef __ANDROID__
+	if ((sem->sem = (sem_t*)malloc(sizeof(sem_t))) == NULL) {
+		return -4;
+	}
+
+	if (sem_init(sem->sem, 0 /* pshared */, 0 /* value */)) {
+#else
 	if ((sem->sem = sem_open(name, oflag, 0644, value)) == SEM_FAILED) {
+#endif
 		return -3;
 	}
 
@@ -116,10 +124,16 @@ int os_semaphore_delete(OS_SEMAPHORE *sem) {
 	
 	int retval = 0;
 
+#ifdef __ANDROID__
+	retval = sem_destroy(sem->sem);
+	free(sem->sem);
+
+#else
 	if ( (retval = sem_close(sem->sem)) == 0) {
 		
 		retval = sem_unlink(sem->name);
 	}
+#endif
 
 	free(sem->name);
 

@@ -195,7 +195,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	timeval_subtract(&delta, &stop, &start);
 	int ms = (int)timeval_to_ms(&delta);
 
-	printf("Took %d ms to query all ingests\n", ms);
+	FTL_LOG(ftl, FTL_LOG_INFO, "It took %d ms to query all ingests\n", ms);
 
 	elmt = ftl->ingest_list;
 	for (i = 0; i < ftl->ingest_count && elmt != NULL; i++) {

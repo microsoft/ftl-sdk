@@ -82,8 +82,6 @@ add_executable(ftl_app
                ${FTL_PLATFORM_FILES})
 
 target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} jansson ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
-target_link_libraries(ftl ${CURL_LIBRARIES})
-target_link_libraries(ftl jansson)
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules

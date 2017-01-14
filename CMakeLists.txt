@@ -67,8 +67,9 @@ add_library(ftl SHARED libftl/hmac/hmac.c
 set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
+target_link_libraries(ftl ${CURL_LIBRARIES} jansson)
 if(WIN32)
-  target_link_libraries(ftl ws2_32 ${CURL_LIBRARIES} jansson)
+  target_link_libraries(ftl ws2_32)
 endif()
 
 add_executable(ftl_app
@@ -81,6 +82,8 @@ add_executable(ftl_app
                ${FTL_PLATFORM_FILES})
 
 target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} jansson ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
+target_link_libraries(ftl ${CURL_LIBRARIES})
+target_link_libraries(ftl jansson)
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules

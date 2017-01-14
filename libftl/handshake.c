@@ -52,7 +52,7 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 	int ingest_port = INGEST_PORT;
 	char ingest_port_str[10];
 
-	if (ftl->connected) {
+	if (ftl_get_state(ftl, FTL_CONNECTED)) {
 		return FTL_ALREADY_CONNECTED;
 	}
 
@@ -119,7 +119,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   int err = 0;
   char response[MAX_INGEST_COMMAND_LEN];
 
-  if (ftl->connected) {
+  if (ftl_get_state(ftl, FTL_CONNECTED)) {
 	  return FTL_ALREADY_CONNECTED;
   }
 
@@ -130,7 +130,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   do {
 	  if (!ftl_get_hmac(ftl->ingest_socket, ftl->key, ftl->hmacBuffer)) {
 		  FTL_LOG(ftl, FTL_LOG_ERROR, "could not get a signed HMAC!");
-		  response_code = FTL_INTERNAL_ERROR;
+		  response_code = FTL_INGEST_NO_RESPONSE;
 		  break;
 	  }
 
@@ -208,28 +208,24 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
 	  ftl->media.assigned_port = port;
 
-	  FTL_LOG(ftl, FTL_LOG_INFO, "Successfully connected to ingest.  Media will be sent to port %d\n", ftl->media.assigned_port);
+	  ftl_set_state(ftl, FTL_CONNECTED);
 
-	  ftl->connected = 1;
-
-	  ftl->connection_thread_running = TRUE;
 	  if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
-		  return FTL_MALLOC_FAILURE;
+		  response_code = FTL_MALLOC_FAILURE;
+		  break;
 	  }
 
-	  ftl->keepalive_thread_running = TRUE;
 	  if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
-		  return FTL_MALLOC_FAILURE;
+		  response_code = FTL_MALLOC_FAILURE;
+		  break;
 	  }
+
+	  FTL_LOG(ftl, FTL_LOG_INFO, "Successfully connected to ingest.  Media will be sent to port %d\n", ftl->media.assigned_port);
 	
 	  return FTL_SUCCESS;
   } while (0);
 
-
-  if (ftl->ingest_socket <= 0) {
-    close_socket(ftl->ingest_socket);
-	ftl->ingest_socket = 0;
-  }
+  _ingest_disconnect(ftl);
 
   response_code = _log_response(ftl, response_code);
 
@@ -241,26 +237,26 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 	ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
 	char response[MAX_INGEST_COMMAND_LEN];
 
-	if (ftl->keepalive_thread_running) {
-		ftl->keepalive_thread_running = FALSE;
+	if (ftl_get_state(ftl, FTL_KEEPALIVE_THRD)) {
+		ftl_clear_state(ftl, FTL_KEEPALIVE_THRD);
 		os_wait_thread(ftl->keepalive_thread);
 		os_destroy_thread(ftl->keepalive_thread);
 	}
 
-	if (ftl->connection_thread_running) {
-		ftl->connection_thread_running = FALSE;
+	if (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
+		ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
 		os_wait_thread(ftl->connection_thread);
 		os_destroy_thread(ftl->connection_thread);
 	}
 
-	if (ftl->connected) {
+	if (ftl_get_state(ftl, FTL_CONNECTED)) {
 
 		FTL_LOG(ftl, FTL_LOG_INFO, "light-saber disconnect\n");
 		if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "DISCONNECT", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest Disconnect failed with %d (%s)\n", response_code, response);
 		}
 
-		ftl->connected = 0;
+		ftl_clear_state(ftl, FTL_CONNECTED);
 	}
 
 	if (ftl->ingest_socket > 0) {
@@ -345,7 +341,9 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
 
 	gettimeofday(&start, NULL);
 
-	while (ftl->keepalive_thread_running) {
+	ftl_set_state(ftl, FTL_KEEPALIVE_THRD);
+
+	while (ftl_get_state(ftl, FTL_KEEPALIVE_THRD)) {
 		gettimeofday(&end, NULL);
 		if (timeval_subtract_to_ms(&end, &start) < KEEPALIVE_FREQUENCY_MS)
 		{
@@ -372,13 +370,15 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 	char buf[1024];
 	ftl_status_msg_t status;
 
-	while (ftl->connection_thread_running) {
+	ftl_set_state(ftl, FTL_CXN_STATUS_THRD);
+
+	while (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
 
 		sleep_ms(500);
 
 		int ret = recv(ftl->ingest_socket, buf, sizeof(buf), MSG_PEEK);
 
-		if (ret == 0 && ftl->connection_thread_running || ret > 0) {
+		if (ret == 0 && ftl_get_state(ftl, FTL_CXN_STATUS_THRD) || ret > 0) {
 			int error_code = FTL_SUCCESS;
 
 			if (ret > 0) {
@@ -394,8 +394,8 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 			
 			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
 
-			ftl->connection_thread_running = FALSE;
-			_internal_ingest_disconnect(ftl);
+			ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
+			internal_ingest_disconnect(ftl);
 
 			status.type = FTL_STATUS_EVENT;
 			if (error_code == FTL_NO_MEDIA_TIMEOUT) {
@@ -421,12 +421,12 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
     switch (response_code) {
     case FTL_INGEST_RESP_OK:
       FTL_LOG(ftl, FTL_LOG_DEBUG, "ingest accepted our paramteres");
-      break;
+	  return FTL_SUCCESS;
+	case FTL_INGEST_NO_RESPONSE:
+		FTL_LOG(ftl, FTL_LOG_ERROR, "ingest did not respond to request");
+		return FTL_INGEST_NO_RESPONSE;
 	case FTL_INGEST_RESP_PING:
-		break;//dont log this
-	case FTL_INTERNAL_ERROR:
-		FTL_LOG(ftl, FTL_LOG_ERROR, "Got internal error");
-		return FTL_INTERNAL_ERROR;
+		return FTL_SUCCESS;
     case FTL_INGEST_RESP_BAD_REQUEST:
       FTL_LOG(ftl, FTL_LOG_ERROR, "ingest responded bad request");
       return FTL_BAD_REQUEST;
@@ -438,10 +438,10 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
       return FTL_OLD_VERSION;
     case FTL_INGEST_RESP_AUDIO_SSRC_COLLISION:
       FTL_LOG(ftl, FTL_LOG_ERROR, "audio SSRC collision from this IP address. Please change your audio SSRC to an unused value");
-      return FTL_INGEST_RESP_AUDIO_SSRC_COLLISION;
+      return FTL_AUDIO_SSRC_COLLISION;
     case FTL_INGEST_RESP_VIDEO_SSRC_COLLISION:
       FTL_LOG(ftl, FTL_LOG_ERROR, "video SSRC collision from this IP address. Please change your audio SSRC to an unused value");
-      return FTL_INGEST_RESP_VIDEO_SSRC_COLLISION;
+      return FTL_VIDEO_SSRC_COLLISION;
 	case FTL_INGEST_RESP_INVALID_STREAM_KEY:
 		FTL_LOG(ftl, FTL_LOG_ERROR, "The stream key or channel id is incorrect");
 		return FTL_BAD_OR_INVALID_STREAM_KEY;
@@ -456,7 +456,13 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
 		return FTL_NO_MEDIA_TIMEOUT;
     case FTL_INGEST_RESP_INTERNAL_SERVER_ERROR:
       FTL_LOG(ftl, FTL_LOG_ERROR, "parameters accepted, but ingest couldn't start FTL. Please contact support!");
-      return FTL_INGEST_RESP_INTERNAL_SERVER_ERROR;
+      return FTL_INTERNAL_ERROR;
+	case FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR:
+	  FTL_LOG(ftl, FTL_LOG_ERROR, "Server memory error");
+	  return FTL_INTERNAL_ERROR;
+	case FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR:
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Server command error");
+		return FTL_INTERNAL_ERROR;
   }
 
 	return FTL_UNKNOWN_ERROR_CODE;

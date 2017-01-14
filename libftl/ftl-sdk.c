@@ -10,7 +10,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 8;
-FTL_API const int FTL_VERSION_MAINTENANCE = 4;
+FTL_API const int FTL_VERSION_MAINTENANCE = 5;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -22,112 +22,110 @@ FTL_API ftl_status_t ftl_init() {
 
 FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params){
   ftl_status_t ret_status = FTL_SUCCESS;
-	ftl_stream_configuration_private_t *ftl = NULL;
+  ftl_stream_configuration_private_t *ftl = NULL;
 
-  if( (ftl = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t))) == NULL){
-    ret_status = FTL_MALLOC_FAILURE;
-		goto fail;
-  }
+  do {
+	  if ((ftl = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t))) == NULL) {
+		  ret_status = FTL_MALLOC_FAILURE;
+		  break;
+	  }
 
-  ftl->connected = 0;
-  ftl->ingest_socket = 0;
-  ftl->async_queue_alive = 0;
-  ftl->ready_for_media = 0;
-  ftl->ingest_list = NULL;
-  ftl->video.media_component.peak_kbps = params->peak_kbps;
+	  memset(ftl, 0, sizeof(ftl_stream_configuration_private_t));
 
-  ftl->key = NULL;
-  if( (ftl->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL){
-    ret_status = FTL_MALLOC_FAILURE;
-		goto fail;
-  }
+	  ftl->video.media_component.peak_kbps = params->peak_kbps;
 
-  if ( _get_chan_id_and_key(params->stream_key, &ftl->channel_id, ftl->key) == FALSE ) {
-    ret_status = FTL_BAD_OR_INVALID_STREAM_KEY;
-		goto fail;
-  }
+	  ftl->key = NULL;
+	  if ((ftl->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL) {
+		  ret_status = FTL_MALLOC_FAILURE;
+		  break;
+	  }
 
-  ftl->audio.codec = params->audio_codec;
-  ftl->video.codec = params->video_codec;
+	  if (_get_chan_id_and_key(params->stream_key, &ftl->channel_id, ftl->key) == FALSE) {
+		  ret_status = FTL_BAD_OR_INVALID_STREAM_KEY;
+		  break;
+	  }
 
-  ftl->audio.media_component.payload_type = AUDIO_PTYPE;
-  ftl->video.media_component.payload_type = VIDEO_PTYPE;
+	  ftl->audio.codec = params->audio_codec;
+	  ftl->video.codec = params->video_codec;
 
-  //TODO: this should be randomly generated, there is a potential for ssrc collisions with this
-  ftl->audio.media_component.ssrc = ftl->channel_id;
-  ftl->video.media_component.ssrc = ftl->channel_id + 1;
+	  ftl->audio.media_component.payload_type = AUDIO_PTYPE;
+	  ftl->video.media_component.payload_type = VIDEO_PTYPE;
 
-  ftl->video.fps_num = params->fps_num;
-  ftl->video.fps_den = params->fps_den;
-  ftl->video.dts_usec = 0;
-  ftl->audio.dts_usec = 0;
-  ftl->video.dts_error = 0;
+	  //TODO: this should be randomly generated, there is a potential for ssrc collisions with this
+	  ftl->audio.media_component.ssrc = ftl->channel_id;
+	  ftl->video.media_component.ssrc = ftl->channel_id + 1;
 
-  strncpy_s(ftl->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]), params->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]) - 1);
-  strncpy_s(ftl->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]), params->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]) - 1);
+	  ftl->video.fps_num = params->fps_num;
+	  ftl->video.fps_den = params->fps_den;
+	  ftl->video.dts_usec = 0;
+	  ftl->audio.dts_usec = 0;
+	  ftl->video.dts_error = 0;
 
-  /*this is legacy, this isnt used anymore*/
-  ftl->video.width = 1280;
-  ftl->video.height = 720;
+	  strncpy_s(ftl->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]), params->vendor_name, sizeof(ftl->vendor_name) / sizeof(ftl->vendor_name[0]) - 1);
+	  strncpy_s(ftl->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]), params->vendor_version, sizeof(ftl->vendor_version) / sizeof(ftl->vendor_version[0]) - 1);
 
-  ftl->status_q.count = 0;
-  ftl->status_q.head = NULL;
+	  /*this is legacy, this isnt used anymore*/
+	  ftl->video.width = 1280;
+	  ftl->video.height = 720;
 
-  os_init_mutex(&ftl->status_q.mutex);
+	  ftl->status_q.count = 0;
+	  ftl->status_q.head = NULL;
 
-  if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
-	  return FTL_MALLOC_FAILURE;
-  }
+	  os_init_mutex(&ftl->status_q.mutex);
 
-  ftl->async_queue_alive = 1;
-  
-  char *ingest_ip = NULL;
+	  if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
+		  return FTL_MALLOC_FAILURE;
+	  }
 
-  if (strcmp(params->ingest_hostname, "auto") == 0) {
-	  ingest_ip = ingest_find_best(ftl);
-  }
-  else {
-	  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
-  }
+	  ftl_set_state(ftl, FTL_STATUS_QUEUE);
 
-  if (ingest_ip == NULL) {
-	  ret_status = FTL_DNS_FAILURE;
-	  goto fail;
-  }
+	  char *ingest_ip = NULL;
 
-  strcpy_s(ftl->ingest_ip, sizeof(ftl->ingest_ip), ingest_ip);
- 
-  ftl_handle->priv = ftl;
-  return ret_status;
+	  if (strcmp(params->ingest_hostname, "auto") == 0) {
+		  ingest_ip = ingest_find_best(ftl);
+	  }
+	  else {
+		  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
+	  }
 
-fail:
+	  if (ingest_ip == NULL) {
+		  ret_status = FTL_DNS_FAILURE;
+		  break;
+	  }
 
-	if(ftl != NULL) {
-		if (ftl->key != NULL) {
-			free(ftl->key);
-		}
+	  strcpy_s(ftl->ingest_ip, sizeof(ftl->ingest_ip), ingest_ip);
+	  free(ingest_ip);
 
-		free(ftl);
-	}
+	  ftl_handle->priv = ftl;
+	  return ret_status;
+  } while (0);
 
-	return ret_status;	
+  internal_ftl_ingest_destroy(ftl);
+
+  return ret_status;	
 }
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
   ftl_status_t status = FTL_SUCCESS;
 
-  if ((status = _init_control_connection(ftl)) != FTL_SUCCESS) {
-	  return status;
-  }
+  do {
+	  if ((status = _init_control_connection(ftl)) != FTL_SUCCESS) {
+		  break;
+	  }
 
-  if ((status = _ingest_connect(ftl)) != FTL_SUCCESS) {
-	  return status;
-  }
+	  if ((status = _ingest_connect(ftl)) != FTL_SUCCESS) {
+		  break;
+	  }
 
-  if ((status = media_init(ftl)) != FTL_SUCCESS) {
+	  if ((status = media_init(ftl)) != FTL_SUCCESS) {
+		  break;
+	  }
+
 	  return status;
-  }
+  } while (0);
+
+  internal_ingest_disconnect(ftl);
   
   return status;
 }
@@ -212,13 +210,12 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status_code;
 
-	if (!ftl->connected) {
+	if (!ftl_get_state(ftl, FTL_CONNECTED)) {
 		return FTL_SUCCESS;
 	}
 
-	status_code = _internal_ingest_disconnect(ftl);
+	status_code = internal_ingest_disconnect(ftl);
 
-	FTL_LOG(ftl, FTL_LOG_ERROR, "Sending kill event\n");
 	ftl_status_msg_t status;
 	status.type = FTL_STATUS_EVENT;
 	status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
@@ -230,7 +227,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	return status_code;
 }
 
-ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
+ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
 	ftl_status_t status_code;
 
@@ -245,19 +242,35 @@ ftl_status_t _internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl
 	return FTL_SUCCESS;
 }
 
-FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
-	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
-	ftl_status_t status = FTL_SUCCESS;
+ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl) {
 
 	if (ftl != NULL) {
 
+		ftl_clear_state(ftl, FTL_STATUS_QUEUE);
+		//if a thread is waiting send a destroy event
+		if (ftl->status_q.thread_waiting) {
+			ftl_status_msg_t status;
+			status.type = FTL_STATUS_EVENT;
+			status.msg.event.reason = FTL_STATUS_EVENT_REASON_API_REQUEST;
+			status.msg.event.type = FTL_STATUS_EVENT_TYPE_DESTROYED;
+			status.msg.event.error_code = FTL_SUCCESS;
+			enqueue_status_msg(ftl, &status);
+		}
+
+		//wait a few ms for the thread to pull that last message and exit
+		
+		int	wait_retries = 5;
+		while (ftl->status_q.thread_waiting && wait_retries-- > 0) {
+			sleep_ms(5);
+		};
+
+		if (ftl->status_q.thread_waiting) {
+			fprintf(stderr, "Thread is still waiting in ftl_ingest_get_status()\n");
+		}
+
 		os_lock_mutex(&ftl->status_q.mutex);
 
-		ftl->async_queue_alive = 0;
-		os_semaphore_post(&ftl->status_q.sem); //if someone is blocked on the semaphore, unblock it
-
 		status_queue_elmt_t *elmt;
-
 		while (ftl->status_q.head != NULL) {
 			elmt = ftl->status_q.head;
 			ftl->status_q.head = elmt->next;
@@ -270,15 +283,25 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
 
 		os_semaphore_delete(&ftl->status_q.sem);
 
+		ingest_release(ftl);
+
 		if (ftl->key != NULL) {
 			free(ftl->key);
 		}
 
 		free(ftl);
-		ftl_handle->priv = NULL;
 	}
 
-	return status;
+	return FTL_SUCCESS;
+}
+
+FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+	ftl_status_t status = FTL_SUCCESS;
+
+	ftl_handle->priv = NULL;
+
+	return internal_ftl_ingest_destroy(ftl);
 }
 
 char* ftl_status_code_to_string(ftl_status_t status) {
@@ -290,12 +313,32 @@ char* ftl_status_code_to_string(ftl_status_t status) {
 		return "The socket is no longer connected";
 	case FTL_MALLOC_FAILURE:
 		return "Internal memory allocation error";
+	case FTL_DNS_FAILURE:
+		return "Failed to get an ip address for the specified ingest (DNS lookup failure)";
+	case FTL_CONNECT_ERROR:
+		return "An unknown error occurred connecting to the socket";
 	case FTL_INTERNAL_ERROR:
 		return "An Internal error occurred";
 	case FTL_CONFIG_ERROR:
 		return "The parameters supplied are invalid or incomplete";
+	case FTL_STREAM_REJECTED:
+		return "The Ingest rejected the stream";
 	case FTL_NOT_ACTIVE_STREAM:
 		return "The stream is not active";
+	case FTL_UNAUTHORIZED:
+		return "This channel is not authorized to connect to this ingest";
+	case FTL_AUDIO_SSRC_COLLISION:
+		return "The Audio SSRC is already in use";
+	case FTL_VIDEO_SSRC_COLLISION:
+		return "The Video SSRC is already in use";
+	case FTL_BAD_REQUEST:
+		return "A request to the ingest was invalid";
+	case FTL_OLD_VERSION:
+		return "The current version of the FTL-SDK is no longer supported";
+	case FTL_BAD_OR_INVALID_STREAM_KEY:
+		return "Invalid stream key";
+	case FTL_UNSUPPORTED_MEDIA_TYPE:
+		return "The specified media type is not supported";
 	case FTL_NOT_CONNECTED:
 		return "The channel is not connected";
 	case FTL_ALREADY_CONNECTED:
@@ -310,26 +353,6 @@ char* ftl_status_code_to_string(ftl_status_t status) {
 		return "The status queue is empty";
 	case FTL_NOT_INITIALIZED:
 		return "The parameters were not correctly initialized";
-	case FTL_BAD_REQUEST:
-		return "A request to the ingest was invalid";
-	case FTL_DNS_FAILURE:
-		return "Failed to get an ip address for the specified ingest (DNS lookup failure)";
-	case FTL_CONNECT_ERROR:
-		return "An unknown error occurred connecting to the socket";
-	case FTL_UNSUPPORTED_MEDIA_TYPE:
-		return "The specified media type is not supported";
-	case FTL_OLD_VERSION:
-		return "The current version of the FTL-SDK is no longer supported";
-	case FTL_UNAUTHORIZED:
-		return "This channel is not authorized to connect to this ingest";
-	case FTL_AUDIO_SSRC_COLLISION:
-		return "The Audio SSRC is already in use";
-	case FTL_VIDEO_SSRC_COLLISION:
-		return "The Video SSRC is already in use";
-	case FTL_STREAM_REJECTED:
-		return "The Ingest rejected the stream";
-	case FTL_BAD_OR_INVALID_STREAM_KEY:
-		return "Invalid stream key";
 	case FTL_CHANNEL_IN_USE:
 		return "Channel is already actively streaming";
 	case FTL_REGION_UNSUPPORTED:
@@ -338,10 +361,12 @@ char* ftl_status_code_to_string(ftl_status_t status) {
 		return "The ingest did not receive any audio or video media for an extended period of time";
 	case FTL_USER_DISCONNECT:
 		return "ftl ingest disconnect api was called";
+	case FTL_INGEST_NO_RESPONSE:
+		return "ingest did not respond to request";
 	case FTL_UNKNOWN_ERROR_CODE:
 	default:
 		/* Unknown FTL error */
-		return "Unknown status code";
+		return "Unknown status code"; 
 	}
 }
 

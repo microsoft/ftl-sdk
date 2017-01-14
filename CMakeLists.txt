@@ -68,7 +68,7 @@ set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 if(WIN32)
-  target_link_libraries(ftl ws2_32 ${CURL_LIBRARIES} jansson)
+  target_link_libraries(ftl Windowsapp ${CURL_LIBRARIES} jansson)
 endif()
 
 add_executable(ftl_app

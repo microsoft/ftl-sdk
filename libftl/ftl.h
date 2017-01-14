@@ -77,7 +77,8 @@ typedef enum {
 	FTL_CHANNEL_IN_USE,//the channel is already actively streaming
 	FTL_REGION_UNSUPPORTED,//the region you are attempting to stream from is not authorized to stream by local governments
 	FTL_NO_MEDIA_TIMEOUT,
-	FTL_USER_DISCONNECT
+	FTL_USER_DISCONNECT,
+	FTL_INGEST_NO_RESPONSE
 } ftl_status_t;
 
 typedef enum {
@@ -163,6 +164,7 @@ typedef enum {
 	FTL_STATUS_EVENT_TYPE_UNKNOWN,
 	FTL_STATUS_EVENT_TYPE_CONNECTED,
 	FTL_STATUS_EVENT_TYPE_DISCONNECTED,
+	FTL_STATUS_EVENT_TYPE_DESTROYED,
 	FTL_STATUS_EVENT_INGEST_ERROR_CODE
 } ftl_status_event_types_t;
 

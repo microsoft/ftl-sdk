@@ -25,6 +25,9 @@
 #include "main.h"
 #include "gettimeofday.h"
 #ifdef _WIN32
+#define _CRTDBG_MAP_ALLOC  
+#include <stdlib.h>  
+#include <crtdbg.h> 
 #include <Windows.h>
 #include <WinSock2.h>
 #else
@@ -131,8 +134,8 @@ int main(int argc, char **argv)
 
   FILE *video_fp = NULL;
   uint32_t len = 0;
-  uint8_t *h264_frame;
-  uint8_t *audio_frame;
+  uint8_t *h264_frame = 0;
+  uint8_t *audio_frame = 0;
   opus_obj_t opus_handle;
   h264_obj_t h264_handle;
   int retval = 0;
@@ -192,13 +195,13 @@ int main(int argc, char **argv)
 
   if ((status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS)
   {
-    printf("Failed to create ingest handle %d\n", status_code);
+    printf("Failed to create ingest handle: %s\n", ftl_status_code_to_string(status_code));
     return -1;
   }
 
   if ((status_code = ftl_ingest_connect(&handle)) != FTL_SUCCESS)
   {
-    printf("Failed to connect to ingest %d\n", status_code);
+    printf("Failed to connect to ingest: %s\n", ftl_status_code_to_string(status_code));
     return -1;
   }
 #ifdef _WIN32
@@ -302,11 +305,28 @@ int main(int argc, char **argv)
 
 cleanup:
 
+  if (h264_frame != NULL) {
+	  free(h264_frame);
+  }
+
+  if (audio_frame != NULL) {
+	  free(audio_frame);
+  }
+
+  close_audio(&opus_handle);
+
   if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS)
   {
-    printf("Failed to disconnect from ingest %d\n", status_code);
+    printf("Failed to disconnect from ingest: %s\n", ftl_status_code_to_string(status_code));
     retval = -1;
   }
+
+  if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS)
+  {
+    printf("Failed to disconnect from ingest: %s\n", ftl_status_code_to_string(status_code));
+    retval = -1;
+  }
+
 #ifdef _WIN32
   WaitForSingleObject(status_thread_handle, INFINITE);
   CloseHandle(status_thread_handle);
@@ -314,11 +334,9 @@ cleanup:
   pthread_join(status_thread_handle, NULL);
 #endif
 
-  if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS)
-  {
-    printf("Failed to disconnect from ingest %d\n", status_code);
-    retval = -1;
-  }
+#ifdef _WIN32
+  _CrtDumpMemoryLeaks();
+#endif
 
   return retval;
 }
@@ -347,13 +365,18 @@ static void *ftl_status_thread(void *data)
       break;
     }
 
+	if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DESTROYED)
+	{
+		break;
+	}
+
     if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED)
     {
       printf("Disconnected from ingest for reason: %s (%d)\n", ftl_status_code_to_string(status.msg.event.error_code), status.msg.event.reason);
 
       if (status.msg.event.reason == FTL_STATUS_EVENT_REASON_API_REQUEST)
       {
-        break;
+        continue;
       }
       //attempt reconnection
       while (retries-- > 0)

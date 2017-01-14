@@ -3,6 +3,10 @@
 #include <curl/curl.h>
 #include <jansson.h>
 
+#ifdef WIN32
+#include <Winhttp.h>
+#endif
+
 OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
 OS_THREAD_ROUTINE _ingest_get_rtt(void *data);
 
@@ -191,7 +195,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	timeval_subtract(&delta, &stop, &start);
 	int ms = (int)timeval_to_ms(&delta);
 
-	printf("Took %d ms to query all ingests\n", ms);
+	FTL_LOG(ftl, FTL_LOG_INFO, "It took %d ms to query all ingests\n", ms);
 
 	elmt = ftl->ingest_list;
 	for (i = 0; i < ftl->ingest_count && elmt != NULL; i++) {
@@ -207,10 +211,24 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
 	if (best){
 		FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms\n", best->name, best->ip, best->rtt);
-		return best->ip;
+		return _strdup(best->ip);
 	}
 
 	return NULL;
+}
+
+void ingest_release(ftl_stream_configuration_private_t *ftl) {
+
+	ftl_ingest_t *elmt, *tmp;
+	int i;
+
+	elmt = ftl->ingest_list;
+
+	while (elmt != NULL) {
+		tmp = elmt->next;
+		free(elmt);
+		elmt = tmp;
+	}
 }
 
 static int _ping_server(const char *ip, int port) {

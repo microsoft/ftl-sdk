@@ -130,7 +130,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   do {
 	  if (!ftl_get_hmac(ftl->ingest_socket, ftl->key, ftl->hmacBuffer)) {
 		  FTL_LOG(ftl, FTL_LOG_ERROR, "could not get a signed HMAC!");
-		  response_code = FTL_INTERNAL_ERROR;
+		  response_code = FTL_INGEST_NO_RESPONSE;
 		  break;
 	  }
 
@@ -422,6 +422,9 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
     case FTL_INGEST_RESP_OK:
       FTL_LOG(ftl, FTL_LOG_DEBUG, "ingest accepted our paramteres");
 	  return FTL_SUCCESS;
+	case FTL_INGEST_NO_RESPONSE:
+		FTL_LOG(ftl, FTL_LOG_ERROR, "ingest did not respond to request");
+		return FTL_INGEST_NO_RESPONSE;
 	case FTL_INGEST_RESP_PING:
 		return FTL_SUCCESS;
     case FTL_INGEST_RESP_BAD_REQUEST:

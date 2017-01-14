@@ -195,13 +195,13 @@ int main(int argc, char **argv)
 
   if ((status_code = ftl_ingest_create(&handle, &params)) != FTL_SUCCESS)
   {
-    printf("Failed to create ingest handle %d\n", status_code);
+    printf("Failed to create ingest handle: %s\n", ftl_status_code_to_string(status_code));
     return -1;
   }
 
   if ((status_code = ftl_ingest_connect(&handle)) != FTL_SUCCESS)
   {
-    printf("Failed to connect to ingest %d\n", status_code);
+    printf("Failed to connect to ingest: %s\n", ftl_status_code_to_string(status_code));
     return -1;
   }
 #ifdef _WIN32
@@ -317,13 +317,13 @@ cleanup:
 
   if ((status_code = ftl_ingest_disconnect(&handle)) != FTL_SUCCESS)
   {
-    printf("Failed to disconnect from ingest %d\n", status_code);
+    printf("Failed to disconnect from ingest: %s\n", ftl_status_code_to_string(status_code));
     retval = -1;
   }
 
   if ((status_code = ftl_ingest_destroy(&handle)) != FTL_SUCCESS)
   {
-    printf("Failed to disconnect from ingest %d\n", status_code);
+    printf("Failed to disconnect from ingest: %s\n", ftl_status_code_to_string(status_code));
     retval = -1;
   }
 

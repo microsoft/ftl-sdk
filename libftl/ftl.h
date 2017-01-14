@@ -77,7 +77,8 @@ typedef enum {
 	FTL_CHANNEL_IN_USE,//the channel is already actively streaming
 	FTL_REGION_UNSUPPORTED,//the region you are attempting to stream from is not authorized to stream by local governments
 	FTL_NO_MEDIA_TIMEOUT,
-	FTL_USER_DISCONNECT
+	FTL_USER_DISCONNECT,
+	FTL_INGEST_NO_RESPONSE
 } ftl_status_t;
 
 typedef enum {

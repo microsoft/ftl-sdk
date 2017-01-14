@@ -361,6 +361,8 @@ char* ftl_status_code_to_string(ftl_status_t status) {
 		return "The ingest did not receive any audio or video media for an extended period of time";
 	case FTL_USER_DISCONNECT:
 		return "ftl ingest disconnect api was called";
+	case FTL_INGEST_NO_RESPONSE:
+		return "ingest did not respond to request";
 	case FTL_UNKNOWN_ERROR_CODE:
 	default:
 		/* Unknown FTL error */

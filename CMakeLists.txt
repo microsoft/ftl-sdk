@@ -67,8 +67,9 @@ add_library(ftl SHARED libftl/hmac/hmac.c
 set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
+target_link_libraries(ftl ${CURL_LIBRARIES} jansson)
 if(WIN32)
-  target_link_libraries(ftl Windowsapp ${CURL_LIBRARIES} jansson)
+  target_link_libraries(ftl Windowsapp)
 endif()
 
 add_executable(ftl_app

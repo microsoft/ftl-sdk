@@ -801,6 +801,8 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 	ftl_media_config_t *media = &ftl->media;
 	int ret;
 	unsigned char *buf;
+	struct sockaddr_in remote_addr;
+	socklen_t addr_len;
 
 #ifdef _WIN32
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
@@ -817,8 +819,15 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 
 	while (ftl_get_state(ftl, FTL_RX_THRD)) {
 
-		ret = recv(media->media_socket, buf, MAX_PACKET_BUFFER, 0);
+		addr_len = sizeof(remote_addr);
+		ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)&remote_addr, &addr_len);
 		if (ret <= 0) {
+			continue;
+		}
+
+		if (remote_addr.sin_addr.s_addr != inet_addr(ftl->ingest_ip))
+		{
+			FTL_LOG(ftl, FTL_LOG_WARN, "Discarded packet from unexpected ip: %s\n", inet_ntoa(remote_addr.sin_addr));
 			continue;
 		}
 

@@ -239,6 +239,7 @@ typedef struct _ftl_ingest_t {
 typedef struct {
   SOCKET ingest_socket;
   ftl_state_t state;
+  OS_MUTEX state_mutex;
   char ingest_ip[IPV4_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;
   char *key;

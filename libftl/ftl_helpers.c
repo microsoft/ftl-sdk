@@ -154,16 +154,28 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec) {
 }
 
 void ftl_set_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state) {
+	os_lock_mutex(&ftl->state_mutex);
 	ftl->state |= state;
+	os_unlock_mutex(&ftl->state_mutex);
 }
 
 void ftl_clear_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state) {
+	os_lock_mutex(&ftl->state_mutex);
 	ftl->state &= ~state;
+	os_unlock_mutex(&ftl->state_mutex);
 }
 
 BOOL ftl_get_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state) {
-	return ftl->state & state;
+	BOOL is_set;
+		
+	os_lock_mutex(&ftl->state_mutex);
+	is_set = ftl->state & state;
+	os_unlock_mutex(&ftl->state_mutex);
+
+	return is_set;
+
 }
+
 
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl) {
 	return ftl->media.assigned_port == FTL_UDP_MEDIA_PORT;

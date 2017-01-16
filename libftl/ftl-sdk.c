@@ -77,6 +77,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 		  return FTL_MALLOC_FAILURE;
 	  }
 
+	  os_init_mutex(&ftl->state_mutex);
 	  ftl_set_state(ftl, FTL_STATUS_QUEUE);
 
 	  char *ingest_ip = NULL;

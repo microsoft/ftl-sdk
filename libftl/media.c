@@ -356,7 +356,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	gettimeofday(&ping->xmit_time, NULL);
 	_media_send_slot(ftl, &slot);
 
-	wait_retries = 1000 / PING_TX_INTERVAL_MS; // waiting up to 1s for ping to come back
+	wait_retries = 2000 / PING_TX_INTERVAL_MS; // waiting up to 2s for ping to come back
 	while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
 		sleep_ms(PING_TX_INTERVAL_MS);
 	};
@@ -1100,6 +1100,8 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 		gettimeofday(&ping->xmit_time, NULL);
 		_media_send_slot(ftl, &slot);
 	}
+
+	FTL_LOG(ftl, FTL_LOG_INFO, "Exited Ping Thread\n");
 	
 	return 0;
 }

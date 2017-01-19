@@ -135,14 +135,11 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 	  }
 
 	  if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), "CONNECT %d $%s", ftl->channel_id, ftl->hmacBuffer)) != FTL_INGEST_RESP_OK) {
-		  FTL_LOG(ftl, FTL_LOG_ERROR, "ingest did not accept our authkey. Returned response code was %d", response_code);
-		  response_code = FTL_STREAM_REJECTED;
 		  break;
 	  }
 
 	  /* We always send our version component first */
 	  if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "ProtocolVersion: %d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR)) != FTL_INGEST_RESP_OK) {
-		  response_code = FTL_OLD_VERSION;
 		  break;
 	  }
 

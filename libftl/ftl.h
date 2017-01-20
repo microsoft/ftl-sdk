@@ -153,6 +153,7 @@ typedef enum {
 	FTL_STATUS_LOG,
 	FTL_STATUS_EVENT,
 	FTL_STATUS_VIDEO_PACKETS,
+	FTL_STATUS_VIDEO_PACKETS_INSTANT,
 	FTL_STATUS_AUDIO_PACKETS,
 	FTL_STATUS_VIDEO,
 	FTL_STATUS_AUDIO,
@@ -193,10 +194,17 @@ typedef struct {
 	int64_t lost;
 	int64_t recovered;
 	int64_t late;
+}ftl_packet_stats_msg_t;
+
+typedef struct {
+	int64_t period; //period of time in ms the stats were collected over
+	int min_rtt;
+	int max_rtt;
+	int avg_rtt;
 	int min_xmit_delay;
 	int max_xmit_delay;
 	int avg_xmit_delay;
-}ftl_packet_stats_msg_t;
+}ftl_packet_stats_instant_msg_t;
 
 typedef struct {
 	int64_t period; //period of time in ms the stats were collected over
@@ -216,6 +224,7 @@ typedef struct {
 		ftl_status_log_msg_t log;
 		ftl_status_event_msg_t event;
 		ftl_packet_stats_msg_t pkt_stats;
+		ftl_packet_stats_instant_msg_t ipkt_stats;
 		ftl_video_frame_stats_msg_t video_stats;
 	} msg;
 }ftl_status_msg_t;

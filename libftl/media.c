@@ -22,8 +22,9 @@ static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *tra
 
 void _clear_stats(media_stats_t *stats);
 static int _update_stats(ftl_stream_configuration_private_t *ftl);
-static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms);
-static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms);
+static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms);
+static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms);
+static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
@@ -249,6 +250,10 @@ void _clear_stats(media_stats_t *stats) {
 	stats->pkt_xmit_delay_min = 10000;
 	stats->total_xmit_delay = 0;
 	stats->xmit_delay_samples = 0;
+	stats->pkt_rtt_max = 0;
+	stats->pkt_rtt_min = 10000;
+	stats->total_rtt = 0;
+	stats->rtt_samples = 0;
 	stats->current_frame_size = 0;
 	stats->max_frame_size = 0;
 	gettimeofday(&stats->start_time, NULL);
@@ -883,9 +888,20 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 
 			struct timeval now;
 			int delay_ms;
+			media_stats_t *pkt_stats = &ftl->video.media_component.stats;
 
 			gettimeofday(&now, NULL);
 			delay_ms = timeval_subtract_to_ms(&now, &ping->xmit_time);
+
+			if (delay_ms > pkt_stats->pkt_rtt_max) {
+				pkt_stats->pkt_rtt_max = delay_ms;
+			}
+			else if (delay_ms < pkt_stats->pkt_rtt_min) {
+				pkt_stats->pkt_rtt_min = delay_ms;
+			}
+
+			pkt_stats->total_rtt += delay_ms;
+			pkt_stats->rtt_samples++;
 
 			ftl->media.last_rtt_delay = delay_ms;
 		}
@@ -1000,47 +1016,68 @@ static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *tra
 static int _update_stats(ftl_stream_configuration_private_t *ftl) {
 	struct timeval now, delta;
 	gettimeofday(&now, NULL);
-	timeval_subtract(&delta, &now, &ftl->media.stats_tv);
-	float stats_interval = timeval_to_ms(&delta);
+	int stats_interval = timeval_subtract_to_ms(&now, &ftl->media.stats_tv);
 
 	if (stats_interval > 5000) {
 
 		ftl->media.stats_tv = now;
 
 		_send_pkt_stats(ftl, &ftl->video.media_component, stats_interval);
-		//_send_pkt_stats(ftl, &ftl->audio.media_component);
+		_send_instant_pkt_stats(ftl, &ftl->video.media_component, stats_interval);
 		_send_video_stats(ftl, &ftl->video.media_component, stats_interval);
-
-		//_clear_stats(&ftl->video.media_component.stats);
 	}
 
 	return 0;
 }
 
-static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms) {
+static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms) {
 	ftl_status_msg_t m;
 	m.type = FTL_STATUS_VIDEO_PACKETS;
+	ftl_packet_stats_msg_t *p = &m.msg.pkt_stats;
+	struct timeval now;
 
-	m.msg.pkt_stats.period = (int)interval_ms;
-	m.msg.pkt_stats.sent = mc->stats.packets_sent;
-	m.msg.pkt_stats.nack_reqs = mc->stats.nack_requests;
-	m.msg.pkt_stats.lost = 0; // needs rtcp reports to get this value
-	m.msg.pkt_stats.recovered; // need rtcp reports to get this value
-	m.msg.pkt_stats.late; // need rtcp reports to get this value
-	m.msg.pkt_stats.min_xmit_delay = mc->stats.pkt_xmit_delay_min;
-	m.msg.pkt_stats.max_xmit_delay = mc->stats.pkt_xmit_delay_max;
-	m.msg.pkt_stats.avg_xmit_delay = mc->stats.total_xmit_delay / mc->stats.xmit_delay_samples;
-
-	mc->stats.pkt_xmit_delay_max = 0;
-	mc->stats.pkt_xmit_delay_min = 10000;
-	mc->stats.nack_requests = 0;
+	gettimeofday(&now, NULL);
+	p->period = timeval_subtract_to_ms(&now, &mc->stats.start_time);
+	p->sent = mc->stats.packets_sent;
+	p->nack_reqs = mc->stats.nack_requests;
+	p->lost = 0; // needs rtcp reports to get this value
+	p->recovered = 0; // need rtcp reports to get this value
+	p->late = 0; // need rtcp reports to get this value
 
 	enqueue_status_msg(ftl, &m);
 
 	return 0;
 }
 
-static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, float interval_ms) {
+static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms) {
+	ftl_status_msg_t m;
+	m.type = FTL_STATUS_VIDEO_PACKETS_INSTANT;
+	ftl_packet_stats_instant_msg_t *p = &m.msg.pkt_stats;
+
+	p->period = (int)interval_ms;
+	p->min_rtt = mc->stats.pkt_rtt_min;
+	p->max_rtt = mc->stats.pkt_rtt_max;
+	p->avg_rtt = (mc->stats.rtt_samples) ? mc->stats.total_rtt / mc->stats.rtt_samples : 0;
+	p->min_xmit_delay = mc->stats.pkt_xmit_delay_min;
+	p->max_xmit_delay = mc->stats.pkt_xmit_delay_max;
+	p->avg_xmit_delay = (mc->stats.xmit_delay_samples) ? mc->stats.total_xmit_delay / mc->stats.xmit_delay_samples : 0;
+
+	mc->stats.pkt_xmit_delay_max = 0;
+	mc->stats.pkt_xmit_delay_min = 10000;
+	mc->stats.total_xmit_delay = 0;
+	mc->stats.xmit_delay_samples = 0;
+
+	mc->stats.pkt_rtt_max = 0;
+	mc->stats.pkt_rtt_min = 10000;
+	mc->stats.total_rtt = 0;
+	mc->stats.rtt_samples = 0;
+
+	enqueue_status_msg(ftl, &m);
+
+	return 0;
+}
+
+static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms) {
 	ftl_status_msg_t m;
 	ftl_video_frame_stats_msg_t *v = &m.msg.video_stats;
 	struct timeval now;

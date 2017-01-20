@@ -170,6 +170,10 @@ typedef struct {
 	int pkt_xmit_delay_min;
 	int total_xmit_delay;
 	int xmit_delay_samples;
+	int pkt_rtt_max;
+	int pkt_rtt_min;
+	int total_rtt;
+	int rtt_samples;
 	int current_frame_size;
 	int max_frame_size;
 }media_stats_t;

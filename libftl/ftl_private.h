@@ -55,7 +55,7 @@
 #define MAX_KEY_LEN 100
 #define VIDEO_PTYPE 96
 #define AUDIO_PTYPE 97
-#define SOCKET_RECV_TIMEOUT_MS 1000
+#define SOCKET_RECV_TIMEOUT_MS 2000
 #define SOCKET_SEND_TIMEOUT_MS 1000
 #define KEEPALIVE_FREQUENCY_MS 30000
 #define MAX_PACKET_BUFFER 1500  //Max length of buffer
@@ -170,6 +170,10 @@ typedef struct {
 	int pkt_xmit_delay_min;
 	int total_xmit_delay;
 	int xmit_delay_samples;
+	int pkt_rtt_max;
+	int pkt_rtt_min;
+	int total_rtt;
+	int rtt_samples;
 	int current_frame_size;
 	int max_frame_size;
 }media_stats_t;

@@ -10,7 +10,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 8;
-FTL_API const int FTL_VERSION_MAINTENANCE = 5;
+FTL_API const int FTL_VERSION_MAINTENANCE = 7;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -82,17 +82,24 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
 	  char *ingest_ip = NULL;
 
-	  if (strcmp(params->ingest_hostname, "auto") == 0) {
-		  ingest_ip = ingest_find_best(ftl);
+	  if (!isdigit(params->ingest_hostname[0])) {
+		  if (strcmp(params->ingest_hostname, "auto") == 0) {
+			  ingest_ip = ingest_find_best(ftl);
+		  }
+		  else {
+			  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
+		  }
+
+		  if (ingest_ip == NULL) {
+			  ret_status = FTL_DNS_FAILURE;
+			  break;
+		  }
 	  }
 	  else {
-		  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
+		  ingest_ip = _strdup(params->ingest_hostname);
 	  }
 
-	  if (ingest_ip == NULL) {
-		  ret_status = FTL_DNS_FAILURE;
-		  break;
-	  }
+
 
 	  strcpy_s(ftl->ingest_ip, sizeof(ftl->ingest_ip), ingest_ip);
 	  free(ingest_ip);

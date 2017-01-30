@@ -1,16 +1,16 @@
 #include "ftl.h"
 #include "ftl_private.h"
+#ifndef DISABLE_AUTO_INGEST
 #include <curl/curl.h>
 #include <jansson.h>
-
-#ifdef WIN32
-#include <Winhttp.h>
 #endif
 
+static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip);
+
+#ifndef DISABLE_AUTO_INGEST
 OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
 OS_THREAD_ROUTINE _ingest_get_rtt(void *data);
 
-static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip);
 static int _ping_server(const char *ip, int port);
 
 typedef struct {
@@ -217,20 +217,6 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 	return NULL;
 }
 
-void ingest_release(ftl_stream_configuration_private_t *ftl) {
-
-	ftl_ingest_t *elmt, *tmp;
-	int i;
-
-	elmt = ftl->ingest_list;
-
-	while (elmt != NULL) {
-		tmp = elmt->next;
-		free(elmt);
-		elmt = tmp;
-	}
-}
-
 static int _ping_server(const char *ip, int port) {
 
 	SOCKET sock;
@@ -276,6 +262,21 @@ static int _ping_server(const char *ip, int port) {
 	close_socket(sock);
 
 	return retval;
+}
+#endif
+
+void ingest_release(ftl_stream_configuration_private_t *ftl) {
+
+	ftl_ingest_t *elmt, *tmp;
+	int i;
+
+	elmt = ftl->ingest_list;
+
+	while (elmt != NULL) {
+		tmp = elmt->next;
+		free(elmt);
+		elmt = tmp;
+	}
 }
 
 char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {

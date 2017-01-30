@@ -2,7 +2,9 @@
 #define __FTL_INTERNAL
 #include "ftl.h"
 #include "ftl_private.h"
+#ifndef DISABLE_AUTO_INGEST
 #include <curl/curl.h>
+#endif
 
 static BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);
 static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
@@ -16,7 +18,9 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 7;
 FTL_API ftl_status_t ftl_init() {
   init_sockets();
   os_init();
+#ifndef DISABLE_AUTO_INGEST
   curl_global_init(CURL_GLOBAL_ALL);
+#endif
   return FTL_SUCCESS;
 }
 
@@ -83,10 +87,13 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 	  char *ingest_ip = NULL;
 
 	  if (!isdigit(params->ingest_hostname[0])) {
+#ifndef DISABLE_AUTO_INGEST
 		  if (strcmp(params->ingest_hostname, "auto") == 0) {
 			  ingest_ip = ingest_find_best(ftl);
 		  }
-		  else {
+		  else 
+#endif
+		  {
 			  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
 		  }
 

@@ -1052,7 +1052,7 @@ static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_co
 static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms) {
 	ftl_status_msg_t m;
 	m.type = FTL_STATUS_VIDEO_PACKETS_INSTANT;
-	ftl_packet_stats_instant_msg_t *p = &m.msg.pkt_stats;
+	ftl_packet_stats_instant_msg_t *p = &m.msg.ipkt_stats;
 
 	p->period = (int)interval_ms;
 	p->min_rtt = mc->stats.pkt_rtt_min;

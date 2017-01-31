@@ -1,6 +1,16 @@
-cmake_minimum_required (VERSION 2.8.0)
+cmake_minimum_required (VERSION 3.1.0)
 enable_language(C)
 project(libftl)
+
+if (WINDOWS_STORE)
+set(CMAKE_SYSTEM_NAME WindowsStore)
+set(CMAKE_SYSTEM_VERSION 10.0)
+MESSAGE( STATUS "Compiling for Windows Store Support") 
+endif()
+
+if(WIN32)
+add_definitions(-D_WINSOCK_DEPRECATED_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -D_WIN32_WINNT=0x0A00)
+endif()
 
 find_package(Threads REQUIRED)
 
@@ -14,9 +24,15 @@ add_definitions(-DDISABLE_AUTO_INGEST)
 endif()
 
 if (NOT CURL_FOUND AND NOT DISABLE_AUTO_INGEST)
+SET(CURL_DISABLE_NTLM ON CACHE BOOL "Disabling NTLM")
+SET(CURL_DISABLE_TELNET ON CACHE BOOL "Disabling Telnet")
+SET(CURL_DISABLE_LDAP ON CACHE BOOL "Disabling Ldap")
+SET(CURL_DISABLE_LDAPS ON CACHE BOOL "Disabling secure ldap")
+#SET(CURL_WINDOWS_SSPI OFF CACHE BOOL "Disabling sspi")
 SET(BUILD_CURL_EXE OFF CACHE BOOL "Building libcurl")
 SET(HTTP_ONLY ON CACHE BOOL "using compiling HTTP")
 SET(BUILD_TESTING OFF CACHE BOOL "Not building Tests")
+add_definitions(-DHAVE_STRUCT_POLLFD)
 add_subdirectory(libcurl)
 SET(CURL_INCLUDE_DIRS libcurl/include ${CMAKE_CURRENT_BINARY_DIR}/libcurl/include/curl)
 SET(CURL_LIBRARIES libcurl)
@@ -28,6 +44,7 @@ if (NOT DISABLE_AUTO_INGEST)
 SET(JANSSON_BUILD_DOCS OFF CACHE BOOL "Jansson docs off")
 SET(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Jansson build without tests")
 SET(JANSSON_EXAMPLES OFF CACHE BOOL "Jansson disable examples")
+SET(USE_WINDOWS_CRYPTOAPI off)
 add_subdirectory(libjansson)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/libjansson/include)
 SET(JANSSON_LIBRARIES jansson)
@@ -40,7 +57,7 @@ if (WIN32)
   set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.c
                             ftl_app/win32/xgetopt.h
                             ftl_app/win32/ctrlc_handler.c)
-  set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
+  #set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
                       libftl/win32/socket.h
 	                    libftl/win32/threads.c

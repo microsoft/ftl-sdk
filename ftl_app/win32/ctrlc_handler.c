@@ -59,7 +59,7 @@ BOOL charon_shutdown_stream(DWORD fdwCtrlType) {
 }
 
 void charon_install_ctrlc_handler() {
-  SetConsoleCtrlHandler((PHANDLER_ROUTINE)charon_shutdown_stream, TRUE);
+//  SetConsoleCtrlHandler((PHANDLER_ROUTINE)charon_shutdown_stream, TRUE);
 }
 
 BOOL ctrlc_pressed() {

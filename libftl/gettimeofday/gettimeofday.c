@@ -99,7 +99,7 @@ int timeval_subtract_to_ms(const struct timeval *end, const struct timeval *star
 
 void timeval_add_ms(struct timeval *tv, int ms)
 {
-	int sec_a, sec_b, usec;
+	int sec_a, sec_b;
 
 	sec_a = ms / 1000;
 	ms -= sec_a * 1000;

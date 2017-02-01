@@ -220,8 +220,8 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 static int _ping_server(const char *ip, int port) {
 
 	SOCKET sock;
-	struct hostent *server = NULL;
 	struct sockaddr_in server_addr;
+	unsigned char buf[sizeof(struct in_addr)];
 	uint8_t dummy[4];
 	struct timeval start, stop, delta;
 	int retval = -1;
@@ -232,13 +232,13 @@ static int _ping_server(const char *ip, int port) {
 			break;
 		}
 
-		if ((server = gethostbyname(ip)) == NULL) {
+		if (inet_pton(AF_INET, ip, buf) == 0) {
 			break;
 		}
 
 		//Prepare the sockaddr_in structure
 		server_addr.sin_family = AF_INET;
-		memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
+		memcpy((char *)&server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
 		server_addr.sin_port = htons(port);
 
 		set_socket_recv_timeout(sock, 500);
@@ -268,7 +268,6 @@ static int _ping_server(const char *ip, int port) {
 void ingest_release(ftl_stream_configuration_private_t *ftl) {
 
 	ftl_ingest_t *elmt, *tmp;
-	int i;
 
 	elmt = ftl->ingest_list;
 
@@ -301,41 +300,58 @@ char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {
 }
 
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
-	struct hostent *remoteHost;
-	struct in_addr addr;
+	struct addrinfo hints;
+	struct addrinfo *result, *rp;
+	struct sockaddr_in  *sockaddr_ipv4;
 	int ips_found = 0;
+	int s;
 	BOOL success = FALSE;
 	ingest_ip[0] = '\0';
+	char ip[INET_ADDRSTRLEN];
 
 	if (*ingest_ip != NULL) {
 		return -1;
 	}
 
-	remoteHost = gethostbyname(ingest_location);
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_INET;    
+	hints.ai_socktype = 0;
+	hints.ai_flags = 0;
+	hints.ai_protocol = 0;
+	hints.ai_canonname = NULL;
+	hints.ai_addr = NULL;
+	hints.ai_next = NULL;
 
-	if (remoteHost) {
-		if (remoteHost->h_addrtype == AF_INET)
-		{
-			int total_ips = 0;
-			while (remoteHost->h_addr_list[total_ips++] != 0);
-
-			if ((*ingest_ip = malloc(sizeof(char*) * total_ips)) == NULL) {
-				return 0;
-			}
-
-			while (remoteHost->h_addr_list[ips_found] != 0) {
-				addr.s_addr = *(u_long *)remoteHost->h_addr_list[ips_found];
-
-				if (((*ingest_ip)[ips_found] = malloc(IPV4_ADDR_ASCII_LEN)) == NULL) {
-					return 0;
-				}
-
-				strcpy_s((*ingest_ip)[ips_found], IPV4_ADDR_ASCII_LEN, inet_ntoa(addr));
-
-				ips_found++;
-			}
-		}
+	if ((s = getaddrinfo(ingest_location, NULL, &hints, &result)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+		return 0;
 	}
+
+	int total_ips = 0;
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		total_ips++;
+	}
+
+	if ((*ingest_ip = malloc(sizeof(char*) * total_ips)) == NULL) {
+		return 0;
+	}
+	
+	ips_found = 0;
+	for (rp = result; rp != NULL; rp = rp->ai_next, ips_found++) {
+		if (((*ingest_ip)[ips_found] = malloc(IPV4_ADDR_ASCII_LEN)) == NULL) {
+			return 0;
+		}
+
+		sockaddr_ipv4 = (struct sockaddr_in *) rp->ai_addr;
+
+		if (inet_ntop(AF_INET, &sockaddr_ipv4->sin_addr, ip, sizeof(ip)) == NULL) {
+			continue;
+		}
+
+		strcpy_s((*ingest_ip)[ips_found], IPV4_ADDR_ASCII_LEN, ip);
+	}
+
+	freeaddrinfo(result);
 
 	return ips_found;
 }

@@ -29,7 +29,7 @@ static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	ftl_media_config_t *media = &ftl->media;
-	struct hostent *server = NULL;
+	unsigned char buf[sizeof(struct in_addr)];
 	ftl_status_t status = FTL_SUCCESS;
 	int idx;
 
@@ -48,15 +48,13 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 		FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
 
-		if ((server = gethostbyname(ftl->ingest_ip)) == NULL) {
-			FTL_LOG(ftl, FTL_LOG_ERROR, "No such host as %s\n", ftl->ingest_ip);
-			status = FTL_DNS_FAILURE;
+		if (inet_pton(AF_INET, ftl->ingest_ip, buf) == 0) {
 			break;
 		}
 
 		//Prepare the sockaddr_in structure
 		media->server_addr.sin_family = AF_INET;
-		memcpy((char *)&media->server_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
+		memcpy((char *)&media->server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
 		media->server_addr.sin_port = htons(media->assigned_port);
 
 		media->max_mtu = MAX_MTU;
@@ -381,12 +379,12 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 
 	FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets (first rtt: %d, last %d). Estimated peak bitrate %d kbps\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt, initial_rtt, final_rtt, total_sent * 8 / (total_ms + final_rtt - initial_rtt));
 
-	int lost_pkts = mc->stats.nack_requests - initial_nack_cnt;
+	int64_t lost_pkts = mc->stats.nack_requests - initial_nack_cnt;
 	float pkt_loss_percent = (float)lost_pkts / (float)pkts_sent;
 
 	float adjusted_bytes_sent = (float)total_sent * (1.f-pkt_loss_percent);
-	int actual_send_time = total_ms + final_rtt - initial_rtt;
-	int effective_kbps = adjusted_bytes_sent * 8.f * 1000.f / actual_send_time;
+	int64_t actual_send_time = total_ms + final_rtt - initial_rtt;
+	int effective_kbps = (int)(adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time);
 
 	media_enable_nack(ftl, mc->ssrc, TRUE);
 	ftl_set_state(ftl, FTL_TX_PING_PKTS);
@@ -808,6 +806,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 	unsigned char *buf;
 	struct sockaddr_in remote_addr;
 	socklen_t addr_len;
+	char remote_ip[INET_ADDRSTRLEN];
 
 #ifdef _WIN32
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
@@ -830,9 +829,13 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 			continue;
 		}
 
-		if (remote_addr.sin_addr.s_addr != inet_addr(ftl->ingest_ip))
+		if (inet_ntop(AF_INET, &remote_addr.sin_addr.s_addr, remote_ip, sizeof(remote_ip)) == NULL) {
+			continue;
+		}
+
+		if (strcmp(remote_ip, ftl->ingest_ip) != 0)
 		{
-			FTL_LOG(ftl, FTL_LOG_WARN, "Discarded packet from unexpected ip: %s\n", inet_ntoa(remote_addr.sin_addr));
+			FTL_LOG(ftl, FTL_LOG_WARN, "Discarded packet from unexpected ip: %s\n", remote_ip);
 			continue;
 		}
 
@@ -1014,7 +1017,7 @@ static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *tra
 }
 
 static int _update_stats(ftl_stream_configuration_private_t *ftl) {
-	struct timeval now, delta;
+	struct timeval now;
 	gettimeofday(&now, NULL);
 	int stats_interval = timeval_subtract_to_ms(&now, &ftl->media.stats_tv);
 

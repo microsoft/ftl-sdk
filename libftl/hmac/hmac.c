@@ -12,7 +12,7 @@ const unsigned char hex_digits[] = "0123456789abcdef";
 int hmacsha512(const char * rawKey, const unsigned char * message, const int messageLength, char * result) {
 	Sha512Context ctx;
 	SHA512_HASH computedHash;
-	int keyLen = strlen(rawKey);
+	size_t keyLen = strlen(rawKey);
 
 	const char * key;
 	if (keyLen > SHA512_BLOCK_SIZE) {

@@ -244,6 +244,7 @@ typedef struct {
   SOCKET ingest_socket;
   ftl_state_t state;
   OS_MUTEX state_mutex;
+  char *ingest_hostname;
   char ingest_ip[IPV4_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;
   char *key;
@@ -328,6 +329,7 @@ BOOL ftl_get_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
 ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
 ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
+ftl_status_t _set_ingest_ip(ftl_stream_configuration_private_t *ftl);
 
 ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl);
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);

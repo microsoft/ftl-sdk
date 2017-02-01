@@ -41,6 +41,7 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 	SOCKET sock = 0;
 	struct addrinfo hints;
 	memset(&hints, 0, sizeof(hints));
+	ftl_status_t retval = FTL_SUCCESS;
 
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
@@ -57,6 +58,10 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	snprintf(ingest_port_str, 10, "%d", ingest_port);
+
+	if ((retval = _set_ingest_ip(ftl)) != FTL_SUCCESS) {
+		return retval;
+	}
 
 	err = getaddrinfo(ftl->ingest_ip, ingest_port_str, &hints, &resolved_names);
 	if (err != 0) {

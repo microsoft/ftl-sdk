@@ -84,32 +84,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 	  os_init_mutex(&ftl->state_mutex);
 	  ftl_set_state(ftl, FTL_STATUS_QUEUE);
 
-	  char *ingest_ip = NULL;
-
-	  if (!isdigit(params->ingest_hostname[0])) {
-#ifndef DISABLE_AUTO_INGEST
-		  if (strcmp(params->ingest_hostname, "auto") == 0) {
-			  ingest_ip = ingest_find_best(ftl);
-		  }
-		  else 
-#endif
-		  {
-			  ingest_ip = ingest_get_ip(ftl, params->ingest_hostname);
-		  }
-
-		  if (ingest_ip == NULL) {
-			  ret_status = FTL_DNS_FAILURE;
-			  break;
-		  }
-	  }
-	  else {
-		  ingest_ip = _strdup(params->ingest_hostname);
-	  }
-
-
-
-	  strcpy_s(ftl->ingest_ip, sizeof(ftl->ingest_ip), ingest_ip);
-	  free(ingest_ip);
+	  ftl->ingest_hostname = _strdup(params->ingest_hostname);
 
 	  ftl_handle->priv = ftl;
 	  return ret_status;
@@ -161,6 +136,15 @@ FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_inge
 	ftl_status_t status = FTL_SUCCESS;
 
 	ftl->video.media_component.peak_kbps = params->peak_kbps;
+
+	if (params->ingest_hostname != NULL) {
+		if (ftl->ingest_hostname != NULL) {
+			free(ftl->ingest_hostname);
+			ftl->ingest_hostname = NULL;
+		}
+
+		ftl->ingest_hostname = _strdup(params->ingest_hostname);
+	}
 
 	/* not going to update fps for the moment*/
 	/*

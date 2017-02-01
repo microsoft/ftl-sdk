@@ -19,7 +19,7 @@ node {
                 sh "mkdir -p build && cd build && cmake .. && make"
             }
             stage("deploy") {
-                archiveArtifacts artifacts: "build/ftl_app,build/libftl.so*", fingerprint: true
+                archiveArtifacts artifacts: "build/ftl_app,build/libftl.so*", fingerprint: false
             }
             currentBuild.result = "SUCCESS"
         }

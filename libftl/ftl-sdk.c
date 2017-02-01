@@ -288,6 +288,10 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
 			free(ftl->key);
 		}
 
+		if (ftl->ingest_hostname != NULL) {
+			free(ftl->ingest_hostname);
+		}
+
 		free(ftl);
 	}
 

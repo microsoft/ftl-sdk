@@ -28,7 +28,6 @@
 #include "gettimeofday.h"
 #ifdef _WIN32
 #include <Windows.h>
-#include <Winsock2.h>
 
 /* FILETIME of Jan 1 1970 00:00:00. */
 static const unsigned __int64 epoch = ((unsigned __int64)116444736000000000ULL);

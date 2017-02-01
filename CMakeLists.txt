@@ -4,11 +4,6 @@ project(libftl)
 
 option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependancies" FALSE)
 
-if(WIN32)
-set (_WIN32_WINNT 0x0A00)
-add_definitions(-D_WINSOCK_DEPRECATED_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -D_WIN32_WINNT=${_WIN32_WINNT})
-endif()
-
 find_package(Threads REQUIRED)
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -20,16 +15,11 @@ if (DISABLE_AUTO_INGEST)
 add_definitions(-DDISABLE_AUTO_INGEST)
 endif()
 
-MESSAGE( STATUS "curl: " ${CURL_FOUND}) 
-MESSAGE( STATUS "auto: " ${DISABLE_AUTO_INGEST})
-MESSAGE( STATUS "nuget: " ${USE_NUGET_CURL})
-
-if (NOT CURL_FOUND AND NOT DISABLE_AUTO_INGEST AND NOT USE_NUGET_CURL)
+if (NOT CURL_FOUND AND NOT DISABLE_AUTO_INGEST)
 SET(CURL_DISABLE_NTLM ON CACHE BOOL "Disabling NTLM")
 SET(CURL_DISABLE_TELNET ON CACHE BOOL "Disabling Telnet")
 SET(CURL_DISABLE_LDAP ON CACHE BOOL "Disabling Ldap")
 SET(CURL_DISABLE_LDAPS ON CACHE BOOL "Disabling secure ldap")
-#SET(CURL_WINDOWS_SSPI OFF CACHE BOOL "Disabling sspi")
 SET(BUILD_CURL_EXE OFF CACHE BOOL "Building libcurl")
 SET(HTTP_ONLY ON CACHE BOOL "using compiling HTTP")
 SET(BUILD_TESTING OFF CACHE BOOL "Not building Tests")
@@ -58,6 +48,7 @@ if (WIN32)
                             ftl_app/win32/xgetopt.h
                             ftl_app/win32/ctrlc_handler.c)
   #set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
+  #set(FTL_PLATFORM_LIBS ws2_32 )
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
                       libftl/win32/socket.h
 	                    libftl/win32/threads.c
@@ -93,7 +84,7 @@ set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 target_link_libraries(ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES})
 if(WIN32)
-  target_link_libraries(ftl Windowsapp)
+  target_link_libraries(ftl ws2_32)
 endif()
 
 add_executable(ftl_app

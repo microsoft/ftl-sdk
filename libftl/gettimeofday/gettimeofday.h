@@ -1,9 +1,7 @@
 #ifndef __GETTIMEOFDAY_H
 #define __GETTIMEOFDAY_H
 
-#ifdef _WIN32
-#include <WinSock2.h>
-#else
+#ifndef _WIN32
 #include <sys/time.h>
 #endif
 

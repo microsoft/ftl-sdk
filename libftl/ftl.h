@@ -78,7 +78,8 @@ typedef enum {
 	FTL_REGION_UNSUPPORTED,//the region you are attempting to stream from is not authorized to stream by local governments
 	FTL_NO_MEDIA_TIMEOUT,
 	FTL_USER_DISCONNECT,
-	FTL_INGEST_NO_RESPONSE
+	FTL_INGEST_NO_RESPONSE,
+	FTL_NO_PING_RESPONSE,
 } ftl_status_t;
 
 typedef enum {

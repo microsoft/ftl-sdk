@@ -12,7 +12,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 8;
-FTL_API const int FTL_VERSION_MAINTENANCE = 9;
+FTL_API const int FTL_VERSION_MAINTENANCE = 10;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -366,6 +366,8 @@ char* ftl_status_code_to_string(ftl_status_t status) {
 		return "ftl ingest disconnect api was called";
 	case FTL_INGEST_NO_RESPONSE:
 		return "ingest did not respond to request";
+	case FTL_NO_PING_RESPONSE:
+		return "ingest did not respond to keepalive";
 	case FTL_UNKNOWN_ERROR_CODE:
 	default:
 		/* Unknown FTL error */

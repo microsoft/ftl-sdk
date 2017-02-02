@@ -371,6 +371,11 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
 	char buf[1024];
 	ftl_status_msg_t status;
+	struct timeval last_ping, now;
+	int ms_since_ping = 0;
+	int keepalive_is_late = KEEPALIVE_FREQUENCY_MS + 2000; //add a 2s buffer to the wait time
+
+	gettimeofday(&last_ping, NULL);
 
 	ftl_set_state(ftl, FTL_CXN_STATUS_THRD);
 
@@ -380,18 +385,26 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 
 		int ret = recv(ftl->ingest_socket, buf, sizeof(buf), MSG_PEEK);
 
-		if (ret == 0 && ftl_get_state(ftl, FTL_CXN_STATUS_THRD) || ret > 0) {
-			int error_code = FTL_SUCCESS;
+		gettimeofday(&now, NULL);
+		ms_since_ping = timeval_subtract_to_ms(&now, &last_ping);
+
+		if (ret == 0 && ftl_get_state(ftl, FTL_CXN_STATUS_THRD) || ret > 0 || ms_since_ping > keepalive_is_late) {
+			ftl_status_t error_code = FTL_SUCCESS;
 
 			if (ret > 0) {
 				int resp_code;
 				if ((resp_code = _ftl_get_response(ftl, buf, sizeof(buf))) == FTL_INGEST_RESP_PING) {
+					gettimeofday(&last_ping, NULL);
 					continue;
 				}
 
 				if (resp_code > 0) {
 					error_code = _log_response(ftl, resp_code);
 				}
+			}
+
+			if (ms_since_ping > keepalive_is_late) {
+				error_code = FTL_NO_PING_RESPONSE;
 			}
 			
 			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());

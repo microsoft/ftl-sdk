@@ -260,7 +260,7 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
 		
 		int	wait_retries = 5;
 		while (ftl->status_q.thread_waiting && wait_retries-- > 0) {
-			sleep_ms(5);
+			sleep_ms(10);
 		};
 
 		if (ftl->status_q.thread_waiting) {

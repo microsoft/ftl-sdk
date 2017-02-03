@@ -63,6 +63,8 @@ int WINAPI ftl_status_thread(LPVOID data);
 static void *ftl_status_thread(void *data);
 #endif
 
+int speedtest_duration = 0;
+
 int main(int argc, char **argv)
 {
   ftl_status_t status_code;
@@ -74,7 +76,6 @@ int main(int argc, char **argv)
   int fps_num = 30;
   int fps_den = 1;
   int speedtest_kbps = 1000;
-  int speedtest_duration = 0;
   int c;
   int audio_pps = 50;
   int target_bw_kbps = 0;
@@ -217,10 +218,9 @@ int main(int argc, char **argv)
   if (speedtest_duration)
   {
     printf("Running Speed test: sending %d kbps for %d ms", speedtest_kbps, speedtest_duration);
-    float packetloss_rate = 0;
-    packetloss_rate = ftl_ingest_speed_test(&handle, speedtest_kbps, speedtest_duration);
-    sleep_ms(1);
-    printf("Running Speed complete: packet loss rate was %3.2f, estimated peak bitrate is %3.2f kbps\n", packetloss_rate, (float)speedtest_kbps * (100.f - packetloss_rate) / 100);
+    int peak_kbps = 0;
+	peak_kbps = ftl_ingest_speed_test(&handle, speedtest_kbps, speedtest_duration);
+    printf("Running Speed complete: estimated peak bitrate is %d kbps\n", peak_kbps);
     goto cleanup;
   }
 
@@ -378,6 +378,12 @@ static void *ftl_status_thread(void *data)
       {
         continue;
       }
+
+	  /*dont reconnect for speed test*/
+	  if (speedtest_duration) {
+		  continue;
+	  }
+
       //attempt reconnection
       while (retries-- > 0)
       {

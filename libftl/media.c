@@ -33,6 +33,10 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	ftl_status_t status = FTL_SUCCESS;
 	int idx;
 
+	if (ftl_get_state(ftl, FTL_MEDIA_READY)) {
+		return FTL_SUCCESS;
+	}
+
 	do {
 		os_init_mutex(&media->mutex);
 
@@ -109,6 +113,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 			break;
 		}
 
+		ftl_clear_state(ftl, FTL_SPEED_TEST);
+
 		ftl_set_state(ftl, FTL_MEDIA_READY);
 
 		return FTL_SUCCESS;
@@ -181,7 +187,6 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
 	_nack_destroy(audio_comp);
 
 	return status;
-
 }
 
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
@@ -191,6 +196,10 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	ftl_clear_state(ftl, FTL_MEDIA_READY);
+
+	while (ftl_get_state(ftl, FTL_SPEED_TEST)) {
+		sleep_ms(250);
+	}
 
 	return _internal_media_destroy(ftl);
 }
@@ -284,6 +293,8 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	ftl_media_component_common_t *mc = &ftl->audio.media_component;
 	ftl_media_config_t *media = &ftl->media;
 	int64_t bytes_sent = 0;
+	int error = 0;
+	int effective_kbps = -1;
 	int64_t transmit_level = MAX_MTU;
 	unsigned char data[MAX_MTU];
 	int bytes_per_ms;
@@ -296,17 +307,19 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 	ping_pkt_t *ping;
 	nack_slot_t slot;
 	uint8_t fmt = 1; //generic nack
-	uint8_t ptype = PING_PTYPE; //TODO: made up, need to find something valid
+	uint8_t ptype = PING_PTYPE;
 	int wait_retries;
 	int initial_rtt, final_rtt;
 
+	ftl_set_state(ftl, FTL_SPEED_TEST);
+
 	if (!ftl_get_state(ftl, FTL_MEDIA_READY)) {
-		return 0;
+		ftl_clear_state(ftl, FTL_SPEED_TEST);
+		return effective_kbps;
 	}
 
 	media_enable_nack(ftl, mc->ssrc, FALSE);
 	ftl_clear_state(ftl, FTL_TX_PING_PKTS);
-
 
 	ping = (ping_pkt_t*)slot.packet;
 
@@ -333,7 +346,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 
 	bytes_per_ms = speed_kbps * 1000 / 8 / 1000;
 
-	while (total_ms < duration_ms) {
+	while (total_ms < duration_ms && !error) {
 
 		if (transmit_level <= 0) {
 			sleep_ms(MAX_MTU / bytes_per_ms + 1);
@@ -349,46 +362,52 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 
 		while (transmit_level > 0) {
 			pkts_sent++;
-			bytes_sent = media_send_audio(ftl, 0, data, sizeof(data));
+			if ((bytes_sent = media_send_audio(ftl, 0, data, sizeof(data))) < sizeof(data)) {
+				error = 1;
+				break;
+			}
 			total_sent += bytes_sent;
 			transmit_level -= bytes_sent;
 		}
 	}
 
-	ftl->media.last_rtt_delay = -1;
-	gettimeofday(&ping->xmit_time, NULL);
-	_media_send_slot(ftl, &slot);
+	if (!error) {
+		ftl->media.last_rtt_delay = -1;
+		gettimeofday(&ping->xmit_time, NULL);
+		_media_send_slot(ftl, &slot);
 
-	wait_retries = 2000 / PING_TX_INTERVAL_MS; // waiting up to 2s for ping to come back
-	while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
-		sleep_ms(PING_TX_INTERVAL_MS);
-	};
+		wait_retries = 2000 / PING_TX_INTERVAL_MS; // waiting up to 2s for ping to come back
+		while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
+			sleep_ms(PING_TX_INTERVAL_MS);
+		};
 
-	final_rtt = ftl->media.last_rtt_delay;
+		final_rtt = ftl->media.last_rtt_delay;
 
-	//if we lost a ping packet ignore rtt, if the final rtt is lower than the initial ignore
-	if (initial_rtt < 0 || final_rtt < 0 || final_rtt < initial_rtt) {
-		initial_rtt = final_rtt = 0;
+		//if we lost a ping packet ignore rtt, if the final rtt is lower than the initial ignore
+		if (initial_rtt < 0 || final_rtt < 0 || final_rtt < initial_rtt) {
+			initial_rtt = final_rtt = 0;
+		}
+
+		//if we didnt get the last ping packet assume the worst for rtt
+		if (wait_retries <= 0) {
+			initial_rtt = 0;
+			final_rtt = 2000;
+		}
+
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets (first rtt: %d, last %d). Estimated peak bitrate %d kbps\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt, initial_rtt, final_rtt, total_sent * 8 / (total_ms + final_rtt - initial_rtt));
+
+		int64_t lost_pkts = mc->stats.nack_requests - initial_nack_cnt;
+		float pkt_loss_percent = (float)lost_pkts / (float)pkts_sent;
+
+		float adjusted_bytes_sent = (float)total_sent * (1.f - pkt_loss_percent);
+		int64_t actual_send_time = total_ms + final_rtt - initial_rtt;
+		effective_kbps = (int)(adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time);
 	}
-
-	//if we didnt get the last ping packet assume the worst for rtt
-	if (wait_retries <= 0) {
-		initial_rtt = 0;
-		final_rtt = 2000;
-	}
-
-	FTL_LOG(ftl, FTL_LOG_ERROR, "Sent %d bytes in %d ms (%3.2f kbps) lost %d packets (first rtt: %d, last %d). Estimated peak bitrate %d kbps\n", total_sent, total_ms, (float)total_sent * 8.f * 1000.f / (float)total_ms, mc->stats.nack_requests - initial_nack_cnt, initial_rtt, final_rtt, total_sent * 8 / (total_ms + final_rtt - initial_rtt));
-
-	int64_t lost_pkts = mc->stats.nack_requests - initial_nack_cnt;
-	float pkt_loss_percent = (float)lost_pkts / (float)pkts_sent;
-
-	float adjusted_bytes_sent = (float)total_sent * (1.f-pkt_loss_percent);
-	int64_t actual_send_time = total_ms + final_rtt - initial_rtt;
-	int effective_kbps = (int)(adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time);
 
 	media_enable_nack(ftl, mc->ssrc, TRUE);
 	ftl_set_state(ftl, FTL_TX_PING_PKTS);
 
+	ftl_clear_state(ftl, FTL_SPEED_TEST);
 
 	return effective_kbps;
 }

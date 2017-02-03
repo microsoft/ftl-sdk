@@ -107,6 +107,7 @@ typedef enum {
 	FTL_RX_THRD = 0x0040,
 	FTL_TX_THRD = 0x0080,
 	FTL_TX_PING_PKTS = 0x0100,
+	FTL_SPEED_TEST = 0x0200,
 }ftl_state_t;
 
 #ifndef _WIN32

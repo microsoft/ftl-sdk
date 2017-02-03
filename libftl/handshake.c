@@ -411,7 +411,10 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 
 			ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
 
-			internal_ingest_disconnect(ftl);
+			if (os_trylock_mutex(&ftl->disconnect_mutex)) {
+				internal_ingest_disconnect(ftl);
+				os_unlock_mutex(&ftl->disconnect_mutex);
+			}
 
 			status.type = FTL_STATUS_EVENT;
 			if (error_code == FTL_NO_MEDIA_TIMEOUT) {

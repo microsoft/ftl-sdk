@@ -114,7 +114,7 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 	}
 
 	ftl->ingest_socket = sock;
-
+	
 	return FTL_SUCCESS;
 }
 
@@ -253,19 +253,19 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
 	if (ftl_get_state(ftl, FTL_CONNECTED)) {
 
+		ftl_clear_state(ftl, FTL_CONNECTED);
+
 		FTL_LOG(ftl, FTL_LOG_INFO, "light-saber disconnect\n");
 		if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "DISCONNECT", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest Disconnect failed with %d (%s)\n", response_code, response);
 		}
-
-		ftl_clear_state(ftl, FTL_CONNECTED);
 	}
 
 	if (ftl->ingest_socket > 0) {
 		close_socket(ftl->ingest_socket);
 		ftl->ingest_socket = 0;
 	}
-
+	
 	return FTL_SUCCESS;
 }
 
@@ -410,7 +410,9 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 			FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
 
 			ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
+			ftl_set_state(ftl, FTL_DISCONNECT_IN_PROGRESS);
 			internal_ingest_disconnect(ftl);
+			ftl_clear_state(ftl, FTL_DISCONNECT_IN_PROGRESS);
 
 			status.type = FTL_STATUS_EVENT;
 			if (error_code == FTL_NO_MEDIA_TIMEOUT) {

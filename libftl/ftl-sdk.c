@@ -209,6 +209,10 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status_code;
 
+	while (ftl_get_state(ftl, FTL_DISCONNECT_IN_PROGRESS)) {
+		sleep_ms(250);
+	}
+
 	if (!ftl_get_state(ftl, FTL_CONNECTED)) {
 		return FTL_SUCCESS;
 	}

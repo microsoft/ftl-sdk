@@ -218,9 +218,15 @@ int main(int argc, char **argv)
   if (speedtest_duration)
   {
     printf("Running Speed test: sending %d kbps for %d ms", speedtest_kbps, speedtest_duration);
-    int peak_kbps = 0;
-	peak_kbps = ftl_ingest_speed_test(&handle, speedtest_kbps, speedtest_duration);
-    printf("Running Speed complete: estimated peak bitrate is %d kbps\n", peak_kbps);
+	speed_test_t results;
+	if ((status_code = ftl_ingest_speed_test_ex(&handle, speedtest_kbps, speedtest_duration, &results)) == FTL_SUCCESS) {
+		printf("Speed test completed: Peak kbps %d, initial rtt %d, final rtt %d, %3.2f lost packets\n", 
+			results.peak_kbps, results.starting_rtt, results.ending_rtt, (float)results.lost_pkts * 100.f / (float)results.pkts_sent);
+	}
+	else {
+		printf("Speed test failed with: %s\n", ftl_status_code_to_string(status_code));
+	}
+
     goto cleanup;
   }
 

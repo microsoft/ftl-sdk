@@ -289,12 +289,13 @@ void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_compon
 	}
 }
 
-int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms) {
+ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms, speed_test_t *results) {
 	ftl_media_component_common_t *mc = &ftl->audio.media_component;
 	ftl_media_config_t *media = &ftl->media;
 	int64_t bytes_sent = 0;
 	int error = 0;
 	int effective_kbps = -1;
+	ftl_status_t retval = FTL_SPEED_TEST_ABORTED;
 	int64_t transmit_level = MAX_MTU;
 	unsigned char data[MAX_MTU];
 	int bytes_per_ms;
@@ -340,6 +341,8 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 
 	initial_rtt = ftl->media.last_rtt_delay;
 
+	results->starting_rtt = (wait_retries <= 0) ? -1 : ftl->media.last_rtt_delay;
+
 	int64_t initial_nack_cnt = mc->stats.nack_requests;
 
 	gettimeofday(&start_tv, NULL);
@@ -382,6 +385,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 		};
 
 		final_rtt = ftl->media.last_rtt_delay;
+		results->ending_rtt = (wait_retries <= 0) ? -1 : ftl->media.last_rtt_delay;
 
 		//if we lost a ping packet ignore rtt, if the final rtt is lower than the initial ignore
 		if (initial_rtt < 0 || final_rtt < 0 || final_rtt < initial_rtt) {
@@ -402,6 +406,15 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 		float adjusted_bytes_sent = (float)total_sent * (1.f - pkt_loss_percent);
 		int64_t actual_send_time = total_ms + final_rtt - initial_rtt;
 		effective_kbps = (int)(adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time);
+
+		results->pkts_sent = (int)pkts_sent;
+		results->nack_requests = (int)lost_pkts;
+		results->lost_pkts = (int)lost_pkts;
+		results->bytes_sent = (int)total_sent;
+		results->duration_ms = (int)actual_send_time;
+		results->peak_kbps = effective_kbps;
+
+		retval = FTL_SUCCESS;
 	}
 
 	media_enable_nack(ftl, mc->ssrc, TRUE);
@@ -409,7 +422,7 @@ int media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, in
 
 	ftl_clear_state(ftl, FTL_SPEED_TEST);
 
-	return effective_kbps;
+	return retval;
 }
 
 int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len) {

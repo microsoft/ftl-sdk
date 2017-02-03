@@ -80,6 +80,7 @@ typedef enum {
 	FTL_USER_DISCONNECT,
 	FTL_INGEST_NO_RESPONSE,
 	FTL_NO_PING_RESPONSE,
+	FTL_SPEED_TEST_ABORTED
 } ftl_status_t;
 
 typedef enum {
@@ -144,6 +145,17 @@ typedef struct {
 	char *vendor_name;
 	char *vendor_version;
 } ftl_ingest_params_t;
+
+typedef struct {
+	int pkts_sent;
+	int nack_requests;
+	int lost_pkts;
+	int starting_rtt;
+	int ending_rtt;
+	int bytes_sent;
+	int duration_ms;
+	int peak_kbps;
+}speed_test_t;
 
 typedef struct {
 	void* priv;
@@ -253,6 +265,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 
 FTL_API int ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms);
+FTL_API ftl_status_t ftl_ingest_speed_test_ex(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms, speed_test_t *results);
 
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame);
 FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);

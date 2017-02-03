@@ -12,7 +12,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 8;
-FTL_API const int FTL_VERSION_MAINTENANCE = 10;
+FTL_API const int FTL_VERSION_MAINTENANCE = 11;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -160,9 +160,22 @@ FTL_API int ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int 
 
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 
-	int peak_bw = media_speed_test(ftl, speed_kbps, duration_ms);
+	speed_test_t results;
 
-	return peak_bw;
+	FTL_LOG(ftl, FTL_LOG_WARN, "%s() is depricated, please use ftl_ingest_speed_test_ex()\n", __FUNCTION__);
+
+	if (media_speed_test(ftl, speed_kbps, duration_ms, &results) == FTL_SUCCESS) {
+		return results.peak_kbps;
+	}
+
+	return -1;
+}
+
+FTL_API ftl_status_t ftl_ingest_speed_test_ex(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms, speed_test_t *results) {
+
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+
+	return media_speed_test(ftl, speed_kbps, duration_ms, results);
 }
 
 FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame) {
@@ -381,6 +394,8 @@ char* ftl_status_code_to_string(ftl_status_t status) {
 		return "ingest did not respond to request";
 	case FTL_NO_PING_RESPONSE:
 		return "ingest did not respond to keepalive";
+	case FTL_SPEED_TEST_ABORTED:
+		return "the speed test was aborted, possibly due to a network interruption";
 	case FTL_UNKNOWN_ERROR_CODE:
 	default:
 		/* Unknown FTL error */

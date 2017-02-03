@@ -176,7 +176,6 @@ BOOL ftl_get_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state) {
 
 }
 
-
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl) {
 	return ftl->media.assigned_port == FTL_UDP_MEDIA_PORT;
 }

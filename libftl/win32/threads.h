@@ -47,6 +47,7 @@ int os_wait_thread(OS_THREAD_HANDLE handle);
 
 int os_init_mutex(OS_MUTEX *mutex);
 int os_lock_mutex(OS_MUTEX *mutex);
+int os_trylock_mutex(OS_MUTEX *mutex);
 int os_unlock_mutex(OS_MUTEX *mutex);
 int os_delete_mutex(OS_MUTEX *mutex);
 

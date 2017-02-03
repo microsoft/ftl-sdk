@@ -246,6 +246,7 @@ typedef struct {
   SOCKET ingest_socket;
   ftl_state_t state;
   OS_MUTEX state_mutex;
+  OS_MUTEX disconnect_mutex;
   char *ingest_hostname;
   char ingest_ip[IPV4_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;

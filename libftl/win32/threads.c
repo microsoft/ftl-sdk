@@ -67,6 +67,11 @@ int os_lock_mutex(OS_MUTEX *mutex) {
 	return 0;
 }
 
+int os_trylock_mutex(OS_MUTEX *mutex) {
+
+	return TryEnterCriticalSection(mutex);
+}
+
 int os_unlock_mutex(OS_MUTEX *mutex) {
 
 	LeaveCriticalSection(mutex);

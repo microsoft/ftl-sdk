@@ -53,6 +53,11 @@ int os_lock_mutex(OS_MUTEX *mutex) {
 	return pthread_mutex_lock(mutex);
 }
 
+int os_trylock_mutex(OS_MUTEX *mutex) {
+	int ret = pthread_mutex_trylock(mutex);
+	return (ret == 0) ? 1 : 0;
+}
+
 int os_unlock_mutex(OS_MUTEX *mutex) {
 	return pthread_mutex_unlock(mutex);
 }

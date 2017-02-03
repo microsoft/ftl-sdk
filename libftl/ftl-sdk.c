@@ -82,6 +82,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 	  }
 
 	  os_init_mutex(&ftl->state_mutex);
+	  os_init_mutex(&ftl->disconnect_mutex);
 	  ftl_set_state(ftl, FTL_STATUS_QUEUE);
 
 	  ftl->ingest_hostname = _strdup(params->ingest_hostname);
@@ -209,11 +210,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
 	ftl_status_t status_code;
 
-	while (ftl_get_state(ftl, FTL_DISCONNECT_IN_PROGRESS)) {
-		sleep_ms(250);
-	}
-
-	if (!ftl_get_state(ftl, FTL_CONNECTED)) {
+	if (!ftl_get_state(ftl, FTL_CONNECTED | FTL_DISCONNECT_IN_PROGRESS)) {
 		return FTL_SUCCESS;
 	}
 
@@ -225,6 +222,10 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 	status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
 	status.msg.event.error_code = FTL_USER_DISCONNECT;
 
+	while (ftl_get_state(ftl, FTL_DISCONNECT_IN_PROGRESS)) {
+		sleep_ms(250);
+	}
+
 	enqueue_status_msg(ftl, &status);
 
 	return status_code;
@@ -234,12 +235,20 @@ ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl)
 
 	ftl_status_t status_code;
 
-	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
-		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
-	}
+	if (os_trylock_mutex(&ftl->disconnect_mutex)) {
+		ftl_set_state(ftl, FTL_DISCONNECT_IN_PROGRESS);
 
-	if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
-		FTL_LOG(ftl, FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
+		if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
+			FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
+		}
+
+		if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
+			FTL_LOG(ftl, FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
+		}
+
+		ftl_clear_state(ftl, FTL_DISCONNECT_IN_PROGRESS);
+
+		os_unlock_mutex(&ftl->disconnect_mutex);
 	}
 
 	return FTL_SUCCESS;

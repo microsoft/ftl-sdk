@@ -316,7 +316,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
 
 	if (!ftl_get_state(ftl, FTL_MEDIA_READY)) {
 		ftl_clear_state(ftl, FTL_SPEED_TEST);
-		return effective_kbps;
+		return retval;
 	}
 
 	media_enable_nack(ftl, mc->ssrc, FALSE);

@@ -249,12 +249,12 @@ ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl)
 		
 	ftl_set_state(ftl, FTL_DISCONNECT_IN_PROGRESS);
 
-	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
-		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
-	}
-
 	if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
 		FTL_LOG(ftl, FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
+	}
+
+	if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
 	}
 
 	ftl_clear_state(ftl, FTL_DISCONNECT_IN_PROGRESS);

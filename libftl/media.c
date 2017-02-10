@@ -328,7 +328,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
 
 	if (!ftl_get_state(ftl, FTL_MEDIA_READY)) {
 		ftl_clear_state(ftl, FTL_SPEED_TEST);
-		return effective_kbps;
+		return retval;
 	}
 
 	media_enable_nack(ftl, mc->ssrc, FALSE);
@@ -417,7 +417,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
 
 		float adjusted_bytes_sent = (float)total_sent * (1.f - pkt_loss_percent);
 		int64_t actual_send_time = total_ms + final_rtt - initial_rtt;
-		effective_kbps = (int)(adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time);
+		effective_kbps = (int)(adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time) / 1000.f;
 
 		results->pkts_sent = (int)pkts_sent;
 		results->nack_requests = (int)lost_pkts;

@@ -278,6 +278,10 @@ int main(int argc, char **argv)
 
     nalu_type = h264_frame[0] & 0x1F;
 
+	if (nalu_type == 7) {
+		h264_frame[3] = 41;
+	}
+
     /*this wont work if there are multiple nalu's per frame...need to pull out frame number from slice header to be more robust*/
     if (nalu_type == 1 || nalu_type == 5)
     {

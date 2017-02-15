@@ -47,7 +47,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 			status = FTL_INTERNAL_ERROR;
 			break;
 		}
-		
+
 		set_socket_send_buf(media->media_socket, 2048);
 
 		FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
@@ -108,6 +108,11 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 			break;
 		}
 
+		if (os_semaphore_create(&media->ping_thread_shutdown, "/PingThreadShutdown", O_CREAT, 0) < 0) {
+			status = FTL_MALLOC_FAILURE;
+			break;
+		}
+
 		if ((os_create_thread(&media->ping_thread, NULL, ping_thread, ftl)) != 0) {
 			status = FTL_MALLOC_FAILURE;
 			break;
@@ -135,7 +140,7 @@ int media_enable_nack(ftl_stream_configuration_private_t *ftl, uint32_t ssrc, BO
 
 	mc->nack_enabled = enabled;
 
-	return 0;	
+	return 0;
 }
 
 ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
@@ -145,8 +150,10 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
 	//close while socket still active
 	if (ftl_get_state(ftl, FTL_PING_THRD)) {
 		ftl_clear_state(ftl, FTL_PING_THRD);
+		os_semaphore_post(&media->ping_thread_shutdown);
 		os_wait_thread(media->ping_thread);
 		os_destroy_thread(media->ping_thread);
+		os_semaphore_delete(&media->ping_thread_shutdown);
 	}
 
 	//close while socket still active
@@ -155,6 +162,7 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
 		os_semaphore_post(&ftl->video.media_component.pkt_ready);
 		os_wait_thread(media->send_thread);
 		os_destroy_thread(media->send_thread);
+		os_semaphore_delete(&ftl->video.media_component.pkt_ready);
 	}
 
 	if (ftl_get_state(ftl, FTL_RX_THRD)) {
@@ -171,8 +179,6 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
 		shutdown_socket(media->media_socket, SD_BOTH);
 		media->media_socket = -1;
 	}
-
-	os_semaphore_delete(&ftl->video.media_component.pkt_ready);
 
 	os_delete_mutex(&media->mutex);
 
@@ -440,14 +446,14 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	if (!ftl_get_state(ftl, FTL_MEDIA_READY)) {
 		return 0;
 	}
-	
+
 	_update_timestamp(ftl, mc, dts_usec);
 
 	while (remaining > 0) {
 		uint16_t sn = mc->seq_num;
 		uint32_t ssrc = mc->ssrc;
 		uint8_t *pkt_buf;
-		
+
 		if ((slot = _media_get_empty_slot(ftl, ssrc, sn)) == NULL) {
 			return 0;
 		}
@@ -531,7 +537,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 
 		pkt_buf = slot->packet;
 		pkt_len = sizeof(slot->packet);
-		
+
 		slot->first = 0;
 		slot->last = 0;
 
@@ -630,7 +636,7 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
 	int tx_len;
-	
+
 	os_lock_mutex(&ftl->media.mutex);
 	if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
 	{
@@ -682,7 +688,7 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 	mc->stats.xmit_delay_samples++;
 
 	os_unlock_mutex(&slot->mutex);
-	
+
 	return tx_len;
 }
 
@@ -724,7 +730,7 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 
 static int _write_rtp_header(uint8_t *buf, size_t len, uint8_t ptype, uint16_t seq_num, uint32_t timestamp, uint32_t ssrc) {
 	uint32_t rtp_header;
-	
+
 	if (RTP_HEADER_BASE_LEN > len) {
 		return -1;
 	}
@@ -797,7 +803,7 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
 static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len) {
 	int payload_len = in_len;
-	
+
 	ftl_audio_component_t *audio = &ftl->audio;
 	ftl_media_component_common_t *mc = &audio->media_component;
 
@@ -899,7 +905,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 			ssrcMedia = ntohl(*((uint32_t*)(buf + 8)));
 
 			uint16_t *p = (uint16_t *)(buf + 12);
-			
+
 			int fci;
 			for (fci = 0; fci < (length - 2); fci++) {
 				//request the first sequence number
@@ -1116,7 +1122,7 @@ static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_
 	ftl_status_msg_t m;
 	ftl_video_frame_stats_msg_t *v = &m.msg.video_stats;
 	struct timeval now;
-	
+
 	m.type = FTL_STATUS_VIDEO;
 
 	gettimeofday(&now, NULL);
@@ -1143,7 +1149,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
 	ping_pkt_t *ping;
 	nack_slot_t slot;
-	uint8_t fmt = 1; 
+	uint8_t fmt = 1;
 	uint8_t ptype = PING_PTYPE;
 	ping = (ping_pkt_t*)slot.packet;
 
@@ -1163,7 +1169,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
 	while (ftl_get_state(ftl, FTL_PING_THRD)) {
 
-		sleep_ms(PING_TX_INTERVAL_MS);
+		os_semaphore_pend(&ftl->media.ping_thread_shutdown, PING_TX_INTERVAL_MS);
 
 		if (!ftl_get_state(ftl, FTL_TX_PING_PKTS)) {
 			continue;
@@ -1174,6 +1180,6 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 	}
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Exited Ping Thread\n");
-	
+
 	return 0;
 }

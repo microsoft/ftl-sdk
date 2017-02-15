@@ -230,6 +230,7 @@ typedef struct {
 	OS_THREAD_HANDLE recv_thread;
 	OS_THREAD_HANDLE send_thread;
 	OS_THREAD_HANDLE ping_thread;
+	OS_SEMAPHORE ping_thread_shutdown;
 	int max_mtu;
 	struct timeval stats_tv;
 	int last_rtt_delay;
@@ -257,6 +258,8 @@ typedef struct {
   char vendor_version[20];
   OS_THREAD_HANDLE connection_thread;
   OS_THREAD_HANDLE keepalive_thread;
+	OS_SEMAPHORE connection_thread_shutdown;
+	OS_SEMAPHORE keepalive_thread_shutdown;
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;

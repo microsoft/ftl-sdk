@@ -212,6 +212,16 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
 	  ftl_set_state(ftl, FTL_CONNECTED);
 
+      if (os_semaphore_create(&ftl->connection_thread_shutdown, "/ConnectionThreadShutdown", O_CREAT, 0) < 0) {
+          response_code = FTL_MALLOC_FAILURE;
+          break;
+      }
+
+      if (os_semaphore_create(&ftl->keepalive_thread_shutdown, "/KeepAliveThreadShutdown", O_CREAT, 0) < 0) {
+          response_code = FTL_MALLOC_FAILURE;
+          break;
+      }
+
 	  if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
 		  response_code = FTL_MALLOC_FAILURE;
 		  break;
@@ -241,14 +251,18 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
 	if (ftl_get_state(ftl, FTL_KEEPALIVE_THRD)) {
 		ftl_clear_state(ftl, FTL_KEEPALIVE_THRD);
+		os_semaphore_post(&ftl->keepalive_thread_shutdown);
 		os_wait_thread(ftl->keepalive_thread);
 		os_destroy_thread(ftl->keepalive_thread);
+		os_semaphore_delete(&ftl->keepalive_thread_shutdown);
 	}
 
 	if (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
 		ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
+		os_semaphore_post(&ftl->connection_thread_shutdown);
 		os_wait_thread(ftl->connection_thread);
 		os_destroy_thread(ftl->connection_thread);
+		os_semaphore_delete(&ftl->connection_thread_shutdown);
 	}
 
 	if (ftl_get_state(ftl, FTL_CONNECTED)) {
@@ -339,26 +353,20 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
 {
 	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
 	ftl_response_code_t response_code;
-	struct timeval start, end;
-
-	gettimeofday(&start, NULL);
 
 	ftl_set_state(ftl, FTL_KEEPALIVE_THRD);
 
 	while (ftl_get_state(ftl, FTL_KEEPALIVE_THRD)) {
-		gettimeofday(&end, NULL);
-		if (timeval_subtract_to_ms(&end, &start) < KEEPALIVE_FREQUENCY_MS)
+		os_semaphore_pend(&ftl->keepalive_thread_shutdown, KEEPALIVE_FREQUENCY_MS);
+
+		if (!ftl_get_state(ftl, FTL_KEEPALIVE_THRD))
 		{
-			sleep_ms(250);
-			continue;
+			break;
 		}
 
 		if ((response_code = _ftl_send_command(ftl, FALSE, NULL, 0, "PING %d", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
 			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest ping failed with %d\n", response_code);
 		}
-
-		start = end;
-		gettimeofday(&start, NULL);
 	}
 
 	FTL_LOG(ftl, FTL_LOG_INFO, "Exited control_keepalive_thread\n");
@@ -381,7 +389,11 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 
 	while (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
 
-		sleep_ms(500);
+		os_semaphore_pend(&ftl->keepalive_thread_shutdown, 500);
+		if (!ftl_get_state(ftl, FTL_CXN_STATUS_THRD))
+		{
+			break;
+		}
 
 		int ret = recv(ftl->ingest_socket, buf, sizeof(buf), MSG_PEEK);
 

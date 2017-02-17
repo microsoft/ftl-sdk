@@ -218,14 +218,14 @@ int main(int argc, char **argv)
   if (speedtest_duration)
   {
     printf("Running Speed test: sending %d kbps for %d ms", speedtest_kbps, speedtest_duration);
-	speed_test_t results;
-	if ((status_code = ftl_ingest_speed_test_ex(&handle, speedtest_kbps, speedtest_duration, &results)) == FTL_SUCCESS) {
-		printf("Speed test completed: Peak kbps %d, initial rtt %d, final rtt %d, %3.2f lost packets\n", 
-			results.peak_kbps, results.starting_rtt, results.ending_rtt, (float)results.lost_pkts * 100.f / (float)results.pkts_sent);
-	}
-	else {
-		printf("Speed test failed with: %s\n", ftl_status_code_to_string(status_code));
-	}
+  speed_test_t results;
+  if ((status_code = ftl_ingest_speed_test_ex(&handle, speedtest_kbps, speedtest_duration, &results)) == FTL_SUCCESS) {
+    printf("Speed test completed: Peak kbps %d, initial rtt %d, final rtt %d, %3.2f lost packets\n", 
+      results.peak_kbps, results.starting_rtt, results.ending_rtt, (float)results.lost_pkts * 100.f / (float)results.pkts_sent);
+  }
+  else {
+    printf("Speed test failed with: %s\n", ftl_status_code_to_string(status_code));
+  }
 
     goto cleanup;
   }
@@ -248,12 +248,12 @@ int main(int argc, char **argv)
     uint8_t nalu_type;
     int audio_read_len;
 
-	if (feof(h264_handle.fp) || feof(opus_handle.fp))
-	{
-		printf("Restarting Stream\n");
-		reset_video(&h264_handle);
-		reset_audio(&opus_handle);
-		continue;
+  if (feof(h264_handle.fp) || feof(opus_handle.fp))
+  {
+    printf("Restarting Stream\n");
+    reset_video(&h264_handle);
+    reset_audio(&opus_handle);
+    continue;
     }
 
     if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)
@@ -271,7 +271,7 @@ int main(int argc, char **argv)
         break;
       }
 
-	  ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
+    ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
       audio_send_accumulator -= audio_time_step;
       audio_pkts_sent++;
     }
@@ -312,11 +312,11 @@ int main(int argc, char **argv)
 cleanup:
 
   if (h264_frame != NULL) {
-	  free(h264_frame);
+    free(h264_frame);
   }
 
   if (audio_frame != NULL) {
-	  free(audio_frame);
+    free(audio_frame);
   }
 
   close_audio(&opus_handle);
@@ -371,10 +371,10 @@ static void *ftl_status_thread(void *data)
       break;
     }
 
-	if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DESTROYED)
-	{
-		break;
-	}
+  if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DESTROYED)
+  {
+    break;
+  }
 
     if (status.type == FTL_STATUS_EVENT && status.msg.event.type == FTL_STATUS_EVENT_TYPE_DISCONNECTED)
     {
@@ -385,10 +385,10 @@ static void *ftl_status_thread(void *data)
         continue;
       }
 
-	  /*dont reconnect for speed test*/
-	  if (speedtest_duration) {
-		  continue;
-	  }
+    /*dont reconnect for speed test*/
+    if (speedtest_duration) {
+      continue;
+    }
 
       //attempt reconnection
       while (retries-- > 0)
@@ -420,14 +420,14 @@ static void *ftl_status_thread(void *data)
              (float)p->sent * 1000.f / p->period,
              p->nack_reqs);
     }
-	else if (status.type == FTL_STATUS_VIDEO_PACKETS_INSTANT)
-	{
-		ftl_packet_stats_instant_msg_t *p = &status.msg.ipkt_stats;
+  else if (status.type == FTL_STATUS_VIDEO_PACKETS_INSTANT)
+  {
+    ftl_packet_stats_instant_msg_t *p = &status.msg.ipkt_stats;
 
-		printf("avg transmit delay %dms (min: %d, max: %d), avg rtt %dms (min: %d, max: %d)\n",
-			p->avg_xmit_delay, p->min_xmit_delay, p->max_xmit_delay,
-			p->avg_rtt, p->min_rtt, p->max_rtt);
-	}
+    printf("avg transmit delay %dms (min: %d, max: %d), avg rtt %dms (min: %d, max: %d)\n",
+      p->avg_xmit_delay, p->min_xmit_delay, p->max_xmit_delay,
+      p->avg_rtt, p->min_rtt, p->max_rtt);
+  }
     else if (status.type == FTL_STATUS_VIDEO)
     {
       ftl_video_frame_stats_msg_t *v = &status.msg.video_stats;

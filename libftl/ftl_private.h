@@ -88,27 +88,27 @@
 #endif
 
 typedef enum {
-	H264_NALU_TYPE_NON_IDR = 1,
-	H264_NALU_TYPE_IDR = 5,
-	H264_NALU_TYPE_SEI = 6,
-	H264_NALU_TYPE_SPS = 7,
-	H264_NALU_TYPE_PPS = 8,
-	H264_NALU_TYPE_DELIM = 9,
-	H264_NALU_TYPE_FILLER = 12
+  H264_NALU_TYPE_NON_IDR = 1,
+  H264_NALU_TYPE_IDR = 5,
+  H264_NALU_TYPE_SEI = 6,
+  H264_NALU_TYPE_SPS = 7,
+  H264_NALU_TYPE_PPS = 8,
+  H264_NALU_TYPE_DELIM = 9,
+  H264_NALU_TYPE_FILLER = 12
 }h264_nalu_type_t;
 
 typedef enum {
-	FTL_CONNECTED = 0x0001,
-	FTL_MEDIA_READY = 0x0002,
-	FTL_STATUS_QUEUE = 0x0004,
-	FTL_CXN_STATUS_THRD = 0x0008,
-	FTL_KEEPALIVE_THRD = 0x0010,
-	FTL_PING_THRD = 0x0020,
-	FTL_RX_THRD = 0x0040,
-	FTL_TX_THRD = 0x0080,
-	FTL_TX_PING_PKTS = 0x0100,
-	FTL_SPEED_TEST = 0x0200,
-	FTL_DISCONNECT_IN_PROGRESS = 0x1000
+  FTL_CONNECTED = 0x0001,
+  FTL_MEDIA_READY = 0x0002,
+  FTL_STATUS_QUEUE = 0x0004,
+  FTL_CXN_STATUS_THRD = 0x0008,
+  FTL_KEEPALIVE_THRD = 0x0010,
+  FTL_PING_THRD = 0x0020,
+  FTL_RX_THRD = 0x0040,
+  FTL_TX_THRD = 0x0080,
+  FTL_TX_PING_PKTS = 0x0100,
+  FTL_SPEED_TEST = 0x0200,
+  FTL_DISCONNECT_IN_PROGRESS = 0x1000
 }ftl_state_t;
 
 #ifndef _WIN32
@@ -122,16 +122,16 @@ typedef bool BOOL;
 
 /*status message queue*/
 typedef struct _status_queue_t {
-	ftl_status_msg_t stats_msg;
-	struct _status_queue_t *next;
+  ftl_status_msg_t stats_msg;
+  struct _status_queue_t *next;
 }status_queue_elmt_t;
 
 typedef struct {
-	status_queue_elmt_t *head;
-	int count;
-	int thread_waiting;
-	OS_MUTEX mutex;
-	OS_SEMAPHORE sem;
+  status_queue_elmt_t *head;
+  int count;
+  int thread_waiting;
+  OS_MUTEX mutex;
+  OS_SEMAPHORE sem;
 }status_queue_t;
 
 /**
@@ -140,67 +140,67 @@ typedef struct {
  * private and not to be directly manipulated
  */
 typedef struct {
-	uint8_t packet[MAX_PACKET_BUFFER];
-	int len;
-	struct timeval insert_time;
-	struct timeval xmit_time;
-	int sn;
-	int first;/*first packet in frame*/
-	int last; /*last packet in frame*/
-	OS_MUTEX mutex;
+  uint8_t packet[MAX_PACKET_BUFFER];
+  int len;
+  struct timeval insert_time;
+  struct timeval xmit_time;
+  int sn;
+  int first;/*first packet in frame*/
+  int last; /*last packet in frame*/
+  OS_MUTEX mutex;
 }nack_slot_t;
 
 typedef struct _ping_pkt_t {
-	uint32_t header;
-	struct timeval xmit_time;
+  uint32_t header;
+  struct timeval xmit_time;
 }ping_pkt_t;
 
 typedef struct {
-	struct timeval start_time;
-	int64_t frames_received;
-	int64_t frames_sent;
-	int64_t bw_throttling_count;
-	int64_t bytes_queued;
-	int64_t packets_queued;
-	int64_t bytes_sent;
-	int64_t packets_sent;
-	int64_t late_packets;
-	int64_t lost_packets;
-	int64_t nack_requests;
-	int64_t dropped_frames;
-	int pkt_xmit_delay_max;
-	int pkt_xmit_delay_min;
-	int total_xmit_delay;
-	int xmit_delay_samples;
-	int pkt_rtt_max;
-	int pkt_rtt_min;
-	int total_rtt;
-	int rtt_samples;
-	int current_frame_size;
-	int max_frame_size;
+  struct timeval start_time;
+  int64_t frames_received;
+  int64_t frames_sent;
+  int64_t bw_throttling_count;
+  int64_t bytes_queued;
+  int64_t packets_queued;
+  int64_t bytes_sent;
+  int64_t packets_sent;
+  int64_t late_packets;
+  int64_t lost_packets;
+  int64_t nack_requests;
+  int64_t dropped_frames;
+  int pkt_xmit_delay_max;
+  int pkt_xmit_delay_min;
+  int total_xmit_delay;
+  int xmit_delay_samples;
+  int pkt_rtt_max;
+  int pkt_rtt_min;
+  int total_rtt;
+  int rtt_samples;
+  int current_frame_size;
+  int max_frame_size;
 }media_stats_t;
 
 typedef struct {
-	uint8_t payload_type;
-	uint32_t ssrc;
-	uint32_t timestamp;
-	int timestamp_clock;
-	int64_t prev_dts_usec;
-	uint16_t seq_num;
-	uint16_t tmp_seq_num; // used for stats only
-	BOOL nack_enabled;
-	int64_t min_nack_rtt;
-	int64_t max_nack_rtt;
-	int64_t nack_rtt_avg;
-	BOOL nack_slots_initalized;
-	int producer;
-	int consumer;
-	uint16_t xmit_seq_num;
-	nack_slot_t *nack_slots[NACK_RB_SIZE];
-	int peak_kbps;
-	int kbps;
-	media_stats_t stats; //cumulative since start of stream
-	OS_SEMAPHORE pkt_ready;
+  uint8_t payload_type;
+  uint32_t ssrc;
+  uint32_t timestamp;
+  int timestamp_clock;
+  int64_t prev_dts_usec;
+  uint16_t seq_num;
+  uint16_t tmp_seq_num; // used for stats only
+  BOOL nack_enabled;
+  int64_t min_nack_rtt;
+  int64_t max_nack_rtt;
+  int64_t nack_rtt_avg;
+  BOOL nack_slots_initalized;
+  int producer;
+  int consumer;
+  uint16_t xmit_seq_num;
+  nack_slot_t *nack_slots[NACK_RB_SIZE];
+  int peak_kbps;
+  int kbps;
+  media_stats_t stats; //cumulative since start of stream
+  OS_SEMAPHORE pkt_ready;
 }ftl_media_component_common_t;
 
 typedef struct {
@@ -225,24 +225,24 @@ typedef struct {
 } ftl_video_component_t;
 
 typedef struct {
-	struct sockaddr_in server_addr;
-	SOCKET media_socket;
-	OS_MUTEX mutex;
-	int assigned_port;
-	OS_THREAD_HANDLE recv_thread;
-	OS_THREAD_HANDLE send_thread;
-	OS_THREAD_HANDLE ping_thread;
-	OS_SEMAPHORE ping_thread_shutdown;
-	int max_mtu;
-	struct timeval stats_tv;
-	int last_rtt_delay;
+  struct sockaddr_in server_addr;
+  SOCKET media_socket;
+  OS_MUTEX mutex;
+  int assigned_port;
+  OS_THREAD_HANDLE recv_thread;
+  OS_THREAD_HANDLE send_thread;
+  OS_THREAD_HANDLE ping_thread;
+  OS_SEMAPHORE ping_thread_shutdown;
+  int max_mtu;
+  struct timeval stats_tv;
+  int last_rtt_delay;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {
-	char name[30];
-	char ip[IPV4_ADDR_ASCII_LEN];
-	int rtt;
-	struct _ftl_ingest_t *next;
+  char name[30];
+  char ip[IPV4_ADDR_ASCII_LEN];
+  int rtt;
+  struct _ftl_ingest_t *next;
 }ftl_ingest_t;
 
 typedef struct {
@@ -260,8 +260,8 @@ typedef struct {
   char vendor_version[20];
   OS_THREAD_HANDLE connection_thread;
   OS_THREAD_HANDLE keepalive_thread;
-	OS_SEMAPHORE connection_thread_shutdown;
-	OS_SEMAPHORE keepalive_thread_shutdown;
+  OS_SEMAPHORE connection_thread_shutdown;
+  OS_SEMAPHORE keepalive_thread_shutdown;
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;
@@ -271,8 +271,8 @@ typedef struct {
 }  ftl_stream_configuration_private_t;
 
 struct MemoryStruct {
-	char *memory;
-	size_t size;
+  char *memory;
+  size_t size;
 };
 
 /**

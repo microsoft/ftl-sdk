@@ -35,7 +35,7 @@ int close_socket(SOCKET sock) {
 }
 
 int shutdown_socket(SOCKET sock, int how) {
-	return shutdown(sock, how);
+  return shutdown(sock, how);
 }
 
 char * get_socket_error() {
@@ -56,11 +56,11 @@ char * get_socket_error() {
 }
 
 int set_socket_recv_timeout(SOCKET socket, int ms_timeout){
-	return setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
+  return setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
 }
 
 int set_socket_send_timeout(SOCKET socket, int ms_timeout){
-	return setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
+  return setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&ms_timeout, sizeof(ms_timeout));
 }
 
 int set_socket_enable_keepalive(SOCKET socket){
@@ -69,10 +69,10 @@ int set_socket_enable_keepalive(SOCKET socket){
 }
 
 int get_socket_send_buf(SOCKET socket, int *buffer_space) {
-	int len = sizeof(*buffer_space);
-	return getsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)buffer_space, &len);
+  int len = sizeof(*buffer_space);
+  return getsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)buffer_space, &len);
 }
 
 int set_socket_send_buf(SOCKET socket, int buffer_space) {
-	return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
+  return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }

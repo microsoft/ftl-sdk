@@ -26,9 +26,9 @@ typedef struct
     uint8_t     buf[128];
 } Sha512Context;
 
-#define SHA512_BLOCK_SIZE			128
-#define SHA512_HASH_SIZE        	( 512 / 8 )
-#define SHA512_HEX_STRING_HASH_SIZE	(SHA512_HASH_SIZE * 2 + 1)
+#define SHA512_BLOCK_SIZE            128
+#define SHA512_HASH_SIZE            ( 512 / 8 )
+#define SHA512_HEX_STRING_HASH_SIZE    (SHA512_HASH_SIZE * 2 + 1)
 
 typedef struct
 {

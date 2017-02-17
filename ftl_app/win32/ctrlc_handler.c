@@ -63,7 +63,7 @@ void charon_install_ctrlc_handler() {
 }
 
 BOOL ctrlc_pressed() {
-	return shutdown_flag;
+  return shutdown_flag;
 }
 
 void charon_loop_until_ctrlc() {

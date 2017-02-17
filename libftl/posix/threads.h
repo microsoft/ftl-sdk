@@ -42,8 +42,8 @@ typedef void* OS_THREAD_START_ROUTINE;
 typedef void OS_THREAD_ATTRIBS; //todo implement attributes
 
 typedef struct {
-	sem_t *sem;
-	char *name;
+  sem_t *sem;
+  char *name;
 }OS_SEMAPHORE;
 
 int os_init();

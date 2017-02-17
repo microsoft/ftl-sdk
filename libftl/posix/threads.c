@@ -28,15 +28,15 @@ pthread_mutexattr_t ftl_default_mutexattr;
 
 int os_create_thread(OS_THREAD_HANDLE *handle, OS_THREAD_ATTRIBS *attibs, OS_THREAD_START_ROUTINE func, void *args) {
 
-	return pthread_create(handle, NULL, func, args);
+  return pthread_create(handle, NULL, func, args);
 }
 
 int os_destroy_thread(OS_THREAD_HANDLE handle) {
-	return 0;
+  return 0;
 }
 
 int os_wait_thread(OS_THREAD_HANDLE handle) {
-	return pthread_join(handle, NULL);
+  return pthread_join(handle, NULL);
 }
 
 int os_init() {
@@ -46,103 +46,103 @@ int os_init() {
 }
 
 int os_init_mutex(OS_MUTEX *mutex) {
-	return pthread_mutex_init(mutex, &ftl_default_mutexattr);
+  return pthread_mutex_init(mutex, &ftl_default_mutexattr);
 }
 
 int os_lock_mutex(OS_MUTEX *mutex) {
-	return pthread_mutex_lock(mutex);
+  return pthread_mutex_lock(mutex);
 }
 
 int os_trylock_mutex(OS_MUTEX *mutex) {
-	int ret = pthread_mutex_trylock(mutex);
-	return (ret == 0) ? 1 : 0;
+  int ret = pthread_mutex_trylock(mutex);
+  return (ret == 0) ? 1 : 0;
 }
 
 int os_unlock_mutex(OS_MUTEX *mutex) {
-	return pthread_mutex_unlock(mutex);
+  return pthread_mutex_unlock(mutex);
 }
 
 int os_delete_mutex(OS_MUTEX *mutex) {
-	return 0;
+  return 0;
 }
 
 int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value) {
 
-	if ((sem->name = strdup(name)) == NULL) {
-		return -1;
-	}
+  if ((sem->name = strdup(name)) == NULL) {
+    return -1;
+  }
 
-	if (name == NULL || name[0] != '/') {
-		return -2;
-	}
+  if (name == NULL || name[0] != '/') {
+    return -2;
+  }
 
 #ifdef __ANDROID__
-	if ((sem->sem = (sem_t*)malloc(sizeof(sem_t))) == NULL) {
-		return -4;
-	}
+  if ((sem->sem = (sem_t*)malloc(sizeof(sem_t))) == NULL) {
+    return -4;
+  }
 
-	if (sem_init(sem->sem, 0 /* pshared */, 0 /* value */)) {
+  if (sem_init(sem->sem, 0 /* pshared */, 0 /* value */)) {
 #else
-	if ((sem->sem = sem_open(name, oflag, 0644, value)) == SEM_FAILED) {
+  if ((sem->sem = sem_open(name, oflag, 0644, value)) == SEM_FAILED) {
 #endif
-		return -3;
-	}
+    return -3;
+  }
 
-	return 0;
+  return 0;
 }
 
 int os_semaphore_pend(OS_SEMAPHORE *sem, int ms_timeout) {
 
-	if (ms_timeout < 0) {
-		return sem_wait(sem->sem);
-	}
-	else {
+  if (ms_timeout < 0) {
+    return sem_wait(sem->sem);
+  }
+  else {
 #ifdef __APPLE__
-		int sleep_interval = 50;
-		int retval;
-		//TODO find a better solution
-		/*OSX doesnt have a timedwait so this is an ugly polling solution since this SDK doesnt currently use timedwait for performance critical things*/
-		while (ms_timeout > 0) {
-			if ((retval = sem_trywait(sem->sem)) == 0) {
-				break;
-			}
-			sleep_ms(sleep_interval);
-			ms_timeout -= sleep_interval;
-		}
+    int sleep_interval = 50;
+    int retval;
+    //TODO find a better solution
+    /*OSX doesnt have a timedwait so this is an ugly polling solution since this SDK doesnt currently use timedwait for performance critical things*/
+    while (ms_timeout > 0) {
+      if ((retval = sem_trywait(sem->sem)) == 0) {
+        break;
+      }
+      sleep_ms(sleep_interval);
+      ms_timeout -= sleep_interval;
+    }
 
-		return retval;
+    return retval;
 #else
-		struct timespec ts;
-		clock_gettime(CLOCK_REALTIME, &ts);
-		timespec_add_ms(&ts, ms_timeout);
-		return sem_timedwait(sem->sem, &ts);
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    timespec_add_ms(&ts, ms_timeout);
+    return sem_timedwait(sem->sem, &ts);
 
 #endif
-	}
+  }
 }
 
 int os_semaphore_post(OS_SEMAPHORE *sem) {
-	return sem_post(sem->sem);
+  return sem_post(sem->sem);
 }
 
 int os_semaphore_delete(OS_SEMAPHORE *sem) {
-	
-	int retval = 0;
+  
+  int retval = 0;
 
 #ifdef __ANDROID__
-	retval = sem_destroy(sem->sem);
-	free(sem->sem);
+  retval = sem_destroy(sem->sem);
+  free(sem->sem);
 
 #else
-	if ( (retval = sem_close(sem->sem)) == 0) {
-		
-		retval = sem_unlink(sem->name);
-	}
+  if ( (retval = sem_close(sem->sem)) == 0) {
+    
+    retval = sem_unlink(sem->name);
+  }
 #endif
 
-	free(sem->name);
+  free(sem->name);
 
-	return retval;
+  return retval;
 }
 
 void sleep_ms(int ms)

@@ -2,25 +2,25 @@
 
 
 typedef struct {
-	FILE *fp;
-	uint8_t *page_buf;
-	int page_len;
-	int consumed;
-	uint8_t version;
-	uint8_t header_type;
-	uint8_t seg_length;
-	uint8_t page_segs;
-	uint64_t granule_pos;
-	uint32_t bs_serial;
-	uint32_t page_sn;
-	uint32_t checksum;
-	uint8_t seg_len_table[255];
-	uint8_t current_segment;
-	uint8_t packets_in_page;
+  FILE *fp;
+  uint8_t *page_buf;
+  int page_len;
+  int consumed;
+  uint8_t version;
+  uint8_t header_type;
+  uint8_t seg_length;
+  uint8_t page_segs;
+  uint64_t granule_pos;
+  uint32_t bs_serial;
+  uint32_t page_sn;
+  uint32_t checksum;
+  uint8_t seg_len_table[255];
+  uint8_t current_segment;
+  uint8_t packets_in_page;
 }opus_obj_t;
 
 typedef struct {
-	FILE *fp;
+  FILE *fp;
 }h264_obj_t;
 
 

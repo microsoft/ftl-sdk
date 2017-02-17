@@ -51,5 +51,5 @@ void charon_loop_until_ctrlc() {
 }
 
 int ctrlc_pressed() {
-	return shutdown_flag;
+  return shutdown_flag;
 }

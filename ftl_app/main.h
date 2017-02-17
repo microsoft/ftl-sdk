@@ -23,7 +23,7 @@
  **/
 
 /* Include definitions */
- #include "ftl.h"
+#include "ftl.h"
 
 /* Windows specific includes */
 #ifdef _WIN32

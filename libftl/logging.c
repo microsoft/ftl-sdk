@@ -26,15 +26,15 @@
 #include "ftl_private.h"
 
 void ftl_log_msg(ftl_stream_configuration_private_t *ftl, ftl_log_severity_t log_level, const char * file, int lineno, const char * fmt, ...) {
-	va_list args;
-	ftl_status_msg_t m;
-	m.type = FTL_STATUS_LOG;
+  va_list args;
+  ftl_status_msg_t m;
+  m.type = FTL_STATUS_LOG;
 
-	m.msg.log.log_level = log_level;
-	va_start(args, fmt);
-	vsnprintf(m.msg.log.string, sizeof(m.msg.log.string), fmt, args);
-	va_end(args);
+  m.msg.log.log_level = log_level;
+  va_start(args, fmt);
+  vsnprintf(m.msg.log.string, sizeof(m.msg.log.string), fmt, args);
+  va_end(args);
 
-	enqueue_status_msg(ftl, &m);
+  enqueue_status_msg(ftl, &m);
 }
 

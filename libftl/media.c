@@ -39,6 +39,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
 	do {
 		os_init_mutex(&media->mutex);
+		os_init_mutex(&ftl->video.mutex);
+		os_init_mutex(&ftl->audio.mutex);
 
 		//Create a socket
 		if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
@@ -197,9 +199,14 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
 
 ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 
+	ftl_status_t ret = FTL_SUCCESS;
+
 	if (!ftl_get_state(ftl, FTL_MEDIA_READY)) {
-		return FTL_SUCCESS;
+		return ret;
 	}
+
+	os_lock_mutex(&ftl->audio.mutex);
+	os_lock_mutex(&ftl->video.mutex);
 
 	ftl_clear_state(ftl, FTL_MEDIA_READY);
 
@@ -207,7 +214,12 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
 		sleep_ms(250);
 	}
 
-	return _internal_media_destroy(ftl);
+	ret = _internal_media_destroy(ftl);
+
+	os_unlock_mutex(&ftl->video.mutex);
+	os_unlock_mutex(&ftl->audio.mutex);
+
+	return ret;
 }
 
 static int _nack_init(ftl_media_component_common_t *media) {
@@ -443,40 +455,44 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	int remaining = len;
 	int retries = 0;
 
-	if (!ftl_get_state(ftl, FTL_MEDIA_READY)) {
-		return 0;
-	}
+	if (os_trylock_mutex(&ftl->audio.mutex)) {
 
-	_update_timestamp(ftl, mc, dts_usec);
+		if (ftl_get_state(ftl, FTL_MEDIA_READY)) {
 
-	while (remaining > 0) {
-		uint16_t sn = mc->seq_num;
-		uint32_t ssrc = mc->ssrc;
-		uint8_t *pkt_buf;
+			_update_timestamp(ftl, mc, dts_usec);
 
-		if ((slot = _media_get_empty_slot(ftl, ssrc, sn)) == NULL) {
-			return 0;
+			while (remaining > 0) {
+				uint16_t sn = mc->seq_num;
+				uint32_t ssrc = mc->ssrc;
+				uint8_t *pkt_buf;
+
+				if ((slot = _media_get_empty_slot(ftl, ssrc, sn)) == NULL) {
+					return 0;
+				}
+
+				pkt_buf = slot->packet;
+				pkt_len = sizeof(slot->packet);
+
+				os_lock_mutex(&slot->mutex);
+
+				payload_size = _media_make_audio_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len);
+
+				remaining -= payload_size;
+				consumed += payload_size;
+				data += payload_size;
+				bytes_sent += pkt_len;
+
+				slot->len = pkt_len;
+				slot->sn = sn;
+				gettimeofday(&slot->insert_time, NULL);
+
+				_media_send_packet(ftl, mc);
+
+				os_unlock_mutex(&slot->mutex);
+			}
 		}
 
-		pkt_buf = slot->packet;
-		pkt_len = sizeof(slot->packet);
-
-		os_lock_mutex(&slot->mutex);
-
-		payload_size = _media_make_audio_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len);
-
-		remaining -= payload_size;
-		consumed += payload_size;
-		data += payload_size;
-		bytes_sent += pkt_len;
-
-		slot->len = pkt_len;
-		slot->sn = sn;
-		gettimeofday(&slot->insert_time, NULL);
-
-		_media_send_packet(ftl, mc);
-
-		os_unlock_mutex(&slot->mutex);
+		os_unlock_mutex(&ftl->audio.mutex);
 	}
 
 	return bytes_sent;
@@ -494,88 +510,94 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 	int remaining = len;
 	int first_fu = 1;
 
-	if (!ftl_get_state(ftl, FTL_MEDIA_READY)) {
-		return 0;
-	}
+	if (os_trylock_mutex(&ftl->video.mutex)) {
 
-	nalu_type = data[0] & 0x1F;
-	nri = (data[0] >> 5) & 0x3;
+		if (ftl_get_state(ftl, FTL_MEDIA_READY)) {
 
-	_update_timestamp(ftl, mc, dts_usec);
+			nalu_type = data[0] & 0x1F;
+			nri = (data[0] >> 5) & 0x3;
 
-	if (ftl->video.wait_for_idr_frame) {
-		if (nalu_type == H264_NALU_TYPE_SPS) {
-			FTL_LOG(ftl, FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
-			ftl->video.wait_for_idr_frame = FALSE;
-		}
-		else {
+			_update_timestamp(ftl, mc, dts_usec);
+
+			if (ftl->video.wait_for_idr_frame) {
+				if (nalu_type == H264_NALU_TYPE_SPS) {
+					FTL_LOG(ftl, FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
+					ftl->video.wait_for_idr_frame = FALSE;
+				}
+				else {
+					if (end_of_frame) {
+						mc->stats.dropped_frames++;
+					}
+					os_unlock_mutex(&ftl->video.mutex);
+					return bytes_queued;
+				}
+			}
+
+			if (nalu_type == H264_NALU_TYPE_IDR) {
+				mc->tmp_seq_num = mc->seq_num;
+			}
+
+			while (remaining > 0) {
+				uint16_t sn = mc->seq_num;
+				uint32_t ssrc = mc->ssrc;
+				uint8_t *pkt_buf;
+
+				if ((slot = _media_get_empty_slot(ftl, ssrc, sn)) == NULL) {
+					if (nri) {
+						FTL_LOG(ftl, FTL_LOG_INFO, "Video queue full, dropping packets until next key frame\n");
+						ftl->video.wait_for_idr_frame = TRUE;
+					}
+					os_unlock_mutex(&ftl->video.mutex);
+					return bytes_queued;
+				}
+
+				os_lock_mutex(&slot->mutex);
+
+				pkt_buf = slot->packet;
+				pkt_len = sizeof(slot->packet);
+
+				slot->first = 0;
+				slot->last = 0;
+
+				payload_size = _media_make_video_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len, first_fu);
+
+				first_fu = 0;
+				remaining -= payload_size;
+				consumed += payload_size;
+				data += payload_size;
+				bytes_queued += pkt_len;
+
+				/*if all data has been consumed set marker bit*/
+				if (remaining <= 0 && end_of_frame) {
+					_media_set_marker_bit(mc, pkt_buf);
+					slot->last = 1;
+				}
+
+				slot->len = pkt_len;
+				slot->sn = sn;
+				gettimeofday(&slot->insert_time, NULL);
+
+				os_unlock_mutex(&slot->mutex);
+				os_semaphore_post(&mc->pkt_ready);
+
+				mc->stats.packets_queued++;
+				mc->stats.bytes_queued += pkt_len;
+			}
+
+			mc->stats.current_frame_size += len;
+
 			if (end_of_frame) {
-				mc->stats.dropped_frames++;
+				mc->stats.frames_received++;
+
+				if (mc->stats.current_frame_size > mc->stats.max_frame_size) {
+					mc->stats.max_frame_size = mc->stats.current_frame_size;
+				}
+
+				mc->stats.current_frame_size = 0;
 			}
-			return bytes_queued;
-		}
-	}
-
-	if (nalu_type == H264_NALU_TYPE_IDR) {
-		mc->tmp_seq_num = mc->seq_num;
-	}
-
-	while (remaining > 0) {
-		uint16_t sn = mc->seq_num;
-		uint32_t ssrc = mc->ssrc;
-		uint8_t *pkt_buf;
-
-		if ((slot = _media_get_empty_slot(ftl, ssrc, sn)) == NULL) {
-			if (nri) {
-				FTL_LOG(ftl, FTL_LOG_INFO, "Video queue full, dropping packets until next key frame\n");
-				ftl->video.wait_for_idr_frame = TRUE;
-			}
-			return bytes_queued;
 		}
 
-		os_lock_mutex(&slot->mutex);
-
-		pkt_buf = slot->packet;
-		pkt_len = sizeof(slot->packet);
-
-		slot->first = 0;
-		slot->last = 0;
-
-		payload_size = _media_make_video_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len, first_fu);
-
-		first_fu = 0;
-		remaining -= payload_size;
-		consumed += payload_size;
-		data += payload_size;
-		bytes_queued += pkt_len;
-
-		/*if all data has been consumed set marker bit*/
-		if (remaining <= 0 && end_of_frame ) {
-			_media_set_marker_bit(mc, pkt_buf);
-			slot->last = 1;
-		}
-
-		slot->len = pkt_len;
-		slot->sn = sn;
-		gettimeofday(&slot->insert_time, NULL);
-
-		os_unlock_mutex(&slot->mutex);
-		os_semaphore_post(&mc->pkt_ready);
-
-		mc->stats.packets_queued++;
-		mc->stats.bytes_queued += pkt_len;
-	}
-
-	mc->stats.current_frame_size += len;
-
-	if (end_of_frame) {
-		mc->stats.frames_received++;
-
-		if (mc->stats.current_frame_size > mc->stats.max_frame_size) {
-			mc->stats.max_frame_size = mc->stats.current_frame_size;
-		}
-
-		mc->stats.current_frame_size = 0;
+		os_unlock_mutex(&ftl->video.mutex);
 	}
 
 	return bytes_queued;

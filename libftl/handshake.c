@@ -133,6 +133,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   }
 
   do {
+
 	  if (!ftl_get_hmac(ftl->ingest_socket, ftl->key, ftl->hmacBuffer)) {
 		  FTL_LOG(ftl, FTL_LOG_ERROR, "could not get a signed HMAC!");
 		  response_code = FTL_INGEST_NO_RESPONSE;

@@ -33,6 +33,17 @@
 
 /* FILETIME of Jan 1 1970 00:00:00. */
 static const unsigned __int64 epoch = ((unsigned __int64)116444736000000000ULL);
+#define NSEC_IN_SEC 1000000000
+#define USEC_IN_SEC 1000000
+#define MSEC_IN_SEC 1000
+#define MSEC_IN_USEC 1000
+#define MSEC_IN_NSEC 1000000
+
+#define MSEC_TO_SEC(x) ((x) / MSEC_IN_SEC)
+#define MSEC_TO_USEC(x) ((x) * MSEC_IN_USEC)
+#define MSEC_TO_NSEC(x) ((x) * MSEC_IN_NSEC)
+#define SEC_TO_USEC(x) ((x) * USEC_IN_SEC)
+#define SEC_TO_NSEC(x) ((x) * NSEC_IN_SEC)
 
 /*
 * timezone information is stored outside the kernel so tzp isn't used anymore.
@@ -58,15 +69,21 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 }
 #else
 void timespec_add_ms(struct timespec *ts, int ms) {
-  int sec_a, sec_b, usec;
+  long ns_adjust;
+  time_t sec_adjust;
 
-  sec_a = ms / 1000;
-  ms -= sec_a * 1000;
+  sec_adjust = MSEC_TO_SEC((time_t)ms);
+  ns_adjust = MSEC_TO_NSEC((long)ms);
 
-  sec_b = ts->tv_nsec / 1000000000;
-  ts->tv_nsec -= sec_b * 1000000000;
+  ns_adjust -= SEC_TO_NSEC((long)sec_adjust);
 
-  ts->tv_sec += sec_a + sec_b;
+  ts->tv_sec += sec_adjust;
+  ts->tv_nsec += ns_adjust;
+
+  if(ts->tv_nsec >= NSEC_IN_SEC) {
+	  ts->tv_nsec -= NSEC_IN_SEC;
+	  ts->tv_sec++;
+  }
 }
 #endif // _WIN32
 
@@ -99,15 +116,21 @@ int timeval_subtract_to_ms(const struct timeval *end, const struct timeval *star
 
 void timeval_add_ms(struct timeval *tv, int ms)
 {
-  int sec_a, sec_b;
+	long us_adjust;
+	time_t sec_adjust;
 
-  sec_a = ms / 1000;
-  ms -= sec_a * 1000;
+	sec_adjust = MSEC_TO_SEC((time_t)ms);
+	us_adjust = MSEC_TO_USEC((long)ms);
 
-  sec_b = tv->tv_usec / 1000000;
-  tv->tv_usec -= sec_b * 1000000;
+	us_adjust -= SEC_TO_USEC((long)sec_adjust);
 
-  tv->tv_sec += sec_a + sec_b;
+	tv->tv_sec += sec_adjust;
+	tv->tv_usec += us_adjust;
+
+	if (tv->tv_usec >= USEC_IN_SEC) {
+		tv->tv_usec -= USEC_IN_SEC;
+		tv->tv_sec++;
+	}
 }
 
 

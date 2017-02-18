@@ -28,11 +28,8 @@
 
 #include "gettimeofday.h"
 #include <stdint.h>
-#ifdef _WIN32
-#include <Windows.h>
 
-/* FILETIME of Jan 1 1970 00:00:00. */
-static const unsigned __int64 epoch = ((unsigned __int64)116444736000000000ULL);
+
 #define NSEC_IN_SEC 1000000000
 #define USEC_IN_SEC 1000000
 #define MSEC_IN_SEC 1000
@@ -44,6 +41,12 @@ static const unsigned __int64 epoch = ((unsigned __int64)116444736000000000ULL);
 #define MSEC_TO_NSEC(x) ((x) * MSEC_IN_NSEC)
 #define SEC_TO_USEC(x) ((x) * USEC_IN_SEC)
 #define SEC_TO_NSEC(x) ((x) * NSEC_IN_SEC)
+
+#ifdef _WIN32
+#include <Windows.h>
+
+/* FILETIME of Jan 1 1970 00:00:00. */
+static const unsigned __int64 epoch = ((unsigned __int64)116444736000000000ULL);
 
 /*
 * timezone information is stored outside the kernel so tzp isn't used anymore.

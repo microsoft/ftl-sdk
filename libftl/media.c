@@ -338,7 +338,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
   }
 
   media_enable_nack(ftl, mc->ssrc, FALSE);
-  ftl_clear_state(ftl, FTL_TX_PING_PKTS);
+  ftl_set_state(ftl, FTL_DISABLE_TX_PING_PKTS);
 
   ping = (ping_pkt_t*)slot.packet;
 
@@ -436,7 +436,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
   }
 
   media_enable_nack(ftl, mc->ssrc, TRUE);
-  ftl_set_state(ftl, FTL_TX_PING_PKTS);
+  ftl_clear_state(ftl, FTL_DISABLE_TX_PING_PKTS);
 
   ftl_clear_state(ftl, FTL_SPEED_TEST);
 
@@ -1187,13 +1187,16 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
   ping->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | sizeof(ping_pkt_t));
 
-  ftl_set_state(ftl, FTL_PING_THRD | FTL_TX_PING_PKTS);
+  ftl_set_state(ftl, FTL_PING_THRD);
 
   while (ftl_get_state(ftl, FTL_PING_THRD)) {
 
     os_semaphore_pend(&ftl->media.ping_thread_shutdown, PING_TX_INTERVAL_MS);
 
-    if (!ftl_get_state(ftl, FTL_TX_PING_PKTS)) {
+    // It's important that this is a disable check not an enable check
+    // because it is possible that this flag will be set before this thread spawns.
+    // In that case we don't want to overwrite the flag with the FTL_PING_THRD set above. 
+    if (ftl_get_state(ftl, FTL_DISABLE_TX_PING_PKTS)) {
       continue;
     }
 

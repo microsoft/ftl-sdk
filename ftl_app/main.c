@@ -75,6 +75,7 @@ int main(int argc, char **argv)
   char *stream_key = NULL;
   int fps_num = 30;
   int fps_den = 1;
+  int raw_opus = 0;
   int speedtest_kbps = 1000;
   int c;
   int audio_pps = 50;
@@ -87,6 +88,7 @@ int main(int argc, char **argv)
 
   charon_install_ctrlc_handler();
 
+
   if (FTL_VERSION_MAINTENANCE != 0)
   {
     printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
@@ -96,7 +98,7 @@ int main(int argc, char **argv)
     printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
   }
 
-  while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:?")) != -1)
+  while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:r:?")) != -1)
   {
     switch (c)
     {
@@ -107,8 +109,13 @@ int main(int argc, char **argv)
       video_input = optarg;
       break;
     case 'a':
-      audio_input = optarg;
+	  audio_input = optarg;
       break;
+	case 'r':
+		if (strcmp(optarg, "a") == 0) {
+			raw_opus = 1;
+		}
+		break;
     case 's':
       stream_key = optarg;
       break;
@@ -164,7 +171,7 @@ int main(int argc, char **argv)
       return -1;
     }
 
-    if (!init_audio(&opus_handle, audio_input))
+    if (!init_audio(&opus_handle, audio_input, raw_opus))
     {
       printf("Failed to open audio file\n");
       return -1;
@@ -248,12 +255,12 @@ int main(int argc, char **argv)
     uint8_t nalu_type;
     int audio_read_len;
 
-  if (feof(h264_handle.fp) || feof(opus_handle.fp))
-  {
-    printf("Restarting Stream\n");
-    reset_video(&h264_handle);
-    reset_audio(&opus_handle);
-    continue;
+	if (feof(h264_handle.fp) || feof(opus_handle.fp))
+	{
+		printf("Restarting Stream\n");
+		reset_video(&h264_handle);
+		reset_audio(&opus_handle);
+		continue;
     }
 
     if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)
@@ -271,7 +278,7 @@ int main(int argc, char **argv)
         break;
       }
 
-    ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
+      ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
       audio_send_accumulator -= audio_time_step;
       audio_pkts_sent++;
     }

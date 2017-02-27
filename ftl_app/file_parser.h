@@ -6,6 +6,7 @@ typedef struct {
   uint8_t *page_buf;
   int page_len;
   int consumed;
+  int raw_opus;
   uint8_t version;
   uint8_t header_type;
   uint8_t seg_length;
@@ -27,7 +28,7 @@ typedef struct {
 int init_video(h264_obj_t *handle, const char *video_file);
 int reset_video(h264_obj_t *handle);
 int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *end_of_frame);
-int init_audio(opus_obj_t *handle, const char *audio_file);
+int init_audio(opus_obj_t *handle, const char *audio_file, int raw_opus);
 void close_audio(opus_obj_t *handle);
 int reset_audio(opus_obj_t *handle);
 int get_audio_packet(opus_obj_t *handle, uint8_t *buf, uint32_t *length);

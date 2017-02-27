@@ -54,7 +54,7 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get
    return 0;
  }
 
- int init_audio(opus_obj_t *handle, const char *audio_file) {
+ int init_audio(opus_obj_t *handle, const char *audio_file, int raw_opus) {
 
 
    if (audio_file == NULL) {
@@ -68,6 +68,8 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get
    if ((handle->page_buf = malloc(MAX_OGG_PAGE_LEN)) == NULL) {
      return 0;
    }
+
+   handle->raw_opus = raw_opus;
 
    handle->current_segment = 0;
    handle->consumed = 0;
@@ -95,22 +97,33 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get
 
    *length = 0;
 
-   if (handle->consumed >= handle->page_len) {
-     if (get_ogg_page(handle) != 1) {
-       return 0;
-     }
+   if (handle->raw_opus) {
+	   if (feof(handle->fp)) {
+		   return 0;
+	   }
+
+	   fread(length, 1, 4, handle->fp);
+	   fread(buf, 1, *length, handle->fp);
    }
+   else {
 
-   int seg_len;
+	   if (handle->consumed >= handle->page_len) {
+		   if (get_ogg_page(handle) != 1) {
+			   return 0;
+		   }
+	   }
 
-   do {
-     seg_len = handle->seg_len_table[handle->current_segment];
-     memcpy(buf, handle->page_buf + handle->consumed, seg_len);
-     buf += seg_len;
-     *length += seg_len;
-     handle->consumed += seg_len;
-     handle->current_segment++;
-   } while (seg_len == 255);
+	   int seg_len;
+
+	   do {
+		   seg_len = handle->seg_len_table[handle->current_segment];
+		   memcpy(buf, handle->page_buf + handle->consumed, seg_len);
+		   buf += seg_len;
+		   *length += seg_len;
+		   handle->consumed += seg_len;
+		   handle->current_segment++;
+	   } while (seg_len == 255);
+   }
 
    return 1;
  }

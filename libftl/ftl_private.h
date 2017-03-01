@@ -208,6 +208,7 @@ typedef struct {
   int64_t dts_usec;
   ftl_media_component_common_t media_component;
   OS_MUTEX mutex;
+  BOOL is_ready_to_send;
 } ftl_audio_component_t;
 
 typedef struct {
@@ -222,6 +223,7 @@ typedef struct {
   BOOL wait_for_idr_frame;
   ftl_media_component_common_t media_component;
   OS_MUTEX mutex;
+  BOOL has_sent_first_frame;
 } ftl_video_component_t;
 
 typedef struct {

@@ -79,17 +79,21 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
         goto cleanup;
       }
 
-      comp->timestamp = 0; //TODO: should start at a random value
+      // According to RTP the time stamps should start at random values,
+      // but to help sync issues and to make sync easier to calcualte we 
+      // start at 0.
+      comp->timestamp = 0;
       comp->producer = 0;
       comp->consumer = 0;
+      comp->prev_dts_usec = -1;
 
       _clear_stats(&comp->stats);
     }
 
     ftl->video.media_component.timestamp_clock = VIDEO_RTP_TS_CLOCK_HZ;
     ftl->audio.media_component.timestamp_clock = AUDIO_SAMPLE_RATE;
-    ftl->video.media_component.prev_dts_usec = -1;
-    ftl->audio.media_component.prev_dts_usec = -1;
+    ftl->audio.is_ready_to_send = FALSE;
+    ftl->video.has_sent_first_frame = FALSE;
 
     ftl->video.wait_for_idr_frame = TRUE;
 
@@ -339,6 +343,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
 
   media_enable_nack(ftl, mc->ssrc, FALSE);
   ftl_set_state(ftl, FTL_DISABLE_TX_PING_PKTS);
+  ftl->video.has_sent_first_frame = TRUE;
 
   ping = (ping_pkt_t*)slot.packet;
 
@@ -450,6 +455,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
     retval = FTL_SUCCESS;
   }
 
+  ftl->video.has_sent_first_frame = FALSE;
   media_enable_nack(ftl, mc->ssrc, TRUE);
   ftl_clear_state(ftl, FTL_DISABLE_TX_PING_PKTS);
 
@@ -469,6 +475,15 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
   nack_slot_t *slot;
   int remaining = len;
   int retries = 0;
+
+
+  // When we get our first audio packet, indicate that we are ready to send.
+  // However, don't send audio data until the video is also sending.
+  ftl->audio.is_ready_to_send = TRUE;
+  if (!ftl->video.has_sent_first_frame)
+  {
+    return 0;
+  }
 
   if (os_trylock_mutex(&ftl->audio.mutex)) {
 
@@ -525,6 +540,17 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
   int remaining = len;
   int first_fu = 1;
 
+  // Before we send any video we want to make sure the audio stream
+  // is also ready to run. If the stream isn't ready drop this data.
+  if (!ftl->audio.is_ready_to_send)
+  {
+    if (end_of_frame)
+    {
+      mc->stats.dropped_frames++;
+    }
+    return bytes_queued;
+  }
+
   if (os_trylock_mutex(&ftl->video.mutex)) {
 
     if (ftl_get_state(ftl, FTL_MEDIA_READY)) {
@@ -532,12 +558,18 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
       nalu_type = data[0] & 0x1F;
       nri = (data[0] >> 5) & 0x3;
 
-      _update_timestamp(ftl, mc, dts_usec);
-
       if (ftl->video.wait_for_idr_frame) {
         if (nalu_type == H264_NALU_TYPE_SPS) {
-          FTL_LOG(ftl, FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
+
           ftl->video.wait_for_idr_frame = FALSE;
+
+          if (!ftl->video.has_sent_first_frame) {
+            FTL_LOG(ftl, FTL_LOG_INFO, "Audio is ready and we have the first iframe, starting stream. (dropped %d frames)\n", mc->stats.dropped_frames);
+            ftl->video.has_sent_first_frame = TRUE;
+          }
+          else {
+            FTL_LOG(ftl, FTL_LOG_INFO, "Got key frame, continuing (dropped %d frames)\n", mc->stats.dropped_frames);
+          }
         }
         else {
           if (end_of_frame) {
@@ -547,6 +579,8 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
           return bytes_queued;
         }
       }
+
+      _update_timestamp(ftl, mc, dts_usec);
 
       if (nalu_type == H264_NALU_TYPE_IDR) {
         mc->tmp_seq_num = mc->seq_num;

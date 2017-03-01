@@ -94,7 +94,6 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     ftl->audio.media_component.timestamp_clock = AUDIO_SAMPLE_RATE;
     ftl->audio.is_ready_to_send = FALSE;
     ftl->video.has_sent_first_frame = FALSE;
-    ftl->video.media_component.timestamp = 0x7FFFFFFF;
 
     ftl->video.wait_for_idr_frame = TRUE;
 

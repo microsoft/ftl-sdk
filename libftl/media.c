@@ -2,6 +2,7 @@
 #include "ftl_private.h"
 
 #define MAX_RTT_FACTOR 1.3
+#define USEC_IN_SEC 1000000
 
 OS_THREAD_ROUTINE send_thread(void *data);
 OS_THREAD_ROUTINE recv_thread(void *data);
@@ -80,12 +81,12 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       }
 
       // According to RTP the time stamps should start at random values,
-      // but to help sync issues and to make sync easier to calcualte we 
+      // but to help sync issues and to make sync easier to calculate we 
       // start at 0.
       comp->timestamp = 0;
       comp->producer = 0;
       comp->consumer = 0;
-      comp->prev_dts_usec = -1;
+      comp->base_dts_usec = -1;
 
       _clear_stats(&comp->stats);
     }
@@ -289,26 +290,18 @@ void _clear_stats(media_stats_t *stats) {
 }
 
 void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec) {
-  int64_t delta_usec;
-  uint32_t delta_ts;
 
-  if (mc->prev_dts_usec < 0) {
-    mc->prev_dts_usec = dts_usec;
+  if (mc->base_dts_usec < 0) {
+    mc->base_dts_usec = dts_usec;
   }
 
-  delta_usec = dts_usec - mc->prev_dts_usec;
+  // Convert the incoming dts time to the correct clock time for the timestamp.
+  // We do this in a int64 in to ensure we handle the rollover for int32 correctly.
+  uint64_t timestamp = 0;
+  timestamp = (dts_usec - mc->base_dts_usec) * (uint64_t)(mc->timestamp_clock) / USEC_IN_SEC;
 
-  if (delta_usec) {
+  mc->timestamp = (uint32_t)timestamp;
 
-    //convert to percentage of 1 second
-    double delta_percent = (double)(delta_usec + 1) / 1000000.f;
-
-    delta_ts = (uint32_t)((double)mc->timestamp_clock * delta_percent);
-
-    mc->timestamp += delta_ts;
-
-    mc->prev_dts_usec = dts_usec;
-  }
 }
 
 ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms, speed_test_t *results) {

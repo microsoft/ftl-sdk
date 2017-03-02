@@ -185,7 +185,7 @@ typedef struct {
   uint32_t ssrc;
   uint32_t timestamp;
   int timestamp_clock;
-  int64_t prev_dts_usec;
+  int64_t base_dts_usec;
   uint16_t seq_num;
   uint16_t tmp_seq_num; // used for stats only
   BOOL nack_enabled;

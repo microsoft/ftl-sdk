@@ -86,7 +86,6 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       comp->timestamp = 0;
       comp->producer = 0;
       comp->consumer = 0;
-      comp->base_dts_usec = -1;
 
       _clear_stats(&comp->stats);
     }
@@ -95,8 +94,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     ftl->audio.media_component.timestamp_clock = AUDIO_SAMPLE_RATE;
     ftl->audio.is_ready_to_send = FALSE;
     ftl->video.has_sent_first_frame = FALSE;
-
     ftl->video.wait_for_idr_frame = TRUE;
+    ftl->media.base_dts_usec = -1;
 
     if ((os_create_thread(&media->recv_thread, NULL, recv_thread, ftl)) != 0) {
       status = FTL_MALLOC_FAILURE;
@@ -291,14 +290,14 @@ void _clear_stats(media_stats_t *stats) {
 
 void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec) {
 
-  if (mc->base_dts_usec < 0) {
-    mc->base_dts_usec = dts_usec;
+  if (ftl->media.base_dts_usec < 0) {
+    ftl->media.base_dts_usec = dts_usec;
   }
 
   // Convert the incoming dts time to the correct clock time for the timestamp.
   // We do this in a int64 in to ensure we handle the rollover for int32 correctly.
   uint64_t timestamp = 0;
-  timestamp = (dts_usec - mc->base_dts_usec) * (uint64_t)(mc->timestamp_clock) / USEC_IN_SEC;
+  timestamp = (dts_usec - ftl->media.base_dts_usec) * (uint64_t)(mc->timestamp_clock) / USEC_IN_SEC;
 
   mc->timestamp = (uint32_t)timestamp;
 
@@ -556,8 +555,14 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 
           ftl->video.wait_for_idr_frame = FALSE;
 
-          if (!ftl->video.has_sent_first_frame) {
-            FTL_LOG(ftl, FTL_LOG_INFO, "Audio is ready and we have the first iframe, starting stream. (dropped %d frames)\n", mc->stats.dropped_frames);
+          if (!ftl->video.has_sent_first_frame) {    
+            FTL_LOG(ftl, FTL_LOG_INFO, "Audio and video are ready, starting stream. Base DTS Time (%llu) (dropped %d frames)\n", dts_usec, mc->stats.dropped_frames);
+
+            // Before we set the started flag, we need to set the base dts time so the 
+            // streams are synced at 0. This isn't needed for RTP; but it makes 
+            // debugging the streams easier.
+            ftl->media.base_dts_usec = dts_usec;
+            
             ftl->video.has_sent_first_frame = TRUE;
           }
           else {

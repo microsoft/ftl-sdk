@@ -1,6 +1,6 @@
 properties([[$class: 'BuildDiscarderProperty', strategy: [$class: 'LogRotator', artifactNumToKeepStr: '2', numToKeepStr: '2']]])
 
-node {
+node("master")
     def projectName = "ftl-sdk"
     
     def projectDir = pwd()+ "/${projectName}"

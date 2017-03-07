@@ -187,17 +187,16 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
     media->media_socket = -1;
   }
 
-  os_delete_mutex(&media->mutex);
-
-  media->max_mtu = 0;
-
   ftl_media_component_common_t *video_comp = &ftl->video.media_component;
-
   _nack_destroy(video_comp);
 
   ftl_media_component_common_t *audio_comp = &ftl->audio.media_component;
-
   _nack_destroy(audio_comp);
+
+  media->max_mtu = 0;
+  os_delete_mutex(&media->mutex);
+  os_delete_mutex(&ftl->audio.mutex);
+  os_delete_mutex(&ftl->video.mutex);
 
   return status;
 }
@@ -210,19 +209,23 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
     return ret;
   }
 
+  // Take the locks and then clear the flag.
+  // This will ensure we aren't in the middle of a send
+  // and prevent data from being sent.
   os_lock_mutex(&ftl->audio.mutex);
   os_lock_mutex(&ftl->video.mutex);
 
   ftl_clear_state(ftl, FTL_MEDIA_READY);
 
+  os_unlock_mutex(&ftl->video.mutex);
+  os_unlock_mutex(&ftl->audio.mutex);
+
   while (ftl_get_state(ftl, FTL_SPEED_TEST)) {
     sleep_ms(250);
   }
 
+  // Note this will delete the mutexes used above.
   ret = _internal_media_destroy(ftl);
-
-  os_unlock_mutex(&ftl->video.mutex);
-  os_unlock_mutex(&ftl->audio.mutex);
 
   return ret;
 }

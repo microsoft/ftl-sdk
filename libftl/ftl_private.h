@@ -77,7 +77,9 @@
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
 #define PING_TX_INTERVAL_MS 25
+#define SENDER_REPORT_TX_INTERVAL_MS 2000
 #define PING_PTYPE 250
+#define SENDER_REPORT_PTYPE 200
 
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
@@ -108,7 +110,8 @@ typedef enum {
   FTL_TX_THRD = 0x0080,
   FTL_DISABLE_TX_PING_PKTS = 0x0100,
   FTL_SPEED_TEST = 0x0200,
-  FTL_DISCONNECT_IN_PROGRESS = 0x1000
+  FTL_DISCONNECT_IN_PROGRESS = 0x1000,
+  FTL_DISABLE_TX_SENDER_REPORT = 0x2000
 }ftl_state_t;
 
 #ifndef _WIN32
@@ -155,6 +158,16 @@ typedef struct _ping_pkt_t {
   struct timeval xmit_time;
 }ping_pkt_t;
 
+typedef struct _senderReport_pkt_t {
+	uint32_t header;
+	uint32_t ssrc;
+	uint32_t ntpTimestampHigh;
+	uint32_t ntpTimestampLow;
+	uint32_t rtpTimestamp;
+	uint32_t senderPacketCount;
+	uint32_t senderOctetCount;
+}senderReport_pkt_t;
+
 typedef struct {
   struct timeval start_time;
   int64_t frames_received;
@@ -163,6 +176,7 @@ typedef struct {
   int64_t bytes_queued;
   int64_t packets_queued;
   int64_t bytes_sent;
+  int64_t payload_bytes_sent;
   int64_t packets_sent;
   int64_t late_packets;
   int64_t lost_packets;
@@ -186,6 +200,8 @@ typedef struct {
   uint32_t timestamp;
   int timestamp_clock;
   int64_t base_dts_usec;
+  struct timeval base_dts_timestamp;
+  int64_t randomOffset;
   uint16_t seq_num;
   uint16_t tmp_seq_num; // used for stats only
   BOOL nack_enabled;

@@ -76,3 +76,33 @@ int get_socket_send_buf(SOCKET socket, int *buffer_space) {
 int set_socket_send_buf(SOCKET socket, int buffer_space) {
   return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }
+
+int poll_socket_for_recieve(SOCKET socket, int timeoutMs)
+{
+  // timeoutMs behavior
+  //    > 0 time in ms to wait
+  //    = 0 return instantly
+  //    < 0 wait forever
+
+  WSAPOLLFD fd;
+  fd.fd = socket;
+  fd.events = POLLRDNORM;
+  int ret = WSAPoll(&fd, 1, timeoutMs);
+
+  // Function return values
+  //    = 0 timeout reached
+  //    = 1 data received
+  //    = -1 socket error
+  if (ret == 0)
+  {
+    return 0;
+  }
+  else if (ret == 1 && fd.revents == POLLRDNORM)
+  {
+    return 1;
+  }
+  else
+  {
+    return SOCKET_ERROR;
+  }
+}

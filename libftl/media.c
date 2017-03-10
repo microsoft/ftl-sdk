@@ -272,6 +272,7 @@ void _clear_stats(media_stats_t *stats) {
   stats->frames_sent = 0;
   stats->bw_throttling_count = 0;
   stats->bytes_sent = 0;
+  stats->payload_bytes_sent = 0;
   stats->packets_sent = 0;
   stats->late_packets = 0;
   stats->lost_packets = 0;
@@ -295,6 +296,7 @@ void _clear_stats(media_stats_t *stats) {
 void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec) {
 
   if (mc->base_dts_usec < 0) {
+    gettimeofday(&mc->base_dts_timestamp, NULL);
     mc->base_dts_usec = dts_usec;
   }
 
@@ -304,7 +306,6 @@ void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_compon
   timestamp = (dts_usec - mc->base_dts_usec) * (uint64_t)(mc->timestamp_clock) / USEC_IN_SEC;
 
   mc->timestamp = (uint32_t)timestamp;
-
 }
 
 ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms, speed_test_t *results) {
@@ -467,7 +468,6 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 
   int pkt_len;
   int payload_size;
-  int consumed = 0;
   nack_slot_t *slot;
   int remaining = len;
   int retries = 0;
@@ -504,9 +504,9 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
         payload_size = _media_make_audio_rtp_packet(ftl, data, remaining, pkt_buf, &pkt_len);
 
         remaining -= payload_size;
-        consumed += payload_size;
         data += payload_size;
         bytes_sent += pkt_len;
+        mc->stats.payload_bytes_sent += payload_size;
 
         slot->len = pkt_len;
         slot->sn = sn;
@@ -531,7 +531,6 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
   int bytes_queued = 0;
   int pkt_len;
   int payload_size;
-  int consumed = 0;
   nack_slot_t *slot;
   int remaining = len;
   int first_fu = 1;
@@ -608,9 +607,9 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 
         first_fu = 0;
         remaining -= payload_size;
-        consumed += payload_size;
         data += payload_size;
         bytes_queued += pkt_len;
+        mc->stats.payload_bytes_sent += payload_size;
 
         /*if all data has been consumed set marker bit*/
         if (remaining <= 0 && end_of_frame) {
@@ -1213,24 +1212,33 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
   ftl_media_config_t *media = &ftl->media;
+  struct timeval lastSenderReportSendTime_tv;
 
+  senderReport_pkt_t *senderReport;
+  nack_slot_t senderReportSlot;
   ping_pkt_t *ping;
-  nack_slot_t slot;
-  uint8_t fmt = 1;
-  uint8_t ptype = PING_PTYPE;
-  ping = (ping_pkt_t*)slot.packet;
+  nack_slot_t pingSlot;
 
-  int rtp_hdr_len = 0;
-  slot.len = sizeof(ping_pkt_t);
+  ping = (ping_pkt_t*)pingSlot.packet;
+  senderReport = (senderReport_pkt_t*)senderReportSlot.packet;
 
+  pingSlot.len = sizeof(ping_pkt_t);
+  senderReportSlot.len = sizeof(senderReport_pkt_t);
 
+  //   RTPC Header Format
   //      0                   1                   2                   3
   //    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
   //   |V=2|P|   FMT   |       PT      |          length               |
   //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
+  uint8_t fmt = 1;
+  uint8_t ptype = PING_PTYPE;
   ping->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | sizeof(ping_pkt_t));
+
+  fmt = 0;
+  ptype = SENDER_REPORT_PTYPE;
+  senderReport->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | ((sizeof(senderReport_pkt_t) / 4) - 1));
 
   ftl_set_state(ftl, FTL_PING_THRD);
 
@@ -1238,15 +1246,64 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
     os_semaphore_pend(&ftl->media.ping_thread_shutdown, PING_TX_INTERVAL_MS);
 
+    // Get the current time in ntp
+    struct timeval currentTime;
+    gettimeofday(&currentTime, NULL);
+
     // It's important that this is a disable check not an enable check
     // because it is possible that this flag will be set before this thread spawns.
     // In that case we don't want to overwrite the flag with the FTL_PING_THRD set above. 
-    if (ftl_get_state(ftl, FTL_DISABLE_TX_PING_PKTS)) {
-      continue;
+    if (!ftl_get_state(ftl, FTL_DISABLE_TX_PING_PKTS)) 
+    {
+        ping->xmit_time.tv_sec = currentTime.tv_sec;
+        ping->xmit_time.tv_usec = currentTime.tv_usec;
+        _media_send_slot(ftl, &pingSlot);
     }
 
-    gettimeofday(&ping->xmit_time, NULL);
-    _media_send_slot(ftl, &slot);
+    if (!ftl_get_state(ftl, FTL_DISABLE_TX_SENDER_REPORT))
+    {
+        uint64_t timeSinceLastSRSendMs = timeval_subtract_to_ms(&currentTime, &lastSenderReportSendTime_tv);
+        if (timeSinceLastSRSendMs > SENDER_REPORT_TX_INTERVAL_MS)
+        {
+            lastSenderReportSendTime_tv = currentTime;
+            uint64_t ntpTimestamp = timeval_to_ntp(&currentTime);
+
+            // Set the current time into the report.
+            senderReport->ntpTimestampHigh = htonl(ntpTimestamp >> 32);
+            senderReport->ntpTimestampLow = htonl((uint32_t)(ntpTimestamp));
+
+            // For each media component...
+            ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
+            ftl_media_component_common_t *comp;
+            struct timeval delta_tv;
+            int mediaCount = 0;
+            for (mediaCount = 0; mediaCount < sizeof(media_comp) / sizeof(media_comp[0]); mediaCount++) {
+
+                comp = media_comp[mediaCount];
+
+                // Ensure the stream has been started.
+                if (comp->base_dts_usec < 0)
+                {
+                    continue;
+                }
+
+                // Set the ssrc and packet counts
+                senderReport->ssrc = htonl(comp->ssrc);
+                senderReport->senderOctetCount = htonl(comp->stats.payload_bytes_sent);
+                senderReport->senderPacketCount = htonl(comp->stats.packets_sent);
+
+                // Calculate what time the rtp timestamp should be currently.
+                // This time might not be 100% correct because it is set when we get the first packet. 
+                // So if the first packet is delayed more than the rest, the time can be thrown off.
+                // TODO, possibly average the base_dts_timestamp so it is more accurate.
+                uint64_t timeSinceBaseDtsUs = timeval_subtract_to_us(&currentTime, &comp->base_dts_timestamp);
+                senderReport->rtpTimestamp = htonl((timeSinceBaseDtsUs * comp->timestamp_clock) / USEC_IN_SEC);
+
+                // Send the report.
+                _media_send_slot(ftl, &senderReportSlot);
+            }
+        }
+    }
   }
 
   FTL_LOG(ftl, FTL_LOG_INFO, "Exited Ping Thread\n");

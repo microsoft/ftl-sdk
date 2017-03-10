@@ -184,7 +184,7 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
     os_lock_mutex(&media->mutex);
 
     shutdown_socket(media->media_socket, SD_BOTH);
-    close_socket(media->media_socket, SD_BOTH);
+    close_socket(media->media_socket);
     media->media_socket = INVALID_SOCKET;
 
     os_unlock_mutex(&media->mutex);

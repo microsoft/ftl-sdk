@@ -96,11 +96,7 @@ int poll_socket_for_recieve(SOCKET socket, int timeoutMs)
   fd.fd = socket;
   fd.events = POLLIN;
 
-  struct timespec timeout;
-  timeout.tv_sec = timeoutMs / 1000;
-  timeout.tv_nsec = (timeoutMs - (timeout.tv_sec * 1000));
-
-  int ret = poll(&fd, 1, timeoutMs < 0 ? NULL : &timeout, NULL);
+  int ret = poll(&fd, 1, timeoutMs);
 
   // Function return values
   //    = 0 timeout reached

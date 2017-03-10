@@ -109,13 +109,13 @@ int main(int argc, char **argv)
       video_input = optarg;
       break;
     case 'a':
-	  audio_input = optarg;
+    audio_input = optarg;
       break;
-	case 'r':
-		if (strcmp(optarg, "a") == 0) {
-			raw_opus = 1;
-		}
-		break;
+  case 'r':
+    if (strcmp(optarg, "a") == 0) {
+      raw_opus = 1;
+    }
+    break;
     case 's':
       stream_key = optarg;
       break;
@@ -255,12 +255,12 @@ int main(int argc, char **argv)
     uint8_t nalu_type;
     int audio_read_len;
 
-	if (feof(h264_handle.fp) || feof(opus_handle.fp))
-	{
-		printf("Restarting Stream\n");
-		reset_video(&h264_handle);
-		reset_audio(&opus_handle);
-		continue;
+  if (feof(h264_handle.fp) || feof(opus_handle.fp))
+  {
+    printf("Restarting Stream\n");
+    reset_video(&h264_handle);
+    reset_audio(&opus_handle);
+    continue;
     }
 
     if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)

@@ -382,7 +382,7 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
   ftl_status_msg_t status;
   struct timeval last_ping, now;
   int ms_since_ping = 0;
-  int keepalive_is_late = KEEPALIVE_FREQUENCY_MS + 2000; //add a 2s buffer to the wait time
+  int keepalive_is_late = KEEPALIVE_FREQUENCY_MS + KEEPALIVE_FREQUENCY_MS; // Add a 5s buffer to the wait time
 
   gettimeofday(&last_ping, NULL);
 

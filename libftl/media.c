@@ -174,17 +174,22 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
 
   if (ftl_get_state(ftl, FTL_RX_THRD)) {
     ftl_clear_state(ftl, FTL_RX_THRD);
-    //shutdown will cause recv to return with an error so we can exit the thread
-    shutdown_socket(media->media_socket, SD_BOTH);
-    close_socket(media->media_socket);
+
+    {
+        // Grab the socket lock and shut it down.
+        os_lock_mutex(&ftl->media.mutex);
+
+        // Shutdown will cause recv to return with an error so we can exit the thread
+        shutdown_socket(media->media_socket, SD_BOTH);
+        close_socket(media->media_socket);
+        media->media_socket = INVALID_SOCKET;
+
+        os_unlock_mutex(&ftl->media.mutex);
+    }
+
+    // Now wait for the receive thread to shutdown.
     os_wait_thread(media->recv_thread);
     os_destroy_thread(media->recv_thread);
-    media->media_socket = 0;
-  }
-
-  if (media->media_socket > 0) {
-    shutdown_socket(media->media_socket, SD_BOTH);
-    media->media_socket = -1;
   }
 
   ftl_media_component_common_t *video_comp = &ftl->video.media_component;
@@ -701,14 +706,25 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 }
 
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
-  int tx_len;
 
-  os_lock_mutex(&ftl->media.mutex);
-  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
+  int tx_len = 0;
   {
-    FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
+    os_lock_mutex(&ftl->media.mutex);
+
+    // Ensure the socket is valid
+    if (ftl->media.media_socket == INVALID_SOCKET)
+    {
+        FTL_LOG(ftl, FTL_LOG_INFO, "sendto() failed because the socket is invaid");
+        return tx_len;
+    }
+
+    if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
+    {
+        FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
+    }
+
+    os_unlock_mutex(&ftl->media.mutex);
   }
-  os_unlock_mutex(&ftl->media.mutex);
 
   return tx_len;
 }

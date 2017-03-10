@@ -84,8 +84,8 @@ void timespec_add_ms(struct timespec *ts, int ms) {
   ts->tv_nsec += ns_adjust;
 
   if(ts->tv_nsec >= NSEC_IN_SEC) {
-	  ts->tv_nsec -= NSEC_IN_SEC;
-	  ts->tv_sec++;
+    ts->tv_nsec -= NSEC_IN_SEC;
+    ts->tv_sec++;
   }
 }
 #endif // _WIN32
@@ -127,21 +127,21 @@ int64_t timeval_subtract_to_us(const struct timeval *end, const struct timeval *
 
 void timeval_add_ms(struct timeval *tv, int ms)
 {
-	long us_adjust;
-	time_t sec_adjust;
+  long us_adjust;
+  time_t sec_adjust;
 
-	sec_adjust = MSEC_TO_SEC((time_t)ms);
-	us_adjust = MSEC_TO_USEC((long)ms);
+  sec_adjust = MSEC_TO_SEC((time_t)ms);
+  us_adjust = MSEC_TO_USEC((long)ms);
 
-	us_adjust -= SEC_TO_USEC((long)sec_adjust);
+  us_adjust -= SEC_TO_USEC((long)sec_adjust);
 
-	tv->tv_sec += sec_adjust;
-	tv->tv_usec += us_adjust;
+  tv->tv_sec += sec_adjust;
+  tv->tv_usec += us_adjust;
 
-	if (tv->tv_usec >= USEC_IN_SEC) {
-		tv->tv_usec -= USEC_IN_SEC;
-		tv->tv_sec++;
-	}
+  if (tv->tv_usec >= USEC_IN_SEC) {
+    tv->tv_usec -= USEC_IN_SEC;
+    tv->tv_sec++;
+  }
 }
 
 float timeval_to_ms(struct timeval *tv) {
@@ -155,13 +155,13 @@ float timeval_to_ms(struct timeval *tv) {
 
 uint64_t timeval_to_us(struct timeval *tv)
 {
-	return tv->tv_sec * 1000000 + tv->tv_usec;
+  return tv->tv_sec * 1000000 + tv->tv_usec;
 }
 
 uint64_t timeval_to_ntp(struct timeval * tv) {
-	uint64_t ntpts;
+  uint64_t ntpts;
 
-	ntpts = (((uint64_t)tv->tv_sec + 2208988800u) << 32) + ((uint32_t)tv->tv_usec * 4294.967296);
+  ntpts = (((uint64_t)tv->tv_sec + 2208988800u) << 32) + ((uint32_t)tv->tv_usec * 4294.967296);
 
-	return (ntpts);
+  return (ntpts);
 }

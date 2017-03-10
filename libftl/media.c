@@ -1276,7 +1276,8 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
             ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
             ftl_media_component_common_t *comp;
             struct timeval delta_tv;
-            for (int mediaCount = 0; mediaCount < sizeof(media_comp) / sizeof(media_comp[0]); mediaCount++) {
+            int mediaCount = 0;
+            for (mediaCount = 0; mediaCount < sizeof(media_comp) / sizeof(media_comp[0]); mediaCount++) {
 
                 comp = media_comp[mediaCount];
 

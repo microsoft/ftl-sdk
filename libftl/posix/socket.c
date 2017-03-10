@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <errno.h>
+#include <poll.h>
 
 void init_sockets() {
   //BSD sockets are smarter and don't need silly init
@@ -84,5 +85,37 @@ int set_socket_send_buf(SOCKET socket, int buffer_space) {
   return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }
 
+int poll_socket_for_recieve(SOCKET socket, int timeoutMs)
+{
+  // timeoutMs behavior
+  //    > 0 time in ms to wait
+  //    = 0 return instantly
+  //    < 0 wait forever
 
+  struct pollfd fd;
+  fd.fd = socket;
+  fd.events = POLLIN;
 
+  struct timespec timeout;
+  timeout.tv_sec = timeoutMs / 1000;
+  timeout.tv_nsec = (timeoutMs - (timeout.tv_sec * 1000));
+
+  int ret = poll(&fd, 1, timeoutMs < 0 ? NULL : &timeout, NULL);
+
+  // Function return values
+  //    = 0 timeout reached
+  //    = 1 data received
+  //    = -1 socket error
+  if (ret == 0)
+  {
+    return 0;
+  }
+  else if (ret == 1 && fd.revents == POLLIN)
+  {
+    return 1;
+  }
+  else
+  {
+    return SOCKET_ERROR;
+  }
+}

@@ -154,7 +154,7 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
   ftl_media_config_t *media = &ftl->media;
   ftl_status_t status = FTL_SUCCESS;
 
-  //close while socket still active
+  // Close while socket still active
   if (ftl_get_state(ftl, FTL_PING_THRD)) {
     ftl_clear_state(ftl, FTL_PING_THRD);
     os_semaphore_post(&media->ping_thread_shutdown);
@@ -163,7 +163,7 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
     os_semaphore_delete(&media->ping_thread_shutdown);
   }
 
-  //close while socket still active
+  // Close while socket still active
   if (ftl_get_state(ftl, FTL_TX_THRD)) {
     ftl_clear_state(ftl, FTL_TX_THRD);
     os_semaphore_post(&ftl->video.media_component.pkt_ready);
@@ -172,19 +172,22 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
     os_semaphore_delete(&ftl->video.media_component.pkt_ready);
   }
 
+  // Stop the receive thread while the socket is open.
   if (ftl_get_state(ftl, FTL_RX_THRD)) {
-    ftl_clear_state(ftl, FTL_RX_THRD);
-    //shutdown will cause recv to return with an error so we can exit the thread
-    shutdown_socket(media->media_socket, SD_BOTH);
-    close_socket(media->media_socket);
+    ftl_clear_state(ftl, FTL_RX_THRD);    
     os_wait_thread(media->recv_thread);
     os_destroy_thread(media->recv_thread);
-    media->media_socket = 0;
   }
 
-  if (media->media_socket > 0) {
+  // Shutdown the socket
+  if (media->media_socket != INVALID_SOCKET) {
+    os_lock_mutex(&media->mutex);
+
     shutdown_socket(media->media_socket, SD_BOTH);
-    media->media_socket = -1;
+    close_socket(media->media_socket, SD_BOTH);
+    media->media_socket = INVALID_SOCKET;
+
+    os_unlock_mutex(&media->mutex);
   }
 
   ftl_media_component_common_t *video_comp = &ftl->video.media_component;
@@ -900,7 +903,6 @@ static int _media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in) 
   return 0;
 }
 
-
 /*handles rtcp packets from ingest including lost packet retransmission requests (nack)*/
 OS_THREAD_ROUTINE recv_thread(void *data)
 {
@@ -927,9 +929,26 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 
   while (ftl_get_state(ftl, FTL_RX_THRD)) {
 
+    // Wait on the socket for data or a timeout. The timeout is how we
+    // exit the thread when disconnecting.
+    ret = poll_socket_for_recieve(media->media_socket, 50);
+    if (ret == 0)
+    {
+      // This is a timeout, this is perfectly fine.
+      continue;
+    }
+    else if (ret < 0)
+    {
+      // We hit an error.
+      FTL_LOG(ftl, FTL_LOG_INFO, "Recieve thread socket error on poll");
+      continue;
+    }
+
+    // We have data on the socket, read it.
     addr_len = sizeof(remote_addr);
     ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)&remote_addr, &addr_len);
     if (ret <= 0) {
+      // This shouldn't be possible, we should only be here is poll above told us there was data.
       continue;
     }
 

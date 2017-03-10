@@ -1265,8 +1265,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
         uint64_t timeSinceLastSRSendMs = timeval_subtract_to_ms(&currentTime, &lastSenderReportSendTime_tv);
         if (timeSinceLastSRSendMs > SENDER_REPORT_TX_INTERVAL_MS)
         {
-            lastSenderReportSendTime_tv.tv_sec = currentTime.tv_sec;
-            lastSenderReportSendTime_tv.tv_usec = currentTime.tv_usec;
+            lastSenderReportSendTime_tv = currentTime;
             uint64_t ntpTimestamp = timeval_to_ntp(&currentTime);
 
             // Set the current time into the report.

@@ -267,7 +267,9 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 FTL_API int ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms);
 FTL_API ftl_status_t ftl_ingest_speed_test_ex(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms, speed_test_t *results);
 
+// Deprecated! Please use the DTS version.
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame);
+
 FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);
 
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout);

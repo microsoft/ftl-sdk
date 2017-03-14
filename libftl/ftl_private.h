@@ -199,8 +199,8 @@ typedef struct {
   uint32_t ssrc;
   uint32_t timestamp;
   int timestamp_clock;
+  uint64_t timestamp_dts_usec;
   int64_t base_dts_usec;
-  struct timeval base_dts_timestamp;
   int64_t randomOffset;
   uint16_t seq_num;
   uint16_t tmp_seq_num; // used for stats only
@@ -254,6 +254,7 @@ typedef struct {
   int max_mtu;
   struct timeval stats_tv;
   int last_rtt_delay;
+  struct timeval sender_report_base_ntp;
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {

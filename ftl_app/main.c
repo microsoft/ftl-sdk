@@ -263,22 +263,26 @@ int main(int argc, char **argv)
     continue;
     }
 
+    struct timeval frameTime;
+    gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
     if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)
     {
       continue;
     }
 
-    ftl_ingest_send_media(&handle, FTL_VIDEO_DATA, h264_frame, len, end_of_frame);
+    ftl_ingest_send_media_dts(&handle, FTL_VIDEO_DATA, timeval_to_us(&frameTime), h264_frame, len, end_of_frame);
 
     audio_pkts_sent = 0;
     while (audio_send_accumulator > audio_time_step)
     {
+      gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
       if (get_audio_packet(&opus_handle, audio_frame, &len) == 0)
       {
         break;
       }
 
-      ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
+      uint64_t time = timeval_to_us(&frameTime);
+      ftl_ingest_send_media_dts(&handle, FTL_AUDIO_DATA, timeval_to_us(&frameTime), audio_frame, len, 0);
       audio_send_accumulator -= audio_time_step;
       audio_pkts_sent++;
     }

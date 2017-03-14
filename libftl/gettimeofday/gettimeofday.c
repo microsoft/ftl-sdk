@@ -127,16 +127,16 @@ int64_t timeval_subtract_to_us(const struct timeval *end, const struct timeval *
 
 void timeval_add_ms(struct timeval *tv, int ms)
 {
-  long us_adjust;
-  time_t sec_adjust;
+  timeval_add_us(tv, MSEC_TO_USEC(ms));
+}
 
-  sec_adjust = MSEC_TO_SEC((time_t)ms);
-  us_adjust = MSEC_TO_USEC((long)ms);
+void timeval_add_us(struct timeval *tv, uint64_t us)
+{
+  struct timeval add_timeval;
+  us_to_timeval(&add_timeval, us);
 
-  us_adjust -= SEC_TO_USEC((long)sec_adjust);
-
-  tv->tv_sec += sec_adjust;
-  tv->tv_usec += us_adjust;
+  tv->tv_sec += add_timeval.tv_sec;
+  tv->tv_usec += add_timeval.tv_usec;
 
   if (tv->tv_usec >= USEC_IN_SEC) {
     tv->tv_usec -= USEC_IN_SEC;
@@ -155,7 +155,7 @@ float timeval_to_ms(struct timeval *tv) {
 
 uint64_t timeval_to_us(struct timeval *tv)
 {
-  return tv->tv_sec * 1000000 + tv->tv_usec;
+  return tv->tv_sec * (uint64_t)1000000 + tv->tv_usec;
 }
 
 uint64_t timeval_to_ntp(struct timeval * tv) {
@@ -164,4 +164,10 @@ uint64_t timeval_to_ntp(struct timeval * tv) {
   ntpts = (((uint64_t)tv->tv_sec + 2208988800u) << 32) + ((uint32_t)tv->tv_usec * 4294.967296);
 
   return (ntpts);
+}
+
+void us_to_timeval(struct timeval *outputTimeVal, const int64_t inputTimeUs)
+{
+  outputTimeVal->tv_sec = USEC_TO_SEC(inputTimeUs);
+  outputTimeVal->tv_usec = inputTimeUs - SEC_TO_USEC(outputTimeVal->tv_sec);
 }

@@ -77,7 +77,7 @@ int set_socket_send_buf(SOCKET socket, int buffer_space) {
   return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }
 
-int poll_socket_for_recieve(SOCKET socket, int timeoutMs)
+int poll_socket_for_receive(SOCKET socket, int timeoutMs)
 {
   // timeoutMs behavior
   //    > 0 time in ms to wait

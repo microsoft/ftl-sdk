@@ -66,6 +66,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
+    media->sender_report_base_ntp.tv_usec = 0;
+    media->sender_report_base_ntp.tv_sec = 0;
 
     ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
     ftl_media_component_common_t *comp;
@@ -180,13 +182,13 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
   }
 
   // Shutdown the socket
-  if (media->media_socket != INVALID_SOCKET) {
+  {
     os_lock_mutex(&media->mutex);
-
-    shutdown_socket(media->media_socket, SD_BOTH);
-    close_socket(media->media_socket);
-    media->media_socket = INVALID_SOCKET;
-
+    if (media->media_socket != INVALID_SOCKET) {
+      shutdown_socket(media->media_socket, SD_BOTH);
+      close_socket(media->media_socket);
+      media->media_socket = INVALID_SOCKET;      
+    }
     os_unlock_mutex(&media->mutex);
   }
 
@@ -298,9 +300,17 @@ void _clear_stats(media_stats_t *stats) {
 
 void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int64_t dts_usec) {
 
+  // If we don't have a ntp base time set grab it now.
+  if (ftl->media.sender_report_base_ntp.tv_sec == 0 &&
+    ftl->media.sender_report_base_ntp.tv_usec == 0)
+  {
+    gettimeofday(&ftl->media.sender_report_base_ntp, NULL);
+    FTL_LOG(ftl, FTL_LOG_INFO, "Sender report base ntp time set to %llu us\n", mc->payload_type, timeval_to_us(&ftl->media.sender_report_base_ntp));
+  }
+
   if (mc->base_dts_usec < 0) {
-    gettimeofday(&mc->base_dts_timestamp, NULL);
     mc->base_dts_usec = dts_usec;
+    FTL_LOG(ftl, FTL_LOG_INFO, "Stream (%lu) base dts set to %llu \n", mc->payload_type, dts_usec);
   }
 
   // Convert the incoming dts time to the correct clock time for the timestamp.
@@ -309,6 +319,8 @@ void _update_timestamp(ftl_stream_configuration_private_t *ftl, ftl_media_compon
   timestamp = (dts_usec - mc->base_dts_usec) * (uint64_t)(mc->timestamp_clock) / USEC_IN_SEC;
 
   mc->timestamp = (uint32_t)timestamp;
+  mc->timestamp_dts_usec = dts_usec;
+
 }
 
 ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms, speed_test_t *results) {
@@ -931,7 +943,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 
     // Wait on the socket for data or a timeout. The timeout is how we
     // exit the thread when disconnecting.
-    ret = poll_socket_for_recieve(media->media_socket, 50);
+    ret = poll_socket_for_receive(media->media_socket, 50);
     if (ret == 0)
     {
       // This is a timeout, this is perfectly fine.
@@ -940,7 +952,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
     else if (ret < 0)
     {
       // We hit an error.
-      FTL_LOG(ftl, FTL_LOG_INFO, "Recieve thread socket error on poll");
+      FTL_LOG(ftl, FTL_LOG_INFO, "Receive thread socket error on poll");
       continue;
     }
 
@@ -1285,11 +1297,6 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
         if (timeSinceLastSRSendMs > SENDER_REPORT_TX_INTERVAL_MS)
         {
             lastSenderReportSendTime_tv = currentTime;
-            uint64_t ntpTimestamp = timeval_to_ntp(&currentTime);
-
-            // Set the current time into the report.
-            senderReport->ntpTimestampHigh = htonl(ntpTimestamp >> 32);
-            senderReport->ntpTimestampLow = htonl((uint32_t)(ntpTimestamp));
 
             // For each media component...
             ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
@@ -1310,15 +1317,26 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
                 senderReport->ssrc = htonl(comp->ssrc);
                 senderReport->senderOctetCount = htonl(comp->stats.payload_bytes_sent);
                 senderReport->senderPacketCount = htonl(comp->stats.packets_sent);
+                
+                // Grab the last rtp timestamp. Since this is multi threaded we need it locally to ensure it doesn't change.
+                uint64_t timestamp = comp->timestamp;
+                uint64_t timestamp_dts_usec = comp->timestamp_dts_usec;
+                senderReport->rtpTimestamp = htonl(timestamp);
 
-                // Calculate what time the rtp timestamp should be currently.
-                // This time might not be 100% correct because it is set when we get the first packet. 
-                // So if the first packet is delayed more than the rest, the time can be thrown off.
-                // TODO, possibly average the base_dts_timestamp so it is more accurate.
-                uint64_t timeSinceBaseDtsUs = timeval_subtract_to_us(&currentTime, &comp->base_dts_timestamp);
-                senderReport->rtpTimestamp = htonl((timeSinceBaseDtsUs * comp->timestamp_clock) / USEC_IN_SEC);
+                // For the NTP time, we will take the base ntp time for this stream and increment it by the amount of time
+                // that has passed from this rtp timestamp and the base timestamp. This way all of the values are derived from
+                // the timestamps we are passed from the client. The base time of the ntp clock doesn't really matter, it can't be
+                // trusted off this computer anyways due to clock sync. The ntp time is only use to relatively to compare SR reports.
+                uint64_t timeDiff_usec = timestamp_dts_usec - comp->base_dts_usec;
 
-                // Send the report.
+                struct timeval srNtpTimestamp = media->sender_report_base_ntp;
+                timeval_add_us(&srNtpTimestamp, timeDiff_usec);
+
+                uint64_t ntpTimestamp = timeval_to_ntp(&srNtpTimestamp);
+                senderReport->ntpTimestampHigh = htonl(ntpTimestamp >> 32);
+                senderReport->ntpTimestampLow = htonl((uint32_t)(ntpTimestamp)); 
+
+                // Send the report
                 _media_send_slot(ftl, &senderReportSlot);
             }
         }

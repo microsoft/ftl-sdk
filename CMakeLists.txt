@@ -1,8 +1,13 @@
 cmake_minimum_required (VERSION 2.8.0)
-enable_language(C)
+enable_language(C CXX)
 project(libftl)
 
+# Options
 option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependancies" FALSE)
+
+if(NOT DISABLE_CMAKE_FOLDER_GEN)
+  set_property(GLOBAL PROPERTY USE_FOLDERS ON) 
+endif()
 
 find_package(Threads REQUIRED)
 
@@ -40,8 +45,19 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libjansson/include)
 SET(JANSSON_LIBRARIES jansson)
 endif()
 
-include_directories(libftl libftl/gettimeofday)
+################
+# Protobuf
+################
+SET(protobuf_BUILD_TESTS OFF)
+SET(protobuf_BUILD_EXAMPLES OFF)
+SET(protobuf_BUILD_SHARED_LIBS ON)
+add_subdirectory(ftl-protobuf/protobuf-cpp-3.2.0/cmake/)
+set_target_properties(libprotobuf PROPERTIES FOLDER "ProtoBuf")
+set_target_properties(libprotobuf-lite PROPERTIES FOLDER "ProtoBuf")
+include_directories(libftl ftl-protobuf/protobuf-cpp-3.2.0/src)
+set(PROTOBUF_LIBRARIES libprotobuf libprotobuf-lite)
 
+include_directories(libftl libftl/gettimeofday)
 
 if (WIN32)
   set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.c
@@ -70,11 +86,13 @@ add_library(ftl SHARED libftl/hmac/hmac.c
                        libftl/hmac/sha2.h
                        libftl/gettimeofday/gettimeofday.c
                        libftl/gettimeofday/gettimeofday.h
+                       ftl-protobuf/ftl/generated-cpp/handshake.pb.cc
+                       ftl-protobuf/ftl/generated-cpp/handshake.pb.h
                        libftl/ftl-sdk.c
                        libftl/handshake.c
                        libftl/ingest.c
                        libftl/ftl_helpers.c
-					   libftl/media.c
+                       libftl/media.c
                        libftl/logging.c
                        libftl/ftl.h
                        libftl/ftl_private.h
@@ -82,7 +100,7 @@ add_library(ftl SHARED libftl/hmac/hmac.c
 set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
-target_link_libraries(ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES})
+target_link_libraries(ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${PROTOBUF_LIBRARIES})
 if(WIN32)
   target_link_libraries(ftl ws2_32)
 endif()
@@ -96,7 +114,7 @@ add_executable(ftl_app
 	             ftl_app/gettimeofday.h
                ${FTL_PLATFORM_FILES})
 
-target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
+target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${PROTOBUF_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
 target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 
 # Install rules

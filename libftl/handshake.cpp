@@ -23,8 +23,10 @@
  **/
 
 #define __FTL_INTERNAL
+#include <cstdint>
 #include "ftl.h"
 #include "ftl_private.h"
+#include "IngestConnection.pb.h"
 #include <stdarg.h>
 
 OS_THREAD_ROUTINE  connection_status_thread(void *data);
@@ -56,6 +58,9 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   if (ftl_get_state(ftl, FTL_CONNECTED)) {
     return FTL_ALREADY_CONNECTED;
   }
+
+  // Ensure the protobuf runtime and generated file versions match
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   snprintf(ingest_port_str, 10, "%d", ingest_port);
 
@@ -134,9 +139,18 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
   do {
 
+    Beam::Ftl::Ingest::Messages::Connection::Connect connectMessage;
+    connectMessage.set_clientprotocolversion(Beam::Ftl::Ingest::Messages::Connection::ProtocolVersion::V1);
+    std::string output;
+    connectMessage.SerializeToString(&output);
+
+    //if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), output.c_str())) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
+
     if (!ftl_get_hmac(ftl->ingest_socket, ftl->key, ftl->hmacBuffer)) {
       FTL_LOG(ftl, FTL_LOG_ERROR, "could not get a signed HMAC!");
-      response_code = FTL_INGEST_NO_RESPONSE;
+      //response_code = FTL_INGEST_NO_RESPONSE;
       break;
     }
 
@@ -214,22 +228,22 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
     ftl_set_state(ftl, FTL_CONNECTED);
 
       if (os_semaphore_create(&ftl->connection_thread_shutdown, "/ConnectionThreadShutdown", O_CREAT, 0) < 0) {
-          response_code = FTL_MALLOC_FAILURE;
+          response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
           break;
       }
 
       if (os_semaphore_create(&ftl->keepalive_thread_shutdown, "/KeepAliveThreadShutdown", O_CREAT, 0) < 0) {
-          response_code = FTL_MALLOC_FAILURE;
+          response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
           break;
       }
 
     if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
-      response_code = FTL_MALLOC_FAILURE;
+      response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
       break;
     }
 
     if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
-      response_code = FTL_MALLOC_FAILURE;
+      response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
       break;
     }
 
@@ -240,9 +254,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
   _ingest_disconnect(ftl);
 
-  response_code = _log_response(ftl, response_code);
-
-  return response_code;
+  return _log_response(ftl, response_code);;
 }
 
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
@@ -294,11 +306,11 @@ static ftl_response_code_t _ftl_get_response(ftl_stream_configuration_private_t 
     return FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR;
   }
 
-  return ftl_read_response_code(response_buf);
+  return (ftl_response_code_t)ftl_read_response_code(response_buf);
 }
 
 static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...) {
-  int resp_code = FTL_INGEST_RESP_OK;
+  ftl_response_code_t resp_code = FTL_INGEST_RESP_OK;
   va_list valist;
   double sum = 0.0;
   char *buf = NULL;

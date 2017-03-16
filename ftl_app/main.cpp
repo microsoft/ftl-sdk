@@ -84,8 +84,6 @@ int main(int argc, char **argv)
   int success = 0;
   int verbose = 0;
 
-  opterr = 0;
-
   charon_install_ctrlc_handler();
 
 
@@ -134,6 +132,11 @@ int main(int argc, char **argv)
     }
   }
 
+  stream_key = "153416-hcqt7mdcrb5g3o2ccjg7ynneg593rqoe";
+  video_input = "C:\\Users\\qdamere\\Downloads\\sintel.h264";
+  audio_input = "C:\\Users\\qdamere\\Downloads\\sintel.opus";
+  ingest_location = "169.46.200.69";
+
   /* Make sure we have all the required bits */
   if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration)))
   {
@@ -150,7 +153,7 @@ int main(int argc, char **argv)
 
   if (video_input != NULL)
   {
-    if ((h264_frame = malloc(10000000)) == NULL)
+    if ((h264_frame = static_cast<uint8_t*>(malloc(10000000))) == NULL)
     {
       printf("Failed to allocate memory for bitstream\n");
       return -1;
@@ -165,7 +168,7 @@ int main(int argc, char **argv)
 
   if (audio_input != NULL)
   {
-    if ((audio_frame = malloc(1000)) == NULL)
+    if ((audio_frame = static_cast<uint8_t*>(malloc(1000))) == NULL)
     {
       printf("Failed to allocate memory for bitstream\n");
       return -1;
@@ -213,7 +216,7 @@ int main(int argc, char **argv)
     return -1;
   }
 #ifdef _WIN32
-  if ((status_thread_handle = CreateThread(NULL, 0, ftl_status_thread, &handle, 0, &status_thread_id)) == NULL)
+  if ((status_thread_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ftl_status_thread, &handle, 0, (LPDWORD)(&status_thread_id))) == NULL)
   {
 #else
   if ((pthread_create(&status_thread_handle, NULL, ftl_status_thread, &handle)) != 0)

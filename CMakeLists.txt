@@ -1,6 +1,6 @@
-cmake_minimum_required (VERSION 2.8.0)
-enable_language(C CXX)
-project(libftl)
+cmake_minimum_required(VERSION 3.1.0 FATAL_ERROR)
+set (CMAKE_CXX_STANDARD 11)
+project(libftl CXX)
 
 # Options
 option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependancies" FALSE)
@@ -58,42 +58,43 @@ include_directories(libftl ftl-protobuf/protobuf-cpp-3.2.0/src)
 set(PROTOBUF_LIBRARIES libprotobuf libprotobuf-lite)
 
 include_directories(libftl libftl/gettimeofday)
+include_directories(libftl ftl-protobuf/ftl/generated-cpp/)
 
 if (WIN32)
-  set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.c
-                            ftl_app/win32/xgetopt.h
-                            ftl_app/win32/ctrlc_handler.c)
+  set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.cpp
+                         ftl_app/win32/xgetopt.h
+                         ftl_app/win32/ctrlc_handler.cpp)
   #set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
   #set(FTL_PLATFORM_LIBS ws2_32 )
-  set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
+  set(FTLSDK_PLATFORM_FILES libftl/win32/socket.cpp
                       libftl/win32/socket.h
-	                    libftl/win32/threads.c
+	                    libftl/win32/threads.cpp
 		                  libftl/win32/threads.h)
 
   include_directories(libftl/win32)
 else()
-  set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
-  set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c
+  set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.cpp)
+  set(FTLSDK_PLATFORM_FILES libftl/posix/socket.cpp
                             libftl/posix/socket.h
-	        	                libftl/posix/threads.c
+	        	                libftl/posix/threads.cpp
 			                      libftl/posix/threads.h)
   include_directories(libftl/posix)
 endif()
 
-add_library(ftl SHARED libftl/hmac/hmac.c
+add_library(ftl SHARED libftl/hmac/hmac.cpp
                        libftl/hmac/hmac.h
-                       libftl/hmac/sha2.c
+                       libftl/hmac/sha2.cpp
                        libftl/hmac/sha2.h
-                       libftl/gettimeofday/gettimeofday.c
+                       libftl/gettimeofday/gettimeofday.cpp
                        libftl/gettimeofday/gettimeofday.h
-                       ftl-protobuf/ftl/generated-cpp/handshake.pb.cc
-                       ftl-protobuf/ftl/generated-cpp/handshake.pb.h
-                       libftl/ftl-sdk.c
-                       libftl/handshake.c
-                       libftl/ingest.c
-                       libftl/ftl_helpers.c
-                       libftl/media.c
-                       libftl/logging.c
+                       ftl-protobuf/ftl/generated-cpp/IngestConnection.pb.cc
+                       ftl-protobuf/ftl/generated-cpp/IngestConnection.pb.h
+                       libftl/ftl-sdk.cpp
+                       libftl/handshake.cpp
+                       libftl/ingest.cpp
+                       libftl/ftl_helpers.cpp
+                       libftl/media.cpp
+                       libftl/logging.cpp
                        libftl/ftl.h
                        libftl/ftl_private.h
                        ${FTLSDK_PLATFORM_FILES})
@@ -106,11 +107,11 @@ if(WIN32)
 endif()
 
 add_executable(ftl_app
-               ftl_app/main.c
+               ftl_app/main.cpp
                ftl_app/main.h
-               ftl_app/file_parser.c
+               ftl_app/file_parser.cpp
                ftl_app/file_parser.h			   
-               ftl_app/gettimeofday.c
+               ftl_app/gettimeofday.cpp
 	             ftl_app/gettimeofday.h
                ${FTL_PLATFORM_FILES})
 

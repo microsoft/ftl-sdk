@@ -23,7 +23,7 @@ static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, vo
   size_t realsize = size * nmemb;
   struct MemoryStruct *mem = (struct MemoryStruct *)userp;
 
-  mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+  mem->memory = static_cast<char*>(realloc(mem->memory, mem->size + realsize + 1));
   if (mem->memory == NULL) {
     /* out of memory! */
     printf("not enough memory (realloc returned NULL)\n");
@@ -49,7 +49,7 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 
   curl_handle = curl_easy_init();
 
-  chunk.memory = malloc(1);  /* will be grown as needed by realloc */
+  chunk.memory = static_cast<char*>(malloc(1));  /* will be grown as needed by realloc */
   chunk.size = 0;    /* no data at this point */
 
   curl_easy_setopt(curl_handle, CURLOPT_URL, INGEST_LIST_URI);
@@ -84,7 +84,7 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
 
     ftl_ingest_t *ingest_elmt;
 
-    if ((ingest_elmt = malloc(sizeof(ftl_ingest_t))) == NULL) {
+    if ((ingest_elmt = static_cast<ftl_ingest_t*>(malloc(sizeof(ftl_ingest_t)))) == NULL) {
       goto cleanup;
     }
 
@@ -222,7 +222,7 @@ static int _ping_server(const char *ip, int port) {
   SOCKET sock;
   struct sockaddr_in server_addr;
   unsigned char buf[sizeof(struct in_addr)];
-  uint8_t dummy[4];
+  char* dummy[4];
   struct timeval start, stop, delta;
   int retval = -1;
 
@@ -245,11 +245,11 @@ static int _ping_server(const char *ip, int port) {
 
     gettimeofday(&start, NULL);
 
-    if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
+    if (sendto(sock, *dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
       break;
     }
 
-    if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
+    if (recv(sock, *dummy, sizeof(dummy), 0) < 0) {
       break;
     }
 
@@ -332,13 +332,13 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
     total_ips++;
   }
 
-  if ((*ingest_ip = malloc(sizeof(char*) * total_ips)) == NULL) {
+  if ((*ingest_ip = static_cast<char**>(malloc(sizeof(char*) * total_ips))) == NULL) {
     return 0;
   }
   
   ips_found = 0;
   for (rp = result; rp != NULL; rp = rp->ai_next, ips_found++) {
-    if (((*ingest_ip)[ips_found] = malloc(IPV4_ADDR_ASCII_LEN)) == NULL) {
+    if (((*ingest_ip)[ips_found] = static_cast<char*>(malloc(IPV4_ADDR_ASCII_LEN))) == NULL) {
       return 0;
     }
 

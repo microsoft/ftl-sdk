@@ -65,7 +65,7 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get
      return 0;
    }
 
-   if ((handle->page_buf = malloc(MAX_OGG_PAGE_LEN)) == NULL) {
+   if ((handle->page_buf = static_cast<uint8_t*>(malloc(MAX_OGG_PAGE_LEN))) == NULL) {
      return 0;
    }
 

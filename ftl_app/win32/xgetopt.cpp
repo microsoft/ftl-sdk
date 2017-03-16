@@ -148,6 +148,7 @@
 
 TCHAR  *optarg;    // global argument pointer
 int    optind = 0;   // global argv index
+int    opterr = 0; 
 
 int getopt(int argc, TCHAR *argv[], TCHAR *optstring)
 {

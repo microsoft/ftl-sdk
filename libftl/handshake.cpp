@@ -23,15 +23,18 @@
  **/
 
 #define __FTL_INTERNAL
+#include <cstdint>
 #include "ftl.h"
 #include "ftl_private.h"
+#include "IngestConnection.pb.h"
 #include <stdarg.h>
 
 OS_THREAD_ROUTINE  connection_status_thread(void *data);
 OS_THREAD_ROUTINE  control_keepalive_thread(void *data);
 static ftl_response_code_t _ftl_get_response(ftl_stream_configuration_private_t *ftl, char *response_buf, int response_len);
 
-static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...);
+static ftl_response_code_t _ftl_start_connection(ftl_stream_configuration_private_t *ftl);
+static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl_cfg, BOOL need_response, char *response_buf, int response_len, const ::google::protobuf::Message& message);
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
 
 ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
@@ -56,6 +59,9 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   if (ftl_get_state(ftl, FTL_CONNECTED)) {
     return FTL_ALREADY_CONNECTED;
   }
+
+  // Ensure the protobuf runtime and generated file versions match
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   snprintf(ingest_port_str, 10, "%d", ingest_port);
 
@@ -133,78 +139,88 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   }
 
   do {
+    // Kick off the connection declaring our protocol.
+    if ((response_code = _ftl_start_connection(ftl)) != FTL_INGEST_RESP_OK) {
+      break;
+    }
+
+    Beam::Ftl::Ingest::Messages::Connection::Connect connect;
+    connect.set_clientprotocolversion(Beam::Ftl::Ingest::Messages::Connection::ProtocolVersion::V1);
+    if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), connect)) != FTL_INGEST_RESP_OK) {
+      break;
+    }
 
     if (!ftl_get_hmac(ftl->ingest_socket, ftl->key, ftl->hmacBuffer)) {
       FTL_LOG(ftl, FTL_LOG_ERROR, "could not get a signed HMAC!");
-      response_code = FTL_INGEST_NO_RESPONSE;
+      //response_code = FTL_INGEST_NO_RESPONSE;
       break;
     }
 
-    if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), "CONNECT %d $%s", ftl->channel_id, ftl->hmacBuffer)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), "CONNECT %d $%s", ftl->channel_id, ftl->hmacBuffer)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    /* We always send our version component first */
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "ProtocolVersion: %d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    ///* We always send our version component first */
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "ProtocolVersion: %d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    /* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VendorName: %s", ftl->vendor_name)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    ///* Cool. Now ingest wants our stream meta-data, which we send as key-value pairs, followed by a "." */
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VendorName: %s", ftl->vendor_name)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VendorVersion: %s", ftl->vendor_version)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VendorVersion: %s", ftl->vendor_version)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    ftl_video_component_t *video = &ftl->video;
-    /* We're sending video */
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "Video: true")) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //ftl_video_component_t *video = &ftl->video;
+    ///* We're sending video */
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "Video: true")) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoCodec: %s", ftl_video_codec_to_string(video->codec))) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoCodec: %s", ftl_video_codec_to_string(video->codec))) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoHeight: %d", video->height)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoHeight: %d", video->height)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoWidth: %d", video->width)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoWidth: %d", video->width)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoPayloadType: %d", video->media_component.payload_type)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoPayloadType: %d", video->media_component.payload_type)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoIngestSSRC: %d", video->media_component.ssrc)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "VideoIngestSSRC: %d", video->media_component.ssrc)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    ftl_audio_component_t *audio = &ftl->audio;
+    //ftl_audio_component_t *audio = &ftl->audio;
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "Audio: true")) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "Audio: true")) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "AudioCodec: %s", ftl_audio_codec_to_string(audio->codec))) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "AudioCodec: %s", ftl_audio_codec_to_string(audio->codec))) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "AudioPayloadType: %d", audio->media_component.payload_type)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "AudioPayloadType: %d", audio->media_component.payload_type)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "AudioIngestSSRC: %d", audio->media_component.ssrc)) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "AudioIngestSSRC: %d", audio->media_component.ssrc)) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
-    if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), ".")) != FTL_INGEST_RESP_OK) {
-      break;
-    }
+    //if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), ".")) != FTL_INGEST_RESP_OK) {
+    //  break;
+    //}
 
     /*see if there is a port specified otherwise use default*/
     int port = ftl_read_media_port(response);
@@ -214,22 +230,22 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
     ftl_set_state(ftl, FTL_CONNECTED);
 
       if (os_semaphore_create(&ftl->connection_thread_shutdown, "/ConnectionThreadShutdown", O_CREAT, 0) < 0) {
-          response_code = FTL_MALLOC_FAILURE;
+          response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
           break;
       }
 
       if (os_semaphore_create(&ftl->keepalive_thread_shutdown, "/KeepAliveThreadShutdown", O_CREAT, 0) < 0) {
-          response_code = FTL_MALLOC_FAILURE;
+          response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
           break;
       }
 
     if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
-      response_code = FTL_MALLOC_FAILURE;
+      response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
       break;
     }
 
     if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
-      response_code = FTL_MALLOC_FAILURE;
+      response_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
       break;
     }
 
@@ -240,9 +256,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
   _ingest_disconnect(ftl);
 
-  response_code = _log_response(ftl, response_code);
-
-  return response_code;
+  return _log_response(ftl, response_code);;
 }
 
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
@@ -270,10 +284,10 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
     ftl_clear_state(ftl, FTL_CONNECTED);
 
-    FTL_LOG(ftl, FTL_LOG_INFO, "light-saber disconnect\n");
-    if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "DISCONNECT", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
-      FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest Disconnect failed with %d (%s)\n", response_code, response);
-    }
+    //FTL_LOG(ftl, FTL_LOG_INFO, "light-saber disconnect\n");
+    //if ((response_code = _ftl_send_command(ftl, FALSE, response, sizeof(response), "DISCONNECT", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
+    //  FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest Disconnect failed with %d (%s)\n", response_code, response);
+    //}
   }
 
   if (ftl->ingest_socket > 0) {
@@ -294,57 +308,61 @@ static ftl_response_code_t _ftl_get_response(ftl_stream_configuration_private_t 
     return FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR;
   }
 
-  return ftl_read_response_code(response_buf);
+  return (ftl_response_code_t)ftl_read_response_code(response_buf);
 }
 
-static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...) {
-  int resp_code = FTL_INGEST_RESP_OK;
-  va_list valist;
-  double sum = 0.0;
-  char *buf = NULL;
-  int len;
-  int buflen = MAX_INGEST_COMMAND_LEN * sizeof(char);
-  char *format = NULL;
+static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl, BOOL need_response, char *response_buf, int response_len, const ::google::protobuf::Message& message) {
+  ftl_response_code_t resp_code = FTL_INGEST_RESP_OK;
 
-  do {
-    if ((buf = (char*)malloc(buflen)) == NULL) {
-      resp_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
-      break;
+  try
+  {
+    // Pack the message
+    Beam::Ftl::Ingest::Messages::Connection::IngestMessage ingestMessage;
+    ingestMessage.mutable_command()->PackFrom(message, "ftl-ingest");
+
+    // Get the message size and fill the first 4 bits of the buffer with it.
+    uint32_t messageSizeBytes = static_cast<uint32_t>(ingestMessage.ByteSizeLong());
+
+    // Create a send buffer, size it, and add the size to the first 4 bytes.
+    std::vector<char> sendBuffer;
+    sendBuffer.resize(messageSizeBytes + 4);
+    uint32_t* sendBufferUint32 = (uint32_t*)(sendBuffer.data());
+    sendBufferUint32[0] = htonl(messageSizeBytes);
+
+    // Write the protobuf object out.
+    if (!ingestMessage.SerializeToArray((sendBuffer.data() + 4), sendBuffer.size() - 4))
+    {
+      return FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
     }
 
-    if ((format = (char*)malloc(strlen(cmd_fmt) + 5)) == NULL) {
-      resp_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
-      break;
-    }
-
-    sprintf_s(format, strlen(cmd_fmt) + 5, "%s\r\n\r\n", cmd_fmt);
-
-    va_start(valist, cmd_fmt);
-
-    memset(buf, 0, buflen);
-
-    len = vsnprintf(buf, buflen, format, valist);
-
-    va_end(valist);
-
-    if (len < 0 || len >= buflen) {
-      resp_code = FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR;
-      break;
-    }
-
-    send(ftl->ingest_socket, buf, len, 0);
+    // Send the buffer.
+    send(ftl->ingest_socket, sendBuffer.data(), sendBuffer.size(), 0);
 
     if (need_response) {
       resp_code = _ftl_get_response(ftl, response_buf, response_len);
     }
-  } while (0);
-
-  if(buf != NULL){
-    free(buf);
+  }
+  catch (std::exception& ex)
+  {
+    return FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
   }
 
-  if(format != NULL){
-      free(format);
+  return resp_code;
+}
+
+static ftl_response_code_t _ftl_start_connection(ftl_stream_configuration_private_t *ftl) {
+  ftl_response_code_t resp_code = FTL_INGEST_RESP_OK;
+
+  try
+  {
+    // To start the connection we send the protocol name. This is how we will determine
+    // what we are going to speak.
+    std::string buff = "photon\n";
+    send(ftl->ingest_socket, buff.c_str(), buff.size(), 0);
+  }
+  catch (std::exception& ex)
+  {
+    resp_code = FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
   }
 
   return resp_code;
@@ -365,9 +383,9 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
       break;
     }
 
-    if ((response_code = _ftl_send_command(ftl, FALSE, NULL, 0, "PING %d", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
+   /* if ((response_code = _ftl_send_command(ftl, FALSE, NULL, 0, "PING %d", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest ping failed with %d\n", response_code);
-    }
+    }*/
   }
 
   FTL_LOG(ftl, FTL_LOG_INFO, "Exited control_keepalive_thread\n");

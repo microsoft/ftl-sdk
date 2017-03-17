@@ -156,13 +156,13 @@ const char * ftl_video_codec_to_string(ftl_video_codec_t codec) {
 
 void ftl_set_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state) {
   os_lock_mutex(&ftl->state_mutex);
-  ftl->state |= state;
+  ftl->state = (ftl_state_t)(ftl->state | state);
   os_unlock_mutex(&ftl->state_mutex);
 }
 
 void ftl_clear_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state) {
   os_lock_mutex(&ftl->state_mutex);
-  ftl->state &= ~state;
+  ftl->state = (ftl_state_t)(ftl->state & ~state);
   os_unlock_mutex(&ftl->state_mutex);
 }
 

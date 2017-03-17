@@ -51,10 +51,10 @@ endif()
 SET(protobuf_BUILD_TESTS OFF)
 SET(protobuf_BUILD_EXAMPLES OFF)
 SET(protobuf_BUILD_SHARED_LIBS ON)
-add_subdirectory(ftl-protobuf/protobuf-cpp-3.2.0/cmake/)
+add_subdirectory(ftl-photon/protobuf-cpp-3.2.0/cmake/)
 set_target_properties(libprotobuf PROPERTIES FOLDER "ProtoBuf")
 set_target_properties(libprotobuf-lite PROPERTIES FOLDER "ProtoBuf")
-include_directories(libftl ftl-protobuf/protobuf-cpp-3.2.0/src)
+include_directories(libftl ftl-photon/protobuf-cpp-3.2.0/src)
 set(PROTOBUF_LIBRARIES libprotobuf libprotobuf-lite)
 
 include_directories(libftl libftl/gettimeofday)
@@ -87,8 +87,8 @@ add_library(ftl SHARED libftl/hmac/hmac.cpp
                        libftl/hmac/sha2.h
                        libftl/gettimeofday/gettimeofday.cpp
                        libftl/gettimeofday/gettimeofday.h
-                       ftl-protobuf/ftl/generated-cpp/IngestConnection.pb.cc
-                       ftl-protobuf/ftl/generated-cpp/IngestConnection.pb.h
+                       ftl-photon/ftl/photon-cpp/IngestConnection.pb.cc
+                       ftl-photon/ftl/photon-cpp/IngestConnection.pb.h
                        libftl/ftl-sdk.cpp
                        libftl/handshake.cpp
                        libftl/ingest.cpp

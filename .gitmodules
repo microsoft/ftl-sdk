@@ -4,3 +4,6 @@
 [submodule "libjansson"]
   path = libjansson
   url = https://github.com/akheron/jansson
+[submodule "ftl-photon"]
+	path = ftl-photon
+	url = https://github.com/WatchBeam/ftl-photon

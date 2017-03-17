@@ -87,8 +87,8 @@ add_library(ftl SHARED libftl/hmac/hmac.cpp
                        libftl/hmac/sha2.h
                        libftl/gettimeofday/gettimeofday.cpp
                        libftl/gettimeofday/gettimeofday.h
-                       ftl-photon/ftl/photon-cpp/IngestConnection.pb.cc
-                       ftl-photon/ftl/photon-cpp/IngestConnection.pb.h
+                       ftl-photon/ftl/photon-cpp/PhotonCommands.pb.cc
+                       ftl-photon/ftl/photon-cpp/PhotonCommands.pb.h
                        libftl/ftl-sdk.cpp
                        libftl/handshake.cpp
                        libftl/ingest.cpp

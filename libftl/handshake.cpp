@@ -26,7 +26,7 @@
 #include <cstdint>
 #include "ftl.h"
 #include "ftl_private.h"
-#include "IngestConnection.pb.h"
+#include "PhotonCommands.pb.h"
 #include <stdarg.h>
 
 OS_THREAD_ROUTINE  connection_status_thread(void *data);

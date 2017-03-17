@@ -58,7 +58,7 @@ include_directories(libftl ftl-photon/protobuf-cpp-3.2.0/src)
 set(PROTOBUF_LIBRARIES libprotobuf libprotobuf-lite)
 
 include_directories(libftl libftl/gettimeofday)
-include_directories(libftl ftl-protobuf/ftl/generated-cpp/)
+include_directories(libftl ftl-photon/ftl/photon-cpp/)
 
 if (WIN32)
   set(FTL_PLATFORM_FILES ftl_app/win32/xgetopt.cpp

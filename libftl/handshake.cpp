@@ -144,8 +144,8 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
       break;
     }
 
-    Beam::Ftl::Ingest::Messages::Connection::Connect connect;
-    connect.set_clientprotocolversion(Beam::Ftl::Ingest::Messages::Connection::ProtocolVersion::V1);
+    Photon::Commands::Connect connect;
+    connect.set_clientprotocolversion(Photon::Commands::ProtocolVersion::V1);
     if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), connect)) != FTL_INGEST_RESP_OK) {
       break;
     }
@@ -317,11 +317,11 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
   try
   {
     // Pack the message
-    Beam::Ftl::Ingest::Messages::Connection::IngestMessage ingestMessage;
-    ingestMessage.mutable_command()->PackFrom(message, "ftl-ingest");
+    Photon::Commands::PhotonWrapper photonWrapper;
+    photonWrapper.mutable_command()->PackFrom(message, "ftl-ingest");
 
     // Get the message size and fill the first 4 bits of the buffer with it.
-    uint32_t messageSizeBytes = static_cast<uint32_t>(ingestMessage.ByteSizeLong());
+    uint32_t messageSizeBytes = static_cast<uint32_t>(photonWrapper.ByteSizeLong());
 
     // Create a send buffer, size it, and add the size to the first 4 bytes.
     std::vector<char> sendBuffer;
@@ -330,7 +330,7 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
     sendBufferUint32[0] = htonl(messageSizeBytes);
 
     // Write the protobuf object out.
-    if (!ingestMessage.SerializeToArray((sendBuffer.data() + 4), sendBuffer.size() - 4))
+    if (!photonWrapper.SerializeToArray((sendBuffer.data() + 4), sendBuffer.size() - 4))
     {
       return FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR;
     }

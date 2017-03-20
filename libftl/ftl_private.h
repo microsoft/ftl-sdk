@@ -32,7 +32,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string>
 #include "gettimeofday/gettimeofday.h"
 
 #ifdef _WIN32
@@ -288,7 +287,7 @@ typedef struct {
   status_queue_t status_q;
   ftl_ingest_t *ingest_list;
   int ingest_count;
-  std::string telemetryId;
+  uint64_t sessionId;
 }  ftl_stream_configuration_private_t;
 
 struct MemoryStruct {

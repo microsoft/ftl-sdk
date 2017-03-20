@@ -163,22 +163,23 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
     if (!anyResponse.Is<Photon::Commands::Connect_Response>())
     {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Server returned an error from connect command.");
+      response_code = Photon::Commands::StatusCodes::INTERNAL_COMMAND_ERROR;
       break;
     }
 
     if (!anyResponse.UnpackTo(&connectResponse))
     {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to unpack connect response.");
+      response_code = Photon::Commands::StatusCodes::INTERNAL_COMMAND_ERROR;
       break;
     }
 
-    // Grab the telemetry id, report it, and send it to the client.
-    ftl->telemetryId = connectResponse.telemetryid();
-    FTL_LOG(ftl, FTL_LOG_INFO, "Recieved telemetry Id from ingest. (%hs)", ftl->telemetryId.c_str());
+    // Grab the session telemetry id, report it, and send it to the client.
+    ftl->sessionId = connectResponse.sessionid();
+    FTL_LOG(ftl, FTL_LOG_INFO, "Recieved session telemetry Id from ingest. (%ull)", ftl->sessionId);
     ftl_status_msg_t status;
-    status.type = FTL_STATUS_TELEMETRY_ID;
-    status.msg.telemetry_stats.telemetryId = ftl->telemetryId.c_str();
-    status.msg.telemetry_stats.telemetryIdLen = ftl->telemetryId.length();
+    status.type = FTL_STATUS_SESSION_ID;
+    status.msg.session_id.sessionId = ftl->sessionId;
     enqueue_status_msg(ftl, &status);
 
     // Grab the encoded hmac and decode it.
@@ -214,12 +215,14 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
     if (!anyResponse.Is<Photon::Commands::Authenticate_Response>())
     {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Server returned an error from authenticate command.");
+      response_code = Photon::Commands::StatusCodes::INTERNAL_COMMAND_ERROR;
       break;
     }
 
     if (!anyResponse.UnpackTo(&authResponse))
     {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to unpack authencate command response.");
+      response_code = Photon::Commands::StatusCodes::INTERNAL_COMMAND_ERROR;
       break;
     }
 
@@ -257,12 +260,14 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
     if (!anyResponse.Is<Photon::Commands::StreamStart_Response>())
     {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Server returned an error from start stream command.");
+      response_code = Photon::Commands::StatusCodes::INTERNAL_COMMAND_ERROR;
       break;
     }
 
     if (!anyResponse.UnpackTo(&startStreamResponse))
     {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Unable to unpack start stream command response.");
+      response_code = Photon::Commands::StatusCodes::INTERNAL_COMMAND_ERROR;
       break;
     }
 
@@ -296,6 +301,13 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   
     return FTL_SUCCESS;
   } while (0);
+
+  // This shouldn't happen, but if it does set the code to ensure we
+  // disconnect.
+  if (response_code == Photon::Commands::StatusCodes::OK)
+  {
+    response_code = Photon::Commands::StatusCodes::UNKNOWN;
+  }
 
   Photon::Commands::DisconnectReasons reason = response_code == Photon::Commands::StatusCodes::NO_RESPONSE ?
     Photon::Commands::DisconnectReasons::CLIENT_ERROR_TIMEOUT : Photon::Commands::DisconnectReasons::CLIENT_ERROR_BAD_RESPONSE;

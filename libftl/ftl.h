@@ -170,7 +170,7 @@ typedef enum {
   FTL_STATUS_AUDIO,
   FTL_STATUS_FRAMES_DROPPED,
   FTL_STATUS_NETWORK,
-  FTL_STATUS_TELEMETRY_ID
+  FTL_STATUS_SESSION_ID
 } ftl_status_types_t;
 
 typedef enum {
@@ -230,9 +230,8 @@ typedef struct {
 }ftl_video_frame_stats_msg_t;
 
 typedef struct {
-  const char* telemetryId; // client does not own this string
-  uint32_t telemetryIdLen;
-}ftl_telemetry_stats_msg_t;
+  uint64_t sessionId;
+}ftl_session_id_msg_t;
 
 /*status messages*/
 typedef struct {
@@ -243,7 +242,7 @@ typedef struct {
     ftl_packet_stats_msg_t pkt_stats;
     ftl_packet_stats_instant_msg_t ipkt_stats;
     ftl_video_frame_stats_msg_t video_stats;
-    ftl_telemetry_stats_msg_t telemetry_stats;
+    ftl_session_id_msg_t session_id;
   } msg;
 }ftl_status_msg_t;
 

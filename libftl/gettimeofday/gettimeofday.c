@@ -37,10 +37,10 @@
 #define USEC_TO_SEC(x) ((x) / USEC_IN_SEC)
 #define USEC_TO_MSEC(x) ((x) / MSEC_IN_USEC)
 #define MSEC_TO_SEC(x) ((x) / MSEC_IN_SEC)
-#define MSEC_TO_USEC(x) ((x) * MSEC_IN_USEC)
-#define MSEC_TO_NSEC(x) ((x) * MSEC_IN_NSEC)
-#define SEC_TO_USEC(x) ((x) * USEC_IN_SEC)
-#define SEC_TO_NSEC(x) ((x) * NSEC_IN_SEC)
+#define MSEC_TO_USEC(x) (((uint64_t)x) * MSEC_IN_USEC)
+#define MSEC_TO_NSEC(x) (((uint64_t)x) * MSEC_IN_NSEC)
+#define SEC_TO_USEC(x) (((uint64_t)x) * USEC_IN_SEC)
+#define SEC_TO_NSEC(x) (((uint64_t)x) * NSEC_IN_SEC)
 
 #ifdef _WIN32
 #include <Windows.h>

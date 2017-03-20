@@ -90,7 +90,7 @@ add_library(ftl SHARED libftl/hmac/hmac.cpp
                        ftl-photon/ftl/photon-cpp/PhotonCommands.pb.cc
                        ftl-photon/ftl/photon-cpp/PhotonCommands.pb.h
                        libftl/ftl-sdk.cpp
-                       libftl/handshake.cpp
+                       libftl/ingestconnection.cpp
                        libftl/ingest.cpp
                        libftl/ftl_helpers.cpp
                        libftl/media.cpp

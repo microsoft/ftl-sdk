@@ -52,21 +52,6 @@ int ftl_read_media_port(const char *response_str) {
   return port;
 }
 
-unsigned char decode_hex_char(char c) {
-    if (c >= '0' && c <= '9') {
-        return c - '0';
-    }
-
-    // Set the 5th bit. Makes ASCII chars lowercase :)
-    c |= (1 << 5);
-
-    if (c >= 'a' && c <= 'z') {
-        return (c - 'a') + 10;
-    }
-
-    return 0;
-}
-
 int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
     int pos = 0;
     int n;
@@ -90,46 +75,6 @@ int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
   buf[bytes_recd] = '\0';
 
     return bytes_recd;
-}
-
-int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst) {
-    char buf[2048];
-    int string_len;
-    int response_code;
-
-    send(sock, "HMAC\r\n\r\n", 8, 0);
-    string_len = recv_all(sock, buf, 2048, '\n');
-    if (string_len < 4 || string_len == 2048) {
-        return 0;
-    }
-
-    response_code = ftl_read_response_code(buf);
-    if (response_code != FTL_INGEST_RESP_OK) {
-        return 0;
-    }
-
-    int len = string_len - 5; // Strip "200 " and "\n"
-    if (len % 2) {
-        return 0;
-    }
-
-    int messageLen = len / 2;
-    unsigned char *msg;
-
-    if( (msg = (unsigned char*)malloc(messageLen * sizeof(*msg))) == NULL){
-        return 0;
-    }
-
-    int i;
-    const char *hexMsgBuf = buf + 4;
-    for(i = 0; i < messageLen; i++) {
-        msg[i] = (decode_hex_char(hexMsgBuf[i * 2]) << 4) +
-                  decode_hex_char(hexMsgBuf[(i * 2) + 1]);
-    }
-
-    hmacsha512(auth_key, msg, messageLen, dst);
-    free(msg);
-    return 1;
 }
 
 const char * ftl_audio_codec_to_string(ftl_audio_codec_t codec) {

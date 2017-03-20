@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 #include "gettimeofday/gettimeofday.h"
 
 #ifdef _WIN32
@@ -273,7 +274,7 @@ typedef struct {
   char ingest_ip[IPV4_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;
   char *key;
-  char hmacBuffer[512];
+  char hashedKey[512];
   int video_kbps;
   char vendor_name[20];
   char vendor_version[20];
@@ -287,36 +288,13 @@ typedef struct {
   status_queue_t status_q;
   ftl_ingest_t *ingest_list;
   int ingest_count;
+  std::string telemetryId;
 }  ftl_stream_configuration_private_t;
 
 struct MemoryStruct {
   char *memory;
   size_t size;
 };
-
-/**
- * Charon always responses with a three digit response code after each command
- *
- * This enum holds defined number sequences
- **/
-
-typedef enum {
-  FTL_INGEST_RESP_UNKNOWN = 0,
-  FTL_INGEST_RESP_OK = 200,
-  FTL_INGEST_RESP_PING = 201,
-  FTL_INGEST_RESP_BAD_REQUEST= 400,//the handshake was not formatted correctly
-  FTL_INGEST_RESP_UNAUTHORIZED = 401,//this channel id is not authorized to stream
-  FTL_INGEST_RESP_OLD_VERSION = 402, //this ftl api version is no longer supported
-  FTL_INGEST_RESP_AUDIO_SSRC_COLLISION = 403,
-  FTL_INGEST_RESP_VIDEO_SSRC_COLLISION = 404,
-  FTL_INGEST_RESP_INVALID_STREAM_KEY = 405, //the corresponding channel does not match this key
-  FTL_INGEST_RESP_CHANNEL_IN_USE = 406, //the channel ID successfully authenticated however it is already actively streaming
-  FTL_INGEST_RESP_REGION_UNSUPPORTED = 407, //streaming from this country or region is not authorized by local governments
-  FTL_INGEST_RESP_NO_MEDIA_TIMEOUT = 408,
-  FTL_INGEST_RESP_INTERNAL_SERVER_ERROR = 500,
-  FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR = 900,
-  FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR = 901
-} ftl_response_code_t;
 
 /**
  * Logs something to the FTL logs
@@ -349,7 +327,6 @@ int ftl_read_media_port(const char *response_str);
 // FIXME: make this less global
 extern char error_message[1000];
 
-ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
 void ftl_set_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
 void ftl_clear_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
 BOOL ftl_get_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
@@ -360,7 +337,7 @@ ftl_status_t _set_ingest_ip(ftl_stream_configuration_private_t *ftl);
 
 ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl);
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
-ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
+ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config, BOOL isClean);
 char * ingest_find_best(ftl_stream_configuration_private_t *ftl);
 char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host);
 void ingest_release(ftl_stream_configuration_private_t *ftl);
@@ -370,7 +347,7 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl);
 int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);
 int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len);
 ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed_kbps, int duration_ms, speed_test_t *results);
-ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl);
+ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl, BOOL isClean);
 ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl);
 void sleep_ms(int ms);
 

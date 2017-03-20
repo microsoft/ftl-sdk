@@ -213,6 +213,7 @@ typedef struct {
   int consumer;
   uint16_t xmit_seq_num;
   nack_slot_t *nack_slots[NACK_RB_SIZE];
+  OS_MUTEX nack_slots_lock;
   int peak_kbps;
   int kbps;
   media_stats_t stats; //cumulative since start of stream

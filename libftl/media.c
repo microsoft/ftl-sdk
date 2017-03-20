@@ -249,9 +249,9 @@ static int _nack_init(ftl_media_component_common_t *media) {
 
     slot->len = 0;
     slot->sn = -1;
-    //slot->insert_time = 0;
   }
 
+  os_init_mutex(&media->nack_slots_lock);
   media->nack_slots_initalized = TRUE;
   media->nack_enabled = TRUE;
   media->seq_num = media->xmit_seq_num = 0; //TODO: should start at a random value
@@ -268,7 +268,7 @@ static int _nack_destroy(ftl_media_component_common_t *media) {
       media->nack_slots[i] = NULL;
     }
   }
-
+  os_delete_mutex(&media->nack_slots_lock);
   return 0;
 }
 
@@ -688,11 +688,27 @@ static nack_slot_t* _media_get_empty_slot(ftl_stream_configuration_private_t *ft
     return NULL;
   }
 
-  if (((mc->seq_num + 1) % NACK_RB_SIZE) == (mc->xmit_seq_num % NACK_RB_SIZE)) {
-    return NULL;
+  nack_slot_t *slot;
+  {
+    os_lock_mutex(&mc->nack_slots_lock);
+
+    // If the next sequence number is equal to the current send number
+    // the queue is full. Return null.
+    // Note we do the nextSn increment outside of the if to ensure the rollover
+    // for uint16 works correctly.
+    uint16_t nextSn = sn + (uint16_t)1;
+    if (((nextSn) % NACK_RB_SIZE) == (mc->xmit_seq_num % NACK_RB_SIZE)) {
+      slot = NULL;
+    }
+    else {
+      slot = mc->nack_slots[sn % NACK_RB_SIZE];
+      slot->sn = sn;
+    }
+
+    os_unlock_mutex(&mc->nack_slots_lock);
   }
 
-  return mc->nack_slots[sn % NACK_RB_SIZE];
+  return slot;
 }
 
 static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, uint32_t ssrc) {
@@ -732,10 +748,15 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 
   int tx_len;
 
-  nack_slot_t *slot = mc->nack_slots[mc->xmit_seq_num % NACK_RB_SIZE];
+  nack_slot_t *slot;
+  
+  {
+    os_lock_mutex(&mc->nack_slots_lock);
 
-  if (mc->xmit_seq_num == mc->seq_num) {
-    FTL_LOG(ftl, FTL_LOG_INFO, "ERROR: No packets in ring buffer (%d == %d)\n", mc->xmit_seq_num, mc->seq_num);
+    slot = mc->nack_slots[mc->xmit_seq_num % NACK_RB_SIZE];
+    mc->xmit_seq_num++;
+
+    os_unlock_mutex(&mc->nack_slots_lock);
   }
 
   os_lock_mutex(&slot->mutex);
@@ -743,8 +764,6 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
   tx_len = _media_send_slot(ftl, slot);
 
   gettimeofday(&slot->xmit_time, NULL);
-
-  mc->xmit_seq_num++;
 
   if (slot->last) {
     mc->stats.frames_sent++;

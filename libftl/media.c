@@ -364,17 +364,18 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
 
   ping->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | sizeof(ping_pkt_t));
 
-  /*send ping packet first to get an accurate estimate of rtt under ideal conditions*/
+  // Send ping packet first to get an accurate estimate of rtt under ideal conditions.
+  // We send it multiplies times to try to ensure one makes it on poor connections.
   ftl->media.last_rtt_delay = -1;
   gettimeofday(&ping->xmit_time, NULL);
   _media_send_slot(ftl, &slot);
+  _media_send_slot(ftl, &slot);
+  _media_send_slot(ftl, &slot);
 
   wait_retries = 5;
-  while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
+  while ((initial_rtt = ftl->media.last_rtt_delay) < 0 && wait_retries-- > 0) {
     sleep_ms(25);
   };
-
-  initial_rtt = ftl->media.last_rtt_delay;
 
   results->starting_rtt = (wait_retries <= 0) ? -1 : ftl->media.last_rtt_delay;
 
@@ -424,14 +425,21 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
   }
 
   if (!error) {
-    ftl->media.last_rtt_delay = -1;
-    gettimeofday(&ping->xmit_time, NULL);
-    _media_send_slot(ftl, &slot);
 
+    // After the test send another ping packet to detect rtt.
+    // We might need to send a few of these to make sure one makes it
+    // after we burst the network with packets in the test.
+    ftl->media.last_rtt_delay = -1;
     wait_retries = 2000 / PING_TX_INTERVAL_MS; // waiting up to 2s for ping to come back
-    while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
+    while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0)
+    {
+      // Send the ping packet
+      gettimeofday(&ping->xmit_time, NULL);
+      _media_send_slot(ftl, &slot);
+
+      // Sleep for a bit.
       sleep_ms(PING_TX_INTERVAL_MS);
-    };
+    }
 
     final_rtt = ftl->media.last_rtt_delay;
     results->ending_rtt = (wait_retries <= 0) ? -1 : ftl->media.last_rtt_delay;

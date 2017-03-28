@@ -249,9 +249,9 @@ static ftl_status_t _nack_init(ftl_media_component_common_t *media) {
 
     slot->len = 0;
     slot->sn = -1;
-    //slot->insert_time = 0;
   }
 
+  os_init_mutex(&media->nack_slots_lock);
   media->nack_slots_initalized = TRUE;
   media->nack_enabled = TRUE;
   media->seq_num = media->xmit_seq_num = 0; //TODO: should start at a random value
@@ -268,7 +268,7 @@ static int _nack_destroy(ftl_media_component_common_t *media) {
       media->nack_slots[i] = NULL;
     }
   }
-
+  os_delete_mutex(&media->nack_slots_lock);
   return 0;
 }
 
@@ -364,17 +364,18 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
 
   ping->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | sizeof(ping_pkt_t));
 
-  /*send ping packet first to get an accurate estimate of rtt under ideal conditions*/
+  // Send ping packet first to get an accurate estimate of rtt under ideal conditions.
+  // We send it multiplies times to try to ensure one makes it on poor connections.
   ftl->media.last_rtt_delay = -1;
   gettimeofday(&ping->xmit_time, NULL);
   _media_send_slot(ftl, &slot);
+  _media_send_slot(ftl, &slot);
+  _media_send_slot(ftl, &slot);
 
   wait_retries = 5;
-  while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
+  while ((initial_rtt = ftl->media.last_rtt_delay) < 0 && wait_retries-- > 0) {
     sleep_ms(25);
   };
-
-  initial_rtt = ftl->media.last_rtt_delay;
 
   results->starting_rtt = (wait_retries <= 0) ? -1 : ftl->media.last_rtt_delay;
 
@@ -424,14 +425,21 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
   }
 
   if (!error) {
-    ftl->media.last_rtt_delay = -1;
-    gettimeofday(&ping->xmit_time, NULL);
-    _media_send_slot(ftl, &slot);
 
+    // After the test send another ping packet to detect rtt.
+    // We might need to send a few of these to make sure one makes it
+    // after we burst the network with packets in the test.
+    ftl->media.last_rtt_delay = -1;
     wait_retries = 2000 / PING_TX_INTERVAL_MS; // waiting up to 2s for ping to come back
-    while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0) {
+    while (ftl->media.last_rtt_delay < 0 && wait_retries-- > 0)
+    {
+      // Send the ping packet
+      gettimeofday(&ping->xmit_time, NULL);
+      _media_send_slot(ftl, &slot);
+
+      // Sleep for a bit.
       sleep_ms(PING_TX_INTERVAL_MS);
-    };
+    }
 
     final_rtt = ftl->media.last_rtt_delay;
     results->ending_rtt = (wait_retries <= 0) ? -1 : ftl->media.last_rtt_delay;
@@ -688,11 +696,27 @@ static nack_slot_t* _media_get_empty_slot(ftl_stream_configuration_private_t *ft
     return NULL;
   }
 
-  if (((mc->seq_num + 1) % NACK_RB_SIZE) == (mc->xmit_seq_num % NACK_RB_SIZE)) {
-    return NULL;
+  nack_slot_t *slot;
+  {
+    os_lock_mutex(&mc->nack_slots_lock);
+
+    // If the next sequence number is equal to the current send number
+    // the queue is full. Return null.
+    // Note we do the nextSn increment outside of the if to ensure the rollover
+    // for uint16 works correctly.
+    uint16_t nextSn = sn + (uint16_t)1;
+    if (((nextSn) % NACK_RB_SIZE) == (mc->xmit_seq_num % NACK_RB_SIZE)) {
+      slot = NULL;
+    }
+    else {
+      slot = mc->nack_slots[sn % NACK_RB_SIZE];
+      slot->sn = sn;
+    }
+
+    os_unlock_mutex(&mc->nack_slots_lock);
   }
 
-  return mc->nack_slots[sn % NACK_RB_SIZE];
+  return slot;
 }
 
 static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, uint32_t ssrc) {
@@ -732,10 +756,15 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
 
   int tx_len;
 
-  nack_slot_t *slot = mc->nack_slots[mc->xmit_seq_num % NACK_RB_SIZE];
+  nack_slot_t *slot;
+  
+  {
+    os_lock_mutex(&mc->nack_slots_lock);
 
-  if (mc->xmit_seq_num == mc->seq_num) {
-    FTL_LOG(ftl, FTL_LOG_INFO, "ERROR: No packets in ring buffer (%d == %d)\n", mc->xmit_seq_num, mc->seq_num);
+    slot = mc->nack_slots[mc->xmit_seq_num % NACK_RB_SIZE];
+    mc->xmit_seq_num++;
+
+    os_unlock_mutex(&mc->nack_slots_lock);
   }
 
   os_lock_mutex(&slot->mutex);
@@ -743,8 +772,6 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
   tx_len = _media_send_slot(ftl, slot);
 
   gettimeofday(&slot->xmit_time, NULL);
-
-  mc->xmit_seq_num++;
 
   if (slot->last) {
     mc->stats.frames_sent++;

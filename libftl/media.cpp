@@ -8,7 +8,7 @@ OS_THREAD_ROUTINE send_thread(void *data);
 OS_THREAD_ROUTINE recv_thread(void *data);
 OS_THREAD_ROUTINE ping_thread(void *data);
 ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl);
-static int _nack_init(ftl_media_component_common_t *media);
+static ftl_status_t _nack_init(ftl_media_component_common_t *media);
 static int _nack_destroy(ftl_media_component_common_t *media);
 static ftl_media_component_common_t *_media_lookup(ftl_stream_configuration_private_t *ftl, uint32_t ssrc);
 static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len, int first_pkt);
@@ -235,7 +235,7 @@ ftl_status_t media_destroy(ftl_stream_configuration_private_t *ftl) {
   return ret;
 }
 
-static int _nack_init(ftl_media_component_common_t *media) {
+static ftl_status_t _nack_init(ftl_media_component_common_t *media) {
 
   int i;
   for (i = 0; i < NACK_RB_SIZE; i++) {
@@ -743,7 +743,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
   int tx_len;
 
   os_lock_mutex(&ftl->media.mutex);
-  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
+  if ((tx_len = sendto(ftl->media.media_socket, (char*)slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
   {
     FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
   }
@@ -985,7 +985,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
 
     // We have data on the socket, read it.
     addr_len = sizeof(remote_addr);
-    ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)&remote_addr, &addr_len);
+    ret = recvfrom(media->media_socket, (char*)buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)&remote_addr, &addr_len);
     if (ret <= 0) {
       // This shouldn't be possible, we should only be here is poll above told us there was data.
       continue;

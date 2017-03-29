@@ -60,8 +60,6 @@ typedef enum {
   FTL_STREAM_REJECTED, /**< Ingest rejected our connect command */
   FTL_NOT_ACTIVE_STREAM, /**< The function required an active stream and was passed an inactive one */
   FTL_UNAUTHORIZED, /**< Parameters were correct, but streamer not authorized to use FTL */
-  FTL_AUDIO_SSRC_COLLISION, /**< The audio SSRC from this IP is currently in use */
-  FTL_VIDEO_SSRC_COLLISION, /**< The video SSRC from this IP is currently in use */
   FTL_BAD_REQUEST, /**< Ingest didn't like our request. Should never happen */
   FTL_OLD_VERSION, /**< libftl needs to be updated */
   FTL_BAD_OR_INVALID_STREAM_KEY,
@@ -171,7 +169,8 @@ typedef enum {
   FTL_STATUS_VIDEO,
   FTL_STATUS_AUDIO,
   FTL_STATUS_FRAMES_DROPPED,
-  FTL_STATUS_NETWORK
+  FTL_STATUS_NETWORK,
+  FTL_STATUS_SESSION_ID
 } ftl_status_types_t;
 
 typedef enum {
@@ -230,6 +229,10 @@ typedef struct {
   int max_frame_size;
 }ftl_video_frame_stats_msg_t;
 
+typedef struct {
+  uint64_t sessionId;
+}ftl_session_id_msg_t;
+
 /*status messages*/
 typedef struct {
   ftl_status_types_t type;
@@ -239,6 +242,7 @@ typedef struct {
     ftl_packet_stats_msg_t pkt_stats;
     ftl_packet_stats_instant_msg_t ipkt_stats;
     ftl_video_frame_stats_msg_t video_stats;
+    ftl_session_id_msg_t session_id;
   } msg;
 }ftl_status_msg_t;
 
@@ -276,7 +280,7 @@ FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_
 
 FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params);
 
-FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
+FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle, int isClean);
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 

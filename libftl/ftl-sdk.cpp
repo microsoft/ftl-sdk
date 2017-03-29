@@ -116,7 +116,7 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
     return status;
   } while (0);
 
-  internal_ingest_disconnect(ftl);
+  internal_ingest_disconnect(ftl, FALSE);
   
   return status;
 }
@@ -219,7 +219,7 @@ FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t med
   return ftl_ingest_send_media_dts(ftl_handle, media_type, dts_usec, data, len, end_of_frame);
 }
 
-FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
+FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle, int isClean) {
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
   ftl_status_t status_code = FTL_SUCCESS;
 
@@ -227,7 +227,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 
   if (ftl_get_state(ftl, FTL_CONNECTED)) {
 
-    status_code = internal_ingest_disconnect(ftl);
+    status_code = internal_ingest_disconnect(ftl, isClean == 1);
 
     ftl_status_msg_t status;
     status.type = FTL_STATUS_EVENT;
@@ -243,7 +243,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
   return status_code;
 }
 
-ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
+ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl, BOOL isClean) {
 
   ftl_status_t status_code;
     
@@ -253,7 +253,7 @@ ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl)
     FTL_LOG(ftl, FTL_LOG_ERROR, "failed to clean up media channel with error %d\n", status_code);
   }
 
-  if ((status_code = _ingest_disconnect(ftl)) != FTL_SUCCESS) {
+  if ((status_code = _ingest_disconnect(ftl, isClean)) != FTL_SUCCESS) {
     FTL_LOG(ftl, FTL_LOG_ERROR, "Disconnect failed with error %d\n", status_code);
   }
 
@@ -352,10 +352,6 @@ char* ftl_status_code_to_string(ftl_status_t status) {
     return "The stream is not active";
   case FTL_UNAUTHORIZED:
     return "This channel is not authorized to connect to this ingest";
-  case FTL_AUDIO_SSRC_COLLISION:
-    return "The Audio SSRC is already in use";
-  case FTL_VIDEO_SSRC_COLLISION:
-    return "The Video SSRC is already in use";
   case FTL_BAD_REQUEST:
     return "A request to the ingest was invalid";
   case FTL_OLD_VERSION:

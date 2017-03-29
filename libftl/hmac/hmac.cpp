@@ -9,6 +9,21 @@
 
 const unsigned char hex_digits[] = "0123456789abcdef";
 
+unsigned char decode_hex_char(char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  }
+
+  // Set the 5th bit. Makes ASCII chars lowercase :)
+  c |= (1 << 5);
+
+  if (c >= 'a' && c <= 'z') {
+    return (c - 'a') + 10;
+  }
+
+  return 0;
+}
+
 int hmacsha512(const char * rawKey, const unsigned char * message, const int messageLength, char * result) {
   Sha512Context ctx;
   SHA512_HASH computedHash;

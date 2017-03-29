@@ -275,14 +275,12 @@ int main(int argc, char **argv)
     audio_pkts_sent = 0;
     while (audio_send_accumulator > audio_time_step)
     {
-      gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
       if (get_audio_packet(&opus_handle, audio_frame, &len) == 0)
       {
         break;
       }
 
-      uint64_t time = timeval_to_us(&frameTime);
-      ftl_ingest_send_media_dts(&handle, FTL_AUDIO_DATA, timeval_to_us(&frameTime), audio_frame, len, 0);
+      ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
       audio_send_accumulator -= audio_time_step;
       audio_pkts_sent++;
     }

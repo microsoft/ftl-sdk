@@ -132,11 +132,6 @@ int main(int argc, char **argv)
     }
   }
 
-  stream_key = "153416-hcqt7mdcrb5g3o2ccjg7ynneg593rqoe";
-  video_input = "C:\\Users\\qdamere\\Downloads\\sintel.h264";
-  audio_input = "C:\\Users\\qdamere\\Downloads\\sintel.opus";
-  ingest_location = "169.46.200.69";
-
   /* Make sure we have all the required bits */
   if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration)))
   {

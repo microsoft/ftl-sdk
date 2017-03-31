@@ -114,8 +114,41 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   }
 
   ftl->ingest_socket = sock;
-  
+
   return FTL_SUCCESS;
+}
+
+ftl_status_t _test_stream_key_internal(ftl_stream_configuration_private_t *ftl)
+{
+    ftl_status_t status = FTL_SUCCESS;
+    if ((status = _init_control_connection(ftl)) != FTL_SUCCESS)
+    {
+        return status;
+    }
+
+    ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
+    char response[MAX_INGEST_COMMAND_LEN];
+    do {
+        if (!ftl_get_hmac(ftl->ingest_socket, ftl->key, ftl->hmacBuffer)) {
+            FTL_LOG(ftl, FTL_LOG_ERROR, "could not get a signed HMAC!");
+            response_code = FTL_INGEST_NO_RESPONSE;
+            break;
+        }
+
+        if ((response_code = _ftl_send_command(ftl, TRUE, response, sizeof(response), "CONNECT %d $%s", ftl->channel_id, ftl->hmacBuffer)) != FTL_INGEST_RESP_OK) {
+            break;
+        }
+
+        return FTL_SUCCESS;
+
+    } while (0);
+
+    if (ftl->ingest_socket > 0) {
+        close_socket(ftl->ingest_socket);
+        ftl->ingest_socket = 0;
+    }
+
+    return response_code;
 }
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
@@ -234,7 +267,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
     }
 
     FTL_LOG(ftl, FTL_LOG_INFO, "Successfully connected to ingest.  Media will be sent to port %d\n", ftl->media.assigned_port);
-  
+
     return FTL_SUCCESS;
   } while (0);
 
@@ -280,7 +313,7 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
     close_socket(ftl->ingest_socket);
     ftl->ingest_socket = 0;
   }
-  
+
   return FTL_SUCCESS;
 }
 
@@ -419,7 +452,7 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
       if (ms_since_ping > keepalive_is_late) {
         error_code = FTL_NO_PING_RESPONSE;
       }
-      
+
       FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
 
       ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);

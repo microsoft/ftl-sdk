@@ -83,7 +83,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       }
 
       // According to RTP the time stamps should start at random values,
-      // but to help sync issues and to make sync easier to calculate we 
+      // but to help sync issues and to make sync easier to calculate we
       // start at 0.
       comp->timestamp = 0;
       comp->producer = 0;
@@ -112,7 +112,11 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       break;
     }
 
+    // The state needs to be set before the thread actually begins to avoid race condition inside
+    // _internal_media_destroy which can potentially skip os_destroy_thread(media->send_thread).
+    ftl_set_state(ftl, FTL_TX_THRD);
     if ((os_create_thread(&media->send_thread, NULL, send_thread, ftl)) != 0) {
+      ftl_clear_state(ftl, FTL_TX_THRD);
       status = FTL_MALLOC_FAILURE;
       break;
     }
@@ -122,7 +126,11 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       break;
     }
 
+    // The state needs to be set before the thread actually begins to avoid race condition inside
+    // _internal_media_destroy which can potentially skip os_destroy_thread(media->ping_thread).
+    ftl_set_state(ftl, FTL_PING_THRD);
     if ((os_create_thread(&media->ping_thread, NULL, ping_thread, ftl)) != 0) {
+      ftl_clear_state(ftl, FTL_PING_THRD);
       status = FTL_MALLOC_FAILURE;
       break;
     }
@@ -176,7 +184,7 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
 
   // Stop the receive thread while the socket is open.
   if (ftl_get_state(ftl, FTL_RX_THRD)) {
-    ftl_clear_state(ftl, FTL_RX_THRD);    
+    ftl_clear_state(ftl, FTL_RX_THRD);
     os_wait_thread(media->recv_thread);
     os_destroy_thread(media->recv_thread);
   }
@@ -187,7 +195,7 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
     if (media->media_socket != INVALID_SOCKET) {
       shutdown_socket(media->media_socket, SD_BOTH);
       close_socket(media->media_socket);
-      media->media_socket = INVALID_SOCKET;      
+      media->media_socket = INVALID_SOCKET;
     }
     os_unlock_mutex(&media->mutex);
   }
@@ -407,7 +415,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
       }
 
       // Sendto (which is called in media_send_audio) can block if the computer's network connection is bad
-      // and the local OS send buffer is full. We want this behavior when streaming normally for the send thread 
+      // and the local OS send buffer is full. We want this behavior when streaming normally for the send thread
       // to throttle the amount of data we send, but during the speed test this causes us to block the send loop and makes
       // the speed test too long and return inaccurate values.
       gettimeofday(&sendToTimeLoopTime_tv, NULL);
@@ -757,7 +765,7 @@ static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media
   int tx_len;
 
   nack_slot_t *slot;
-  
+
   {
     os_lock_mutex(&mc->nack_slots_lock);
 
@@ -1101,8 +1109,6 @@ OS_THREAD_ROUTINE send_thread(void *data)
   }
 #endif
 
-  ftl_set_state(ftl, FTL_TX_THRD);
-
   initial_peak_kbps = video->kbps = video->peak_kbps;
   video_kbps = 0;
   transmit_level = 5 * video->kbps * 1000 / 8 / 1000; /*small initial level to prevent bursting at the start of a stream*/
@@ -1298,8 +1304,6 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
   ptype = SENDER_REPORT_PTYPE;
   senderReport->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | ((sizeof(senderReport_pkt_t) / 4) - 1));
 
-  ftl_set_state(ftl, FTL_PING_THRD);
-
   while (ftl_get_state(ftl, FTL_PING_THRD)) {
 
     os_semaphore_pend(&ftl->media.ping_thread_shutdown, PING_TX_INTERVAL_MS);
@@ -1310,8 +1314,8 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
     // It's important that this is a disable check not an enable check
     // because it is possible that this flag will be set before this thread spawns.
-    // In that case we don't want to overwrite the flag with the FTL_PING_THRD set above. 
-    if (!ftl_get_state(ftl, FTL_DISABLE_TX_PING_PKTS)) 
+    // In that case we don't want to overwrite the flag with the FTL_PING_THRD set above.
+    if (!ftl_get_state(ftl, FTL_DISABLE_TX_PING_PKTS))
     {
         ping->xmit_time.tv_sec = currentTime.tv_sec;
         ping->xmit_time.tv_usec = currentTime.tv_usec;
@@ -1344,7 +1348,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
                 senderReport->ssrc = htonl(comp->ssrc);
                 senderReport->senderOctetCount = htonl(comp->stats.payload_bytes_sent);
                 senderReport->senderPacketCount = htonl(comp->stats.packets_sent);
-                
+
                 // Grab the last rtp timestamp. Since this is multi threaded we need it locally to ensure it doesn't change.
                 uint64_t timestamp = comp->timestamp;
                 uint64_t timestamp_dts_usec = comp->timestamp_dts_usec;
@@ -1361,7 +1365,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
                 uint64_t ntpTimestamp = timeval_to_ntp(&srNtpTimestamp);
                 senderReport->ntpTimestampHigh = htonl(ntpTimestamp >> 32);
-                senderReport->ntpTimestampLow = htonl((uint32_t)(ntpTimestamp)); 
+                senderReport->ntpTimestampLow = htonl((uint32_t)(ntpTimestamp));
 
                 // Send the report
                 _media_send_slot(ftl, &senderReportSlot);

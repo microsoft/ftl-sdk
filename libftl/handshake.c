@@ -120,10 +120,10 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 
 ftl_status_t _test_stream_key_internal(ftl_stream_configuration_private_t *ftl)
 {
-    _init_control_connection(ftl);
-
-    if (ftl->ingest_socket <= 0) {
-        return FTL_SOCKET_NOT_CONNECTED;
+    ftl_status_t status = FTL_SUCCESS;
+    if ((status = _init_control_connection(ftl)) != FTL_SUCCESS)
+    {
+        return status;
     }
 
     ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;

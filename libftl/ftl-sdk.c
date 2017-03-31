@@ -36,6 +36,10 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
     memset(ftl, 0, sizeof(ftl_stream_configuration_private_t));
 
+    os_init_mutex(&ftl->status_q.mutex);
+    os_init_mutex(&ftl->state_mutex);
+    os_init_mutex(&ftl->disconnect_mutex);
+
     ftl->video.media_component.peak_kbps = params->peak_kbps;
 
     ftl->key = NULL;
@@ -75,14 +79,10 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
     ftl->status_q.count = 0;
     ftl->status_q.head = NULL;
 
-    os_init_mutex(&ftl->status_q.mutex);
-
     if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
       return FTL_MALLOC_FAILURE;
     }
 
-    os_init_mutex(&ftl->state_mutex);
-    os_init_mutex(&ftl->disconnect_mutex);
     ftl_set_state(ftl, FTL_STATUS_QUEUE);
 
     ftl->ingest_hostname = _strdup(params->ingest_hostname);
@@ -93,7 +93,12 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   internal_ftl_ingest_destroy(ftl);
 
-  return ret_status;  
+  return ret_status;
+}
+
+FTL_API ftl_status_t ftl_test_stream_key(ftl_handle_t *ftl_handle) {
+    ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+    return _test_stream_key_internal(ftl);
 }
 
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
@@ -117,7 +122,7 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   } while (0);
 
   internal_ingest_disconnect(ftl);
-  
+
   return status;
 }
 
@@ -246,7 +251,7 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
 ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
   ftl_status_t status_code;
-    
+
   ftl_set_state(ftl, FTL_DISCONNECT_IN_PROGRESS);
 
   if ((status_code = media_destroy(ftl)) != FTL_SUCCESS) {
@@ -259,7 +264,7 @@ ftl_status_t internal_ingest_disconnect(ftl_stream_configuration_private_t *ftl)
 
   ftl_clear_state(ftl, FTL_DISCONNECT_IN_PROGRESS);
 
-    
+
   return FTL_SUCCESS;
 }
 
@@ -279,7 +284,7 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
     }
 
     //wait a few ms for the thread to pull that last message and exit
-    
+
     int  wait_retries = 5;
     while (ftl->status_q.thread_waiting && wait_retries-- > 0) {
       sleep_ms(10);
@@ -301,6 +306,9 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
 
     os_unlock_mutex(&ftl->status_q.mutex);
     os_delete_mutex(&ftl->status_q.mutex);
+
+    os_delete_mutex(&ftl->state_mutex);
+    os_delete_mutex(&ftl->disconnect_mutex);
 
     os_semaphore_delete(&ftl->status_q.sem);
 
@@ -395,14 +403,14 @@ char* ftl_status_code_to_string(ftl_status_t status) {
   case FTL_UNKNOWN_ERROR_CODE:
   default:
     /* Unknown FTL error */
-    return "Unknown status code"; 
+    return "Unknown status code";
   }
 }
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
   size_t len;
   int i;
-  
+
   len = strlen(stream_key);
   for (i = 0; i != len; i++) {
     /* find the comma that divides the stream key */

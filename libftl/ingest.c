@@ -33,11 +33,13 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
 ftl_status_t ftl_find_closest_ingest(const char* ingestIps[], const char* ingestNames[], int ingestsCount, char* bestIngestIpComputed)
 {
     ftl_ingest_t* ingestElement;
+    int i;
+
     if ((ingestElement = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
         return FTL_MALLOC_FAILURE;
     }
 
-    for (int i = 0; i < ingestsCount; i++)
+    for (i = 0; i < ingestsCount; i++)
     {
         strcpy_s(ingestElement[i].name, sizeof(ingestElement[i].name), ingestNames[i]);
         strcpy_s(ingestElement[i].ip, sizeof(ingestElement[i].ip), ingestIps[i]);
@@ -47,9 +49,7 @@ ftl_status_t ftl_find_closest_ingest(const char* ingestIps[], const char* ingest
 
     OS_THREAD_HANDLE *handle;
     _tmp_ingest_thread_data_t *data;
-    int i;
-    ftl_ingest_t *elmt, *best = NULL;
-    struct timeval start, stop, delta;
+    ftl_ingest_t *best = NULL;
 
     if ((handle = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
         return FTL_MALLOC_FAILURE;
@@ -59,13 +59,11 @@ ftl_status_t ftl_find_closest_ingest(const char* ingestIps[], const char* ingest
         return FTL_MALLOC_FAILURE;
     }
 
-    gettimeofday(&start, NULL);
-
     /*query all the ingests about cpu and rtt*/
     for (i = 0; i < ingestsCount; i++) {
         handle[i] = 0;
         data[i].ingest = &ingestElement[i];
-        data[i].ftl = NULL;
+        data[i].ftl = NULL; // This is not used by _ingest_get_rtt
         os_create_thread(&handle[i], NULL, _ingest_get_rtt, &data[i]);
         sleep_ms(5); //space out the pings
     }
@@ -81,10 +79,6 @@ ftl_status_t ftl_find_closest_ingest(const char* ingestIps[], const char* ingest
             best = &ingestElement[i];
         }
     }
-
-    gettimeofday(&stop, NULL);
-    timeval_subtract(&delta, &stop, &start);
-    int ms = (int)timeval_to_ms(&delta);
 
     for (i = 0; i < ingestsCount; i++) {
         if (handle[i] != 0) {

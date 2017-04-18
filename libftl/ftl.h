@@ -264,8 +264,6 @@ FTL_API ftl_status_t ftl_init();
 
 FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params);
 
-FTL_API ftl_status_t ftl_test_stream_key(ftl_handle_t *ftl_handle);
-
 FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 
 FTL_API int ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms);

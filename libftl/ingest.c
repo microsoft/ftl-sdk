@@ -5,18 +5,106 @@
 #include <jansson.h>
 #endif
 
+
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip);
-
-#ifndef DISABLE_AUTO_INGEST
-OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
-OS_THREAD_ROUTINE _ingest_get_rtt(void *data);
-
 static int _ping_server(const char *ip, int port);
+OS_THREAD_ROUTINE _ingest_get_rtt(void *data);
 
 typedef struct {
     ftl_ingest_t *ingest;
     ftl_stream_configuration_private_t *ftl;
 }_tmp_ingest_thread_data_t;
+
+OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
+    _tmp_ingest_thread_data_t *thread_data = (_tmp_ingest_thread_data_t *)data;
+    ftl_stream_configuration_private_t *ftl = thread_data->ftl;
+    ftl_ingest_t *ingest = thread_data->ingest;
+    int ping;
+
+    ingest->rtt = 1000;
+
+    if ((ping = _ping_server(ingest->ip, INGEST_PING_PORT)) >= 0) {
+        ingest->rtt = ping;
+    }
+
+    return 0;
+}
+
+ftl_status_t ftl_find_closest_ingest(const char* ingestIps[], const char* ingestNames[], int ingestsCount, char* bestIngestIpComputed)
+{
+    ftl_ingest_t* ingestElement;
+    if ((ingestElement = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
+        return FTL_MALLOC_FAILURE;
+    }
+
+    for (int i = 0; i < ingestsCount; i++)
+    {
+        strcpy_s(ingestElement[i].name, sizeof(ingestElement[i].name), ingestNames[i]);
+        strcpy_s(ingestElement[i].ip, sizeof(ingestElement[i].ip), ingestIps[i]);
+        ingestElement[i].rtt = 500;
+        ingestElement[i].next = NULL;
+    }
+
+    OS_THREAD_HANDLE *handle;
+    _tmp_ingest_thread_data_t *data;
+    int i;
+    ftl_ingest_t *elmt, *best = NULL;
+    struct timeval start, stop, delta;
+
+    if ((handle = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
+        return FTL_MALLOC_FAILURE;
+    }
+
+    if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ingestsCount)) == NULL) {
+        return FTL_MALLOC_FAILURE;
+    }
+
+    gettimeofday(&start, NULL);
+
+    /*query all the ingests about cpu and rtt*/
+    for (i = 0; i < ingestsCount; i++) {
+        handle[i] = 0;
+        data[i].ingest = &ingestElement[i];
+        data[i].ftl = NULL;
+        os_create_thread(&handle[i], NULL, _ingest_get_rtt, &data[i]);
+        sleep_ms(5); //space out the pings
+    }
+
+    /*wait for all the ingests to complete*/
+    for (i = 0; i < ingestsCount; i++) {
+
+        if (handle[i] != 0) {
+            os_wait_thread(handle[i]);
+        }
+
+        if (best == NULL || ingestElement[i].rtt < best->rtt) {
+            best = &ingestElement[i];
+        }
+    }
+
+    gettimeofday(&stop, NULL);
+    timeval_subtract(&delta, &stop, &start);
+    int ms = (int)timeval_to_ms(&delta);
+
+    for (i = 0; i < ingestsCount; i++) {
+        if (handle[i] != 0) {
+            os_destroy_thread(handle[i]);
+        }
+    }
+
+    free(handle);
+    free(data);
+
+    if (best) {
+        strcpy_s(bestIngestIpComputed, sizeof(best->ip), best->ip);
+        return FTL_SUCCESS;
+    }
+
+    return FTL_UNKNOWN_ERROR_CODE;
+}
+
+#ifndef DISABLE_AUTO_INGEST
+OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
 
 static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -121,21 +209,6 @@ cleanup:
     return total_ingest_cnt;
 }
 
-OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
-    _tmp_ingest_thread_data_t *thread_data = (_tmp_ingest_thread_data_t *)data;
-    ftl_stream_configuration_private_t *ftl = thread_data->ftl;
-    ftl_ingest_t *ingest = thread_data->ingest;
-    int ping;
-
-    ingest->rtt = 1000;
-
-    if ((ping = _ping_server(ingest->ip, INGEST_PING_PORT)) >= 0) {
-        ingest->rtt = ping;
-    }
-
-    return 0;
-}
-
 char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
     OS_THREAD_HANDLE *handle;
@@ -217,6 +290,8 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
     return NULL;
 }
 
+#endif
+
 static int _ping_server(const char *ip, int port) {
 
     SOCKET sock;
@@ -263,7 +338,6 @@ static int _ping_server(const char *ip, int port) {
 
     return retval;
 }
-#endif
 
 void ingest_release(ftl_stream_configuration_private_t *ftl) {
 

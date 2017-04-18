@@ -143,7 +143,6 @@ ftl_status_t ftl_find_closest_ingest(const char* ingestIps[], const char* ingest
     return FTL_UNKNOWN_ERROR_CODE;
 }
 
-
 #ifndef DISABLE_AUTO_INGEST
 OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
 
@@ -330,7 +329,6 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
   return NULL;
 }
-
 #endif
 
 void ingest_release(ftl_stream_configuration_private_t *ftl) {

@@ -75,12 +75,13 @@ int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
     do {
         n = recv(sock, buf, buflen, 0);
         if (n < 0) {
-            //this will abort in the event of an error or in the buffer is filled before the terminiator is reached
+            //this will abort in the event of an error or in the buffer is filled before the terminator is reached
             return n;
         }
-    else if (n == 0) {
-      return 0;
-    }
+        else if (n == 0) {
+            // The socket is closed.
+            return 0;
+        }
 
         buf += n;
         buflen -= n;

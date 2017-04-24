@@ -284,6 +284,8 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 
 FTL_API char* ftl_status_code_to_string(ftl_status_t status);
 
-FTL_API ftl_status_t find_closest_available_ingest(const char* ingestIps[], const char* ingestNames[], int ingestsCount, char* bestIngestIpComputed);
+FTL_API ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsCount, char* bestIngestIpComputed);
+
+FTL_API ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, int64_t* frames_sent, int64_t* nacks_received);
 
 #endif // __FTL_H

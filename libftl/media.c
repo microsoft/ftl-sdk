@@ -100,11 +100,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
     ftl->video.wait_for_idr_frame = TRUE;
 
-    // We need set this flag now so it is ready when the thread starts, but also 
-    // so it is set if we destroy this before the thread starts it will be cleaned up.
-    ftl_set_state(ftl, FTL_RX_THRD);
     if ((os_create_thread(&media->recv_thread, NULL, recv_thread, ftl)) != 0) {
-      ftl_clear_state(ftl, FTL_RX_THRD);
       status = FTL_MALLOC_FAILURE;
       break;
     }
@@ -116,11 +112,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       break;
     }
 
-    // We need set this flag now so it is ready when the thread starts, but also 
-    // so it is set if we destroy this before the thread starts it will be cleaned up.
-    ftl_set_state(ftl, FTL_TX_THRD);
     if ((os_create_thread(&media->send_thread, NULL, send_thread, ftl)) != 0) {
-      ftl_clear_state(ftl, FTL_TX_THRD);
       status = FTL_MALLOC_FAILURE;
       break;
     }
@@ -130,11 +122,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       break;
     }
 
-    // We need set this flag now so it is ready when the thread starts, but also 
-    // so it is set if we destroy this before the thread starts it will be cleaned up.
-    ftl_set_state(ftl, FTL_PING_THRD);
     if ((os_create_thread(&media->ping_thread, NULL, ping_thread, ftl)) != 0) {
-      ftl_clear_state(ftl, FTL_PING_THRD);
       status = FTL_MALLOC_FAILURE;
       break;
     }
@@ -976,6 +964,8 @@ OS_THREAD_ROUTINE recv_thread(void *data)
     return (OS_THREAD_TYPE)-1;
   }
 
+  ftl_set_state(ftl, FTL_RX_THRD);
+
   while (ftl_get_state(ftl, FTL_RX_THRD)) {
 
     // Wait on the socket for data or a timeout. The timeout is how we
@@ -1110,6 +1100,8 @@ OS_THREAD_ROUTINE send_thread(void *data)
     FTL_LOG(ftl, FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
   }
 #endif
+
+  ftl_set_state(ftl, FTL_TX_THRD);
 
   initial_peak_kbps = video->kbps = video->peak_kbps;
   video_kbps = 0;
@@ -1305,7 +1297,9 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
   fmt = 0;
   ptype = SENDER_REPORT_PTYPE;
   senderReport->header = htonl((2 << 30) | (fmt << 24) | (ptype << 16) | ((sizeof(senderReport_pkt_t) / 4) - 1));
-  
+
+  ftl_set_state(ftl, FTL_PING_THRD);
+
   while (ftl_get_state(ftl, FTL_PING_THRD)) {
 
     os_semaphore_pend(&ftl->media.ping_thread_shutdown, PING_TX_INTERVAL_MS);
@@ -1379,4 +1373,12 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
   FTL_LOG(ftl, FTL_LOG_INFO, "Exited Ping Thread\n");
 
   return 0;
+}
+
+ftl_status_t ftl_get_video_stats(ftl_handle_t* handle,int64_t* frames_sent, int64_t* nacks_received)
+{
+  ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)handle->priv;
+  *frames_sent = ftl->video.media_component.stats.frames_sent;
+  *nacks_received = ftl->video.media_component.stats.nack_requests;
+  return FTL_SUCCESS;
 }

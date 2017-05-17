@@ -6,17 +6,156 @@
 #endif
 
 static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip);
+static int _ping_server(const char *ip, int port);
+OS_THREAD_ROUTINE _ingest_get_rtt(void *data);
+
+typedef struct {
+    ftl_ingest_t *ingest;
+    ftl_stream_configuration_private_t *ftl;
+}_tmp_ingest_thread_data_t;
+
+static int _ping_server(const char *ip, int port) {
+
+  SOCKET sock;
+  struct sockaddr_in server_addr;
+  unsigned char buf[sizeof(struct in_addr)];
+  uint8_t dummy[4];
+  struct timeval start, stop, delta;
+  int retval = -1;
+
+  do {
+    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
+    {
+      break;
+    }
+
+    if (inet_pton(AF_INET, ip, buf) == 0) {
+      break;
+    }
+
+    //Prepare the sockaddr_in structure
+    server_addr.sin_family = AF_INET;
+    memcpy((char *)&server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
+    server_addr.sin_port = htons(port);
+
+    set_socket_recv_timeout(sock, 500);
+
+    gettimeofday(&start, NULL);
+
+    if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
+      break;
+    }
+
+    if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
+      break;
+    }
+
+    gettimeofday(&stop, NULL);
+    timeval_subtract(&delta, &stop, &start);
+    retval = (int)timeval_to_ms(&delta);
+  } while (0);
+
+  shutdown_socket(sock, SD_BOTH);
+  close_socket(sock);
+
+  return retval;
+}
+
+OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
+    _tmp_ingest_thread_data_t *thread_data = (_tmp_ingest_thread_data_t *)data;
+    ftl_stream_configuration_private_t *ftl = thread_data->ftl;
+    ftl_ingest_t *ingest = thread_data->ingest;
+    int ping;
+
+    ingest->rtt = 1000;
+
+    if ((ping = _ping_server(ingest->ip, INGEST_PING_PORT)) >= 0) {
+        ingest->rtt = ping;
+    }
+
+    return 0;
+}
+
+ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsCount, char* bestIngestIpComputed)
+{
+    ftl_ingest_t* ingestElements;
+
+    if ((ingestElements = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
+        return FTL_MALLOC_FAILURE;
+    }
+
+    for (int i =0; i < ingestsCount; i++) {
+        strcpy_s(ingestElements[i].ip, sizeof(ingestElements[i].ip), ingestIps[i]);
+        ingestElements[i].rtt = 1000;
+        ingestElements[i].next = NULL;
+    }
+
+    OS_THREAD_HANDLE *handles;
+    _tmp_ingest_thread_data_t *data;
+    int i;
+    ftl_ingest_t *elmt, *best = NULL;
+    struct timeval start, stop, delta;
+
+    if ((handles = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
+        free(ingestElements);
+        return FTL_MALLOC_FAILURE;
+    }
+
+    if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ingestsCount)) == NULL) {
+        free(ingestElements);
+        free(handles);
+        return FTL_MALLOC_FAILURE;
+    }
+
+    gettimeofday(&start, NULL);
+
+    /*query all the ingests about cpu and rtt*/
+    for (i = 0; i < ingestsCount; i++) {
+        handles[i] = 0;
+        data[i].ingest = &ingestElements[i];
+        data[i].ftl = NULL;
+        os_create_thread(&handles[i], NULL, _ingest_get_rtt, &data[i]);
+        sleep_ms(5); //space out the pings
+    }
+
+    /*wait for all the ingests to complete*/
+    for (i = 0; i < ingestsCount; i++) {
+
+        if (handles[i] != 0) {
+            os_wait_thread(handles[i]);
+        }
+
+        if (best == NULL || ingestElements[i].rtt < best->rtt) {
+            best = &ingestElements[i];
+        }
+    }
+
+    gettimeofday(&stop, NULL);
+    timeval_subtract(&delta, &stop, &start);
+    int ms = (int)timeval_to_ms(&delta);
+
+    for (i = 0; i < ingestsCount; i++) {
+        if (handles[i] != 0) {
+            os_destroy_thread(handles[i]);
+        }
+    }
+
+    free(handles);
+    free(data);
+
+    if (best) {
+        strcpy_s(bestIngestIpComputed, sizeof(best->ip), best->ip);
+        free(ingestElements);
+        return FTL_SUCCESS;
+    }
+
+    free(ingestElements);
+
+    return FTL_UNKNOWN_ERROR_CODE;
+}
 
 #ifndef DISABLE_AUTO_INGEST
 OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
-OS_THREAD_ROUTINE _ingest_get_rtt(void *data);
-
-static int _ping_server(const char *ip, int port);
-
-typedef struct {
-  ftl_ingest_t *ingest;
-  ftl_stream_configuration_private_t *ftl;
-}_tmp_ingest_thread_data_t;
 
 static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -121,21 +260,6 @@ cleanup:
   return total_ingest_cnt;
 }
 
-OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
-  _tmp_ingest_thread_data_t *thread_data = (_tmp_ingest_thread_data_t *)data;
-  ftl_stream_configuration_private_t *ftl = thread_data->ftl;
-  ftl_ingest_t *ingest = thread_data->ingest;
-  int ping;
-
-  ingest->rtt = 1000;
-
-  if ((ping = _ping_server(ingest->ip, INGEST_PING_PORT)) >= 0) {
-    ingest->rtt = ping;
-  }
-
-  return 0;
-}
-
 char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
   OS_THREAD_HANDLE *handle;
@@ -215,53 +339,6 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
   }
 
   return NULL;
-}
-
-static int _ping_server(const char *ip, int port) {
-
-  SOCKET sock;
-  struct sockaddr_in server_addr;
-  unsigned char buf[sizeof(struct in_addr)];
-  uint8_t dummy[4];
-  struct timeval start, stop, delta;
-  int retval = -1;
-
-  do {
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
-    {
-      break;
-    }
-
-    if (inet_pton(AF_INET, ip, buf) == 0) {
-      break;
-    }
-
-    //Prepare the sockaddr_in structure
-    server_addr.sin_family = AF_INET;
-    memcpy((char *)&server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
-    server_addr.sin_port = htons(port);
-
-    set_socket_recv_timeout(sock, 500);
-
-    gettimeofday(&start, NULL);
-
-    if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
-      break;
-    }
-
-    if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
-      break;
-    }
-
-    gettimeofday(&stop, NULL);
-    timeval_subtract(&delta, &stop, &start);
-    retval = (int)timeval_to_ms(&delta);
-  } while (0);
-
-  shutdown_socket(sock, SD_BOTH);
-  close_socket(sock);
-
-  return retval;
 }
 #endif
 

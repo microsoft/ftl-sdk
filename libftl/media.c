@@ -1381,7 +1381,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
   return 0;
 }
 
-ftl_status_t ftl_get_video_stats(ftl_handle_t* handle,int64_t* frames_sent, int64_t* nacks_received)
+ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received)
 {
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)handle->priv;
   *frames_sent = ftl->video.media_component.stats.frames_sent;

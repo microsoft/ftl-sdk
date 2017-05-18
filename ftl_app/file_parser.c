@@ -9,6 +9,8 @@
 #include "ftl.h"
 #include "file_parser.h"
 
+int _store_first_nalu(h264_obj_t *handle);
+
 int h264_get_nalu(FILE *fp, uint8_t *buf, uint32_t *length);
 int get_ogg_page(opus_obj_t *handle);
 
@@ -22,36 +24,98 @@ int init_video(h264_obj_t *handle, const char *video_file) {
     return 0;
   }
 
+  if ((handle->h264_handle = H264_Decode_Open()) < 0)
+  {
+	  return -1;
+  }
+
+  nalu_item_t *nalu;
+
+  if ((nalu = malloc(sizeof(nalu_item_t))) == NULL)
+  {
+	  printf("Failed to allocate memory for bitstream\n");
+	  return -1;
+  }
+
+  if ((nalu->buf = malloc(10000000)) == NULL)
+  {
+	  printf("Failed to allocate memory for bitstream\n");
+	  return -1;
+  }
+
+  handle->curr_nalu = nalu;
+
+  if ((nalu = malloc(sizeof(nalu_item_t))) == NULL)
+  {
+	  printf("Failed to allocate memory for bitstream\n");
+	  return -1;
+  }
+
+  if ((nalu->buf = malloc(10000000)) == NULL)
+  {
+	  printf("Failed to allocate memory for bitstream\n");
+	  return -1;
+  }
+
+  handle->next_nalu = nalu;
+
+  _store_first_nalu(handle);
+
   return 1;
 }
 
 int reset_video(h264_obj_t *handle) {
-  fseek(handle->fp, 0, SEEK_SET);
-  
-  return 1;
+	fseek(handle->fp, 0, SEEK_SET);
+	_store_first_nalu(handle);
+	return 1;
 }
 
-int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *get_video_frame) {
-   int got_sc = 0;
-   uint32_t pos = 0;
-   uint8_t nalu_type = 0;
+int _store_first_nalu(h264_obj_t *handle) {
+	handle->curr_nalu->len = nalu_read(handle->fp, handle->curr_nalu->buf);
+	H264_Decode_Nalu(handle->h264_handle, handle->curr_nalu->buf, handle->curr_nalu->len);
+	memcpy(&handle->curr_nalu->slice, &handle->h264_handle->slice, sizeof(struct slice_header_t));
+	memcpy(&handle->curr_nalu->nalu, &handle->h264_handle->nalu, sizeof(struct nalu_t));
+}
 
-   while (h264_get_nalu(handle->fp, buf, length) == 1) {
-     if (*length == 0) {
-       continue;
-     }
+int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *last_nalu_in_frame) {
+	int got_sc = 0;
+	uint32_t pos = 0;
+	uint8_t nalu_type = 0;
+	size_t file_pos;
+	struct slice_header_t *curr_slice, *next_slice;;
+	struct nalu_t *curr_nalu, *next_nalu;
 
-     nalu_type = buf[0] & 0x1F;
-     *get_video_frame = 0;
-     if (nalu_type == 1 || nalu_type == 5)
-     {
-       *get_video_frame = 1;
-     }
+	*last_nalu_in_frame = 0;
+	curr_nalu = &handle->curr_nalu->nalu;
+	curr_slice = &handle->curr_nalu->slice;
 
-     return 1;
-   }
+	/*read ahead to next packet*/
+	handle->next_nalu->len = nalu_read(handle->fp, handle->next_nalu->buf);
+	H264_Decode_Nalu(handle->h264_handle, handle->next_nalu->buf, handle->next_nalu->len);
+	memcpy(&handle->next_nalu->slice, &handle->h264_handle->slice, sizeof(struct slice_header_t));
+	memcpy(&handle->next_nalu->nalu, &handle->h264_handle->nalu, sizeof(struct nalu_t));
+	next_nalu = &handle->next_nalu->nalu;
+	next_slice = &handle->next_nalu->slice;
 
-   return 0;
+	if (curr_nalu->nal_unit_type == NALU_TYPE_NON_IDR_SLICE || curr_nalu->nal_unit_type == NALU_TYPE_IDR_SLICE) {
+		//if the next packet is an sps/pps then the current packet is the end of the frame
+		if (next_nalu->nal_unit_type != NALU_TYPE_NON_IDR_SLICE && next_nalu->nal_unit_type != NALU_TYPE_IDR_SLICE) {
+			*last_nalu_in_frame = 1;
+		}
+		else if (curr_slice->frame_num != next_slice->frame_num) {
+				*last_nalu_in_frame = 1;
+		}
+	}
+
+	memcpy(buf, handle->curr_nalu->buf, handle->curr_nalu->len);
+	*length = handle->curr_nalu->len;
+
+	/*swap next with current*/
+	nalu_item_t *tmp = handle->curr_nalu;
+	handle->curr_nalu = handle->next_nalu;
+	handle->next_nalu = tmp;
+
+	return 1;
  }
 
  int init_audio(opus_obj_t *handle, const char *audio_file, int raw_opus) {

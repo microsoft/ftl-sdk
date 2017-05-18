@@ -93,7 +93,18 @@ add_executable(ftl_app
                ftl_app/file_parser.c
                ftl_app/file_parser.h			   
                ftl_app/gettimeofday.c
-	             ftl_app/gettimeofday.h
+	           ftl_app/gettimeofday.h
+			   ftl_app/bitstream.c
+			   ftl_app/bitstream.h
+			   ftl_app/cavlc.c
+			   ftl_app/cavlc.h
+			   ftl_app/decode.c
+			   ftl_app/decode.h
+			   ftl_app/nalu.c
+			   ftl_app/nalu.h
+			   ftl_app/utils.c
+			   ftl_app/utils.h
+			   ftl_app/dec_obj.h
                ${FTL_PLATFORM_FILES})
 
 target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})

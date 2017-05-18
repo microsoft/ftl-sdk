@@ -1,3 +1,5 @@
+#include "decode.h"
+
 #define MAX_OGG_PAGE_LEN 100000
 
 
@@ -20,8 +22,18 @@ typedef struct {
   uint8_t packets_in_page;
 }opus_obj_t;
 
+typedef struct _nalu_item_t {
+	uint8_t *buf;
+	int len;
+	struct slice_header_t slice;
+	struct nalu_t nalu;
+}nalu_item_t;
+
 typedef struct {
   FILE *fp;
+  h264_dec_obj_t *h264_handle;
+  nalu_item_t *curr_nalu;
+  nalu_item_t *next_nalu;
 }h264_obj_t;
 
 

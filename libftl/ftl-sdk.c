@@ -12,7 +12,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 9;
-FTL_API const int FTL_VERSION_MAINTENANCE = 0;
+FTL_API const int FTL_VERSION_MAINTENANCE = 4;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -282,7 +282,7 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
     
     int  wait_retries = 5;
     while (ftl->status_q.thread_waiting && wait_retries-- > 0) {
-      sleep_ms(10);
+      sleep_ms(20);
     };
 
     if (ftl->status_q.thread_waiting) {
@@ -373,7 +373,7 @@ char* ftl_status_code_to_string(ftl_status_t status) {
   case FTL_QUEUE_FULL:
     return "The status queue is full";
   case FTL_STATUS_WAITING_FOR_KEY_FRAME:
-    return "dropping packets until a key frame is recevied";
+    return "dropping packets until a key frame is received";
   case FTL_QUEUE_EMPTY:
     return "The status queue is empty";
   case FTL_NOT_INITIALIZED:
@@ -392,6 +392,10 @@ char* ftl_status_code_to_string(ftl_status_t status) {
     return "ingest did not respond to keepalive";
   case FTL_SPEED_TEST_ABORTED:
     return "the speed test was aborted, possibly due to a network interruption";
+  case FTL_INGEST_SOCKET_CLOSED:
+    return "the ingest socket was closed";
+  case FTL_INGEST_SOCKET_TIMEOUT:
+    return "the ingest socket was hit a timeout.";
   case FTL_UNKNOWN_ERROR_CODE:
   default:
     /* Unknown FTL error */

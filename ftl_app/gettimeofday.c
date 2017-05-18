@@ -87,3 +87,8 @@ float timeval_to_ms(struct timeval *tv) {
 
   return (float)(sec * 1000 + usec / 1000);
 }
+
+uint64_t timeval_to_us(struct timeval *tv)
+{
+  return tv->tv_sec * (uint64_t)1000000 + tv->tv_usec;
+}

@@ -80,7 +80,9 @@ typedef enum {
   FTL_USER_DISCONNECT,
   FTL_INGEST_NO_RESPONSE,
   FTL_NO_PING_RESPONSE,
-  FTL_SPEED_TEST_ABORTED
+  FTL_SPEED_TEST_ABORTED,
+  FTL_INGEST_SOCKET_CLOSED,
+  FTL_INGEST_SOCKET_TIMEOUT,
 } ftl_status_t;
 
 typedef enum {
@@ -267,7 +269,9 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle);
 FTL_API int ftl_ingest_speed_test(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms);
 FTL_API ftl_status_t ftl_ingest_speed_test_ex(ftl_handle_t *ftl_handle, int speed_kbps, int duration_ms, speed_test_t *results);
 
+// Deprecated! Please use the DTS version.
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame);
+
 FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);
 
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout);
@@ -279,5 +283,9 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 
 FTL_API char* ftl_status_code_to_string(ftl_status_t status);
+
+FTL_API ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsCount, char* bestIngestIpComputed);
+
+FTL_API ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received);
 
 #endif // __FTL_H

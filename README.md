@@ -57,8 +57,8 @@ msbuild /p:Configuration=Release ALL_BUILD.vcxproj OR open libftl.sln in Visual 
 
 download the following test files:
 
- - sintel.h264: https://dl.dropboxusercontent.com/u/20701844/sintel.h264
- - sintel.opus: https://dl.dropboxusercontent.com/u/20701844/sintel.opus
+ - sintel.h264: https://www.dropbox.com/s/ruijibs0lgjnq51/sintel.h264
+ - sintel.opus: https://www.dropbox.com/s/s2r6lggopt9ftw5/sintel.opus
 
 In the directory containing ftl_app
 

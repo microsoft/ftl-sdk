@@ -1,5 +1,5 @@
 /**
- * ftl_helpers.c - 
+ * ftl_helpers.c -
  *
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,6 +21,7 @@
  * SOFTWARE.
  **/
 
+#include <ctype.h>
 #include "ftl.h"
 #include "ftl_private.h"
 #include "hmac/hmac.h"
@@ -34,11 +35,11 @@
 int ftl_read_response_code(const char * response_str) {
   int response_code = 0;
   int count;
-  
+
   count = sscanf_s(response_str, "%d", &response_code);
 
   return count ? response_code : -1;
-  
+
  }
 
 int ftl_read_media_port(const char *response_str) {
@@ -58,7 +59,7 @@ unsigned char decode_hex_char(char c) {
 
     // Set the 5th bit. Makes ASCII chars lowercase :)
     c |= (1 << 5);
-    
+
     if (c >= 'a' && c <= 'z') {
         return (c - 'a') + 10;
     }
@@ -74,13 +75,14 @@ int recv_all(SOCKET sock, char * buf, int buflen, const char line_terminator) {
     do {
         n = recv(sock, buf, buflen, 0);
         if (n < 0) {
-            //this will abort in the event of an error or in the buffer is filled before the terminiator is reached
+            //this will abort in the event of an error or in the buffer is filled before the terminator is reached
             return n;
         }
-    else if (n == 0) {
-      return 0;
-    }
-        
+        else if (n == 0) {
+            // The socket is closed.
+            return 0;
+        }
+
         buf += n;
         buflen -= n;
         bytes_recd += n;
@@ -116,7 +118,7 @@ int ftl_get_hmac(SOCKET sock, char * auth_key, char * dst) {
     unsigned char *msg;
 
     if( (msg = (unsigned char*)malloc(messageLen * sizeof(*msg))) == NULL){
-        return 0;        
+        return 0;
     }
 
     int i;
@@ -167,7 +169,7 @@ void ftl_clear_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state)
 
 BOOL ftl_get_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state) {
   BOOL is_set;
-    
+
   os_lock_mutex(&ftl->state_mutex);
   is_set = ftl->state & state;
   os_unlock_mutex(&ftl->state_mutex);

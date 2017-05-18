@@ -213,22 +213,26 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
     ftl_set_state(ftl, FTL_CONNECTED);
 
-      if (os_semaphore_create(&ftl->connection_thread_shutdown, "/ConnectionThreadShutdown", O_CREAT, 0) < 0) {
-          response_code = FTL_MALLOC_FAILURE;
-          break;
-      }
+    if (os_semaphore_create(&ftl->connection_thread_shutdown, "/ConnectionThreadShutdown", O_CREAT, 0) < 0) {
+        response_code = FTL_MALLOC_FAILURE;
+        break;
+    }
 
-      if (os_semaphore_create(&ftl->keepalive_thread_shutdown, "/KeepAliveThreadShutdown", O_CREAT, 0) < 0) {
-          response_code = FTL_MALLOC_FAILURE;
-          break;
-      }
+    if (os_semaphore_create(&ftl->keepalive_thread_shutdown, "/KeepAliveThreadShutdown", O_CREAT, 0) < 0) {
+        response_code = FTL_MALLOC_FAILURE;
+        break;
+    }
 
+    ftl_set_state(ftl, FTL_CXN_STATUS_THRD);
     if ((os_create_thread(&ftl->connection_thread, NULL, connection_status_thread, ftl)) != 0) {
+      ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
       response_code = FTL_MALLOC_FAILURE;
       break;
     }
 
+    ftl_set_state(ftl, FTL_KEEPALIVE_THRD);
     if ((os_create_thread(&ftl->keepalive_thread, NULL, control_keepalive_thread, ftl)) != 0) {
+      ftl_clear_state(ftl, FTL_KEEPALIVE_THRD);\
       response_code = FTL_MALLOC_FAILURE;
       break;
     }
@@ -240,9 +244,7 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
   _ingest_disconnect(ftl);
 
-  response_code = _log_response(ftl, response_code);
-
-  return response_code;
+  return _log_response(ftl, response_code);;
 }
 
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
@@ -290,8 +292,28 @@ static ftl_response_code_t _ftl_get_response(ftl_stream_configuration_private_t 
   memset(response_buf, 0, response_len);
   len = recv_all(ftl->ingest_socket, response_buf, response_len, '\n');
 
-  if (len < 0) {
-    return FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR;
+  if (len <= 0) {
+
+#ifdef _WIN32
+    int error = WSAGetLastError();
+    if (error == WSAETIMEDOUT)
+    {
+      return FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT;
+    }
+    else
+    {
+      return FTL_INGEST_RESP_INTERNAL_SOCKET_CLOSED;
+    }
+#else
+    if (len == 0)
+    {
+      return FTL_INGEST_RESP_INTERNAL_SOCKET_CLOSED;
+    }
+    else
+    {
+      return FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT;
+    }
+#endif
   }
 
   return ftl_read_response_code(response_buf);
@@ -355,8 +377,6 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
   ftl_response_code_t response_code;
 
-  ftl_set_state(ftl, FTL_KEEPALIVE_THRD);
-
   while (ftl_get_state(ftl, FTL_KEEPALIVE_THRD)) {
     os_semaphore_pend(&ftl->keepalive_thread_shutdown, KEEPALIVE_FREQUENCY_MS);
 
@@ -382,15 +402,13 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
   ftl_status_msg_t status;
   struct timeval last_ping, now;
   int ms_since_ping = 0;
-  int keepalive_is_late = KEEPALIVE_FREQUENCY_MS + 2000; //add a 2s buffer to the wait time
+  int keepalive_is_late = KEEPALIVE_FREQUENCY_MS + KEEPALIVE_FREQUENCY_MS; // Add a 5s buffer to the wait time
 
   gettimeofday(&last_ping, NULL);
 
-  ftl_set_state(ftl, FTL_CXN_STATUS_THRD);
-
   while (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
 
-    os_semaphore_pend(&ftl->keepalive_thread_shutdown, 500);
+    os_semaphore_pend(&ftl->connection_thread_shutdown, 500);
     if (!ftl_get_state(ftl, FTL_CXN_STATUS_THRD))
     {
       break;
@@ -495,7 +513,14 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
   case FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR:
     FTL_LOG(ftl, FTL_LOG_ERROR, "Server command error");
     return FTL_INTERNAL_ERROR;
-  }
+  case FTL_INGEST_RESP_INTERNAL_SOCKET_CLOSED:
+    FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket closed.");
+    return FTL_INGEST_SOCKET_CLOSED;
+  case FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT:
+    FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket timeout.");
+    return FTL_INGEST_SOCKET_TIMEOUT;
+  }    
 
-  return FTL_UNKNOWN_ERROR_CODE;
+  // TODO revert back
+  return 100 + response_code;
 }

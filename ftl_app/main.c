@@ -249,6 +249,8 @@ int main(int argc, char **argv)
   int end_of_frame;
 
   gettimeofday(&proc_start_tv, NULL);
+  struct timeval frameTime;
+  gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
 
   while (!ctrlc_pressed())
   {
@@ -263,8 +265,6 @@ int main(int argc, char **argv)
     continue;
     }
 
-    struct timeval frameTime;
-    gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
     if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)
     {
       continue;
@@ -289,6 +289,7 @@ int main(int argc, char **argv)
 
     if (end_of_frame)
     {
+      gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
       gettimeofday(&proc_end_tv, NULL);
       timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
 

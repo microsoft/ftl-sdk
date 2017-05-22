@@ -27,7 +27,6 @@
 */
 #include "gettimeofday.h"
 #ifdef _WIN32
-#include <Windows.h>
 
 /* FILETIME of Jan 1 1970 00:00:00. */
 static const unsigned __int64 epoch = ((unsigned __int64)116444736000000000ULL);
@@ -53,6 +52,27 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
   tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
 
   return 0;
+}
+
+BOOLEAN nanosleep(LONGLONG ns) {
+	/* Declarations */
+	HANDLE timer;	/* Timer handle */
+	LARGE_INTEGER li;	/* Time defintion */
+						/* Create timer */
+	if (!(timer = CreateWaitableTimer(NULL, TRUE, NULL)))
+		return FALSE;
+	/* Set timer properties */
+	li.QuadPart = -ns/100;
+	if (!SetWaitableTimer(timer, &li, 0, NULL, NULL, FALSE)) {
+		CloseHandle(timer);
+		return FALSE;
+	}
+	/* Start & wait for timer */
+	WaitForSingleObject(timer, INFINITE);
+	/* Clean resources */
+	CloseHandle(timer);
+	/* Slept without problems */
+	return TRUE;
 }
 #endif
 

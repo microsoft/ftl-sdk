@@ -1,26 +1,4 @@
-/**
- * main.c - Charon client for the FTL SDK
- *
- * Copyright (c) 2015 Michael Casadevall
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- **/
+
 
 #include "main.h"
 #include "gettimeofday.h"
@@ -35,6 +13,7 @@
 #include <sys/time.h>
 #endif
 #include "file_parser.h"
+#include "pcap.h"
 
 void sleep_ms(int ms)
 {
@@ -72,6 +51,7 @@ int main(int argc, char **argv)
   char *ingest_location = NULL;
   char *video_input = NULL;
   char *audio_input = NULL;
+  char *pcap_input = NULL;
   char *stream_key = NULL;
   int fps_num = 30;
   int fps_den = 1;
@@ -88,8 +68,7 @@ int main(int argc, char **argv)
 
   charon_install_ctrlc_handler();
 
-
-  if (FTL_VERSION_MAINTENANCE != 0)
+    if (FTL_VERSION_MAINTENANCE != 0)
   {
     printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
   }
@@ -98,7 +77,7 @@ int main(int argc, char **argv)
     printf("FTLSDK - version %d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR);
   }
 
-  while ((c = getopt(argc, argv, "a:i:v:s:f:b:t:r:?")) != -1)
+  while ((c = getopt(argc, argv, "a:i:v:p:s:f:b:t:r:?")) != -1)
   {
     switch (c)
     {
@@ -109,8 +88,11 @@ int main(int argc, char **argv)
       video_input = optarg;
       break;
     case 'a':
-    audio_input = optarg;
+      audio_input = optarg;
       break;
+	case 'p':
+		pcap_input = optarg;
+		break;
   case 'r':
     if (strcmp(optarg, "a") == 0) {
       raw_opus = 1;
@@ -135,7 +117,7 @@ int main(int argc, char **argv)
   }
 
   /* Make sure we have all the required bits */
-  if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration)))
+  if ((!stream_key || !ingest_location) || ((!video_input || !audio_input) && (!speedtest_duration) && !pcap_input))
   {
     usage();
   }
@@ -146,7 +128,17 @@ int main(int argc, char **argv)
   uint8_t *audio_frame = 0;
   opus_obj_t opus_handle;
   h264_obj_t h264_handle;
+  pcap_handle_t *pcap_handle;
   int retval = 0;
+
+  if (pcap_input != NULL) 
+  {
+	  if ( (pcap_handle = pcap_init(pcap_input)) == NULL)
+	  {
+		  printf("Faild to open pcap file\n");
+		  return -1;
+	  }
+  }
 
   if (video_input != NULL)
   {
@@ -247,75 +239,117 @@ int main(int argc, char **argv)
   float audio_time_step = 1000.f / audio_pps;
   int audio_pkts_sent;
   int end_of_frame;
-
+  int got_first_pkt = 0;
+  struct timeval prev_ts, delta_ts;
+  float sleep_accumulator_us = 0;
+  
   gettimeofday(&proc_start_tv, NULL);
   struct timeval frameTime;
   gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
 
   while (!ctrlc_pressed())
-  {
-    uint8_t nalu_type;
-    int audio_read_len;
+  {	
+	  if (pcap_input) {
+		  pcap_pkt_t *pkt = NULL;
 
-  if (feof(h264_handle.fp) || feof(opus_handle.fp))
-  {
-    printf("Restarting Stream\n");
-    reset_video(&h264_handle);
-    reset_audio(&opus_handle);
-    continue;
-    }
+		  if ((pkt = pcap_read_packet(pcap_handle)) != NULL) {
 
-    if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)
-    {
-      continue;
-    }
+			  if (pkt->rtp_header.payload_type == 96 || pkt->rtp_header.payload_type == 97) 
+			  {
+				  if (got_first_pkt) {
+					  float ms_delta;
+					  timeval_subtract(&delta_ts, &pkt->pkt_header.ts, &prev_ts);
+					  sleep_accumulator_us += timeval_to_us(&delta_ts);
 
-    ftl_ingest_send_media_dts(&handle, FTL_VIDEO_DATA, timeval_to_us(&frameTime), h264_frame, len, end_of_frame);
+					  if (sleep_accumulator_us >= 1000000) {
+						  gettimeofday(&profile_start, NULL);
+						  sleep_ms(sleep_accumulator_us / 1000000);
+						  gettimeofday(&profile_stop, NULL);
+						  timeval_subtract(&profile_delta, &profile_stop, &profile_start);
+						  sleep_accumulator_us -= timeval_to_us(&profile_delta);
+					  }
+				  }
 
-    audio_pkts_sent = 0;
-    while (audio_send_accumulator > audio_time_step)
-    {
-      if (get_audio_packet(&opus_handle, audio_frame, &len) == 0)
-      {
-        break;
-      }
+				  got_first_pkt = 1;
 
-      ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
-      audio_send_accumulator -= audio_time_step;
-      audio_pkts_sent++;
-    }
+				  ftl_ingest_send_media_raw(&handle, pkt->udp_payload, pkt->udp_payload_len);
+				  prev_ts = pkt->pkt_header.ts;
+			  }
 
-    nalu_type = h264_frame[0] & 0x1F;
+			  free(pkt);
+		  }
+		  else if(pcap_eof(pcap_handle))
+		  {
+			  got_first_pkt = 0;
+			  pcap_reset(pcap_handle);
+			  printf("Restarting Stream\n");
+		  }
+	  }
+	  else {
 
-    if (end_of_frame)
-    {
-      gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
-      gettimeofday(&proc_end_tv, NULL);
-      timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
+		  uint8_t nalu_type;
+		  int audio_read_len;
 
-      video_send_delay += video_time_step;
-      time_delta = (float)timeval_to_ms(&proc_delta_tv);
-      video_send_delay -= time_delta;
+		  if (feof(h264_handle.fp) || feof(opus_handle.fp))
+		  {
+			  printf("Restarting Stream\n");
+			  reset_video(&h264_handle);
+			  reset_audio(&opus_handle);
+			  continue;
+		  }
 
-      if (video_send_delay > 0)
-      {
-        gettimeofday(&profile_start, NULL);
-        sleep_ms((int)video_send_delay);
-        gettimeofday(&profile_stop, NULL);
-        timeval_subtract(&profile_delta, &profile_stop, &profile_start);
-        actual_sleep = (float)timeval_to_ms(&profile_delta);
-      }
-      else
-      {
-        actual_sleep = 0;
-      }
+		  if (get_video_frame(&h264_handle, h264_frame, &len, &end_of_frame) == 0)
+		  {
+			  continue;
+		  }
 
-      video_send_delay -= actual_sleep;
+		  ftl_ingest_send_media_dts(&handle, FTL_VIDEO_DATA, timeval_to_us(&frameTime), h264_frame, len, end_of_frame);
 
-      gettimeofday(&proc_start_tv, NULL);
+		  audio_pkts_sent = 0;
+		  while (audio_send_accumulator > audio_time_step)
+		  {
+			  if (get_audio_packet(&opus_handle, audio_frame, &len) == 0)
+			  {
+				  break;
+			  }
 
-      audio_send_accumulator += video_time_step;
-    }
+			  ftl_ingest_send_media(&handle, FTL_AUDIO_DATA, audio_frame, len, 0);
+			  audio_send_accumulator -= audio_time_step;
+			  audio_pkts_sent++;
+		  }
+
+		  nalu_type = h264_frame[0] & 0x1F;
+
+		  if (end_of_frame)
+		  {
+			  gettimeofday(&frameTime, NULL); // NOTE! In a real app these timestamps should come from the samples!
+			  gettimeofday(&proc_end_tv, NULL);
+			  timeval_subtract(&proc_delta_tv, &proc_end_tv, &proc_start_tv);
+
+			  video_send_delay += video_time_step;
+			  time_delta = (float)timeval_to_ms(&proc_delta_tv);
+			  video_send_delay -= time_delta;
+
+			  if (video_send_delay > 0)
+			  {
+				  gettimeofday(&profile_start, NULL);
+				  sleep_ms((int)video_send_delay);
+				  gettimeofday(&profile_stop, NULL);
+				  timeval_subtract(&profile_delta, &profile_stop, &profile_start);
+				  actual_sleep = (float)timeval_to_ms(&profile_delta);
+			  }
+			  else
+			  {
+				  actual_sleep = 0;
+			  }
+
+			  video_send_delay -= actual_sleep;
+
+			  gettimeofday(&proc_start_tv, NULL);
+
+			  audio_send_accumulator += video_time_step;
+		  }
+	  }
   }
 
 cleanup:

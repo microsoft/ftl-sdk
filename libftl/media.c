@@ -496,6 +496,25 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
   return retval;
 }
 
+int media_send_raw(ftl_stream_configuration_private_t *ftl, uint8_t *data, int32_t len) {
+	nack_slot_t raw_media;
+
+	memcpy(raw_media.packet, data, len);
+	raw_media.len = len;
+
+	if ((raw_media.packet[1] & 0x7F) == ftl->audio.media_component.payload_type) {
+		((uint32_t*)raw_media.packet)[2] = htonl(ftl->audio.media_component.ssrc);
+	}
+	else if((raw_media.packet[1] & 0x7F) == ftl->video.media_component.payload_type)
+	{
+		((uint32_t*)raw_media.packet)[2] = htonl(ftl->video.media_component.ssrc);
+	}
+		
+	_media_send_slot(ftl, &raw_media);
+
+	return len;
+}
+
 int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, uint8_t *data, int32_t len) {
   ftl_media_component_common_t *mc = &ftl->audio.media_component;
   uint8_t nalu_type = 0;

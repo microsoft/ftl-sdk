@@ -103,7 +103,7 @@ void nalu_parse_slice_header(struct bitstream_elmt_t *bs, struct nalu_t* nalu, s
 	sps = find_sps(nalu->nal_unit_type, pps->seq_parameter_set_id);
 
 	slice->frame_num = bitstream_u(bs, sps->log2_max_frame_num_minus4 + 4);
-
+#if 0
 	slice->field_pic_flag = 0;
 
 	if( !sps->frame_mbs_only_flag ) 
@@ -381,6 +381,7 @@ void nalu_parse_slice_header(struct bitstream_elmt_t *bs, struct nalu_t* nalu, s
 			slice->scan_idx_end = read_u(bs, 4);
 		}
 	}
+#endif
 #endif
 }
 

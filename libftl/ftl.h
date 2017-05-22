@@ -274,6 +274,8 @@ FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t med
 
 FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, int64_t dts_usec, uint8_t *data, int32_t len, int end_of_frame);
 
+FTL_API int ftl_ingest_send_media_raw(ftl_handle_t *ftl_handle, uint8_t *data, int32_t len);
+
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout);
 
 FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_ingest_params_t *params);

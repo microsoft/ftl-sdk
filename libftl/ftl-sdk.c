@@ -219,6 +219,12 @@ FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t med
   return ftl_ingest_send_media_dts(ftl_handle, media_type, dts_usec, data, len, end_of_frame);
 }
 
+FTL_API int ftl_ingest_send_media_raw(ftl_handle_t *ftl_handle, uint8_t *data, int32_t len) {
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
+
+	return media_send_raw(ftl, data, len);
+}
+
 FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle) {
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
   ftl_status_t status_code = FTL_SUCCESS;

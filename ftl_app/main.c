@@ -241,7 +241,12 @@ int main(int argc, char **argv)
   int end_of_frame;
   int got_first_pkt = 0;
   struct timeval prev_ts, delta_ts;
+  int video_last_sn = -1, audio_last_sn = -1;
+  int video_last_ts, audio_last_ts;
+  int video_sn = 0, audio_sn = 0;
+  int video_ts = 0, audio_ts = 0;
   float sleep_accumulator_us = 0;
+  int got_keyframe = 0;
   
   gettimeofday(&proc_start_tv, NULL);
   struct timeval frameTime;
@@ -252,12 +257,44 @@ int main(int argc, char **argv)
 	  if (pcap_input) {
 		  pcap_pkt_t *pkt = NULL;
 
-		  if ((pkt = pcap_read_packet(pcap_handle)) != NULL) {
-
+		  if ((pkt = pcap_read_packet(pcap_handle)) != NULL) 
+		  {
 			  if (pkt->rtp_header.payload_type == 96 || pkt->rtp_header.payload_type == 97) 
 			  {
+				  if (!got_keyframe) 
+				  {
+					  if (pkt->rtp_header.payload_type == 96)
+					  {
+						  uint8_t nalu_type = (pkt->udp_payload[12] & 0x1F);
+
+						  if (nalu_type == 7) {
+							  got_keyframe = 1;
+						  }
+						  else if (nalu_type == 24) {
+							  //skip 2 bytes for packet size
+							  if ((pkt->udp_payload[15] & 0x1F) == 7) {
+								  got_keyframe = 1;
+							  }
+						  }
+					  }
+				  }
+
+				  if (!got_keyframe) {
+					  continue;
+				  }
+
+				  if (pkt->rtp_header.payload_type == 96 && video_last_sn >= 0) {
+					  video_sn += pkt->rtp_header.sequence_number - video_last_sn;
+					  video_ts += pkt->rtp_header.timestamp - video_last_ts;
+				  }
+				  else if (pkt->rtp_header.payload_type == 97 && audio_last_sn >= 0) {
+					  audio_sn += pkt->rtp_header.sequence_number - audio_last_sn;
+					  audio_ts += pkt->rtp_header.timestamp - audio_last_ts;
+				  }
+
 				  if (got_first_pkt) {
 					  float ms_delta;
+
 					  timeval_subtract(&delta_ts, &pkt->pkt_header.ts, &prev_ts);
 					  sleep_accumulator_us += timeval_to_us(&delta_ts);
 
@@ -272,8 +309,30 @@ int main(int argc, char **argv)
 
 				  got_first_pkt = 1;
 
+				  uint16_t *sn = pkt->udp_payload + 2;
+				  uint32_t *ts = pkt->udp_payload + 4;
+
+				  if (pkt->rtp_header.payload_type == 96) {
+					  *sn = htons(video_sn);
+					  *ts = htonl(video_ts);
+				  }
+				  else if (pkt->rtp_header.payload_type == 97) {
+					  *sn = htons(audio_sn);
+					  *ts = htonl(audio_ts);
+				  }
+
 				  ftl_ingest_send_media_raw(&handle, pkt->udp_payload, pkt->udp_payload_len);
+
 				  prev_ts = pkt->pkt_header.ts;
+				  
+				  if (pkt->rtp_header.payload_type == 96) {
+					  video_last_sn = pkt->rtp_header.sequence_number;
+					  video_last_ts = pkt->rtp_header.timestamp;
+				  }
+				  else if (pkt->rtp_header.payload_type == 97) {
+					  audio_last_sn = pkt->rtp_header.sequence_number;
+					  audio_last_ts = pkt->rtp_header.timestamp;
+				  }
 			  }
 
 			  free(pkt);
@@ -282,6 +341,13 @@ int main(int argc, char **argv)
 		  {
 			  got_first_pkt = 0;
 			  pcap_reset(pcap_handle);
+			  video_sn++;
+			  video_ts += 90000 / 30;
+			  audio_sn++;
+			  audio_ts += 48000 / 50;
+			  video_last_sn = -1;
+			  audio_last_sn = -1;
+			  got_keyframe = 0;
 			  printf("Restarting Stream\n");
 		  }
 	  }

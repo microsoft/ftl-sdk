@@ -26,6 +26,21 @@
 * SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 #include "gettimeofday.h"
+
+#define NSEC_IN_SEC 1000000000
+#define USEC_IN_SEC 1000000
+#define MSEC_IN_SEC 1000
+#define MSEC_IN_USEC 1000
+#define MSEC_IN_NSEC 1000000
+
+#define USEC_TO_SEC(x) ((x) / USEC_IN_SEC)
+#define USEC_TO_MSEC(x) ((x) / MSEC_IN_USEC)
+#define MSEC_TO_SEC(x) ((x) / MSEC_IN_SEC)
+#define MSEC_TO_USEC(x) (((uint64_t)x) * MSEC_IN_USEC)
+#define MSEC_TO_NSEC(x) (((uint64_t)x) * MSEC_IN_NSEC)
+#define SEC_TO_USEC(x) (((uint64_t)x) * USEC_IN_SEC)
+#define SEC_TO_NSEC(x) (((uint64_t)x) * NSEC_IN_SEC)
+
 #ifdef _WIN32
 
 /* FILETIME of Jan 1 1970 00:00:00. */
@@ -76,27 +91,37 @@ BOOLEAN nanosleep(LONGLONG ns) {
 }
 #endif
 
-int timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *y)
+int timeval_subtract(struct timeval *result, const struct timeval *end, const struct timeval *start)
 {
-  /* Perform the carry for the later subtraction by updating y. */
-  if (x->tv_usec < y->tv_usec) {
-    int nsec = (y->tv_usec - x->tv_usec) / 1000000 + 1;
-    y->tv_usec -= 1000000 * nsec;
-    y->tv_sec += nsec;
-  }
-  if (x->tv_usec - y->tv_usec > 1000000) {
-    int nsec = (x->tv_usec - y->tv_usec) / 1000000;
-    y->tv_usec += 1000000 * nsec;
-    y->tv_sec -= nsec;
-  }
+	int64_t differenceUs;
 
-  /* Compute the time remaining to wait.
-  tv_usec is certainly positive. */
-  result->tv_sec = x->tv_sec - y->tv_sec;
-  result->tv_usec = x->tv_usec - y->tv_usec;
+	differenceUs = timeval_subtract_to_us(end, start);
 
-  /* Return 1 if result is negative. */
-  return x->tv_sec < y->tv_sec;
+	// Get the number of seconds
+	result->tv_sec = USEC_TO_SEC(differenceUs);
+
+	// Put the remainder NS into the second value.
+	result->tv_usec = differenceUs - SEC_TO_USEC(result->tv_sec);
+
+	/* Return 1 if result is negative. */
+	return differenceUs < 0;
+}
+
+int64_t timeval_subtract_to_ms(const struct timeval *end, const struct timeval *start)
+{
+	return USEC_TO_MSEC(timeval_subtract_to_us(end, start));
+}
+
+int64_t timeval_subtract_to_us(const struct timeval *end, const struct timeval *start)
+{
+	int64_t s, e, d;
+
+	s = (int64_t)SEC_TO_USEC(start->tv_sec) + (int64_t)start->tv_usec;
+	e = (int64_t)SEC_TO_USEC(end->tv_sec) + (int64_t)end->tv_usec;
+
+	d = e - s;
+
+	return d;
 }
 
 float timeval_to_ms(struct timeval *tv) {

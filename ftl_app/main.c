@@ -245,7 +245,7 @@ int main(int argc, char **argv)
   int video_last_ts, audio_last_ts;
   int video_sn = 0, audio_sn = 0;
   int video_ts = 0, audio_ts = 0;
-  float sleep_accumulator_us = 0;
+  int64_t sleep_accumulator_us = 0;
   int got_keyframe = 0;
   
   gettimeofday(&proc_start_tv, NULL);
@@ -300,7 +300,7 @@ int main(int argc, char **argv)
 
 					  if (sleep_accumulator_us >= 1000000) {
 						  gettimeofday(&profile_start, NULL);
-						  sleep_ms(sleep_accumulator_us / 1000000);
+						  sleep_ms((int)(sleep_accumulator_us / 1000000));
 						  gettimeofday(&profile_stop, NULL);
 						  timeval_subtract(&profile_delta, &profile_stop, &profile_start);
 						  sleep_accumulator_us -= timeval_to_us(&profile_delta);
@@ -309,8 +309,8 @@ int main(int argc, char **argv)
 
 				  got_first_pkt = 1;
 
-				  uint16_t *sn = pkt->udp_payload + 2;
-				  uint32_t *ts = pkt->udp_payload + 4;
+				  uint16_t *sn = (uint16_t*)(pkt->udp_payload + 2);
+				  uint32_t *ts = (uint32_t*)(pkt->udp_payload + 4);
 
 				  if (pkt->rtp_header.payload_type == 96) {
 					  *sn = htons(video_sn);

@@ -3,7 +3,9 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#ifdef _WIN32
 #include <Winsock2.h>
+#endif
 
 typedef struct _pcap_file_header_t {
 	unsigned int magic;

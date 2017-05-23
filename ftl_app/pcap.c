@@ -6,6 +6,7 @@ static int _read_ethernet_header(uint8_t *buf, int buf_len, pcap_eth_header_t *e
 static int _read_ip_header(uint8_t *buf, int buf_len, pcap_ip_header_t *ip);
 static int _read_udp_header(uint8_t *buf, int buf_len, pcap_udp_header_t *udp);
 static int _read_rtp_header(uint8_t *buf, int buf_len, rtp_fixed_header_t *rtp);
+static int _read_pkt_header(pcap_pkt_header_t *pkt_hdr, FILE *fp);
 
 pcap_handle_t *pcap_init(const char *pcap_file) {
 	pcap_handle_t *handle = NULL;
@@ -49,7 +50,8 @@ pcap_pkt_t* pcap_read_packet(pcap_handle_t *handle) {
 		return NULL;
 	}
 
-	fread(&pkt->pkt_header, 1, sizeof(pcap_pkt_header_t), handle->fp);
+	//fread(&pkt->pkt_header, 1, sizeof(pcap_pkt_header_t), handle->fp);
+	_read_pkt_header(&pkt->pkt_header, handle->fp);
 
 	if (feof(handle->fp)) {
 		free(pkt);
@@ -92,6 +94,15 @@ pcap_pkt_t* pcap_read_packet(pcap_handle_t *handle) {
 	}
 
 	return pkt;
+}
+
+static int _read_pkt_header(pcap_pkt_header_t *pkt_hdr, FILE *fp) {
+	fread(&pkt_hdr->ts.tv_sec, 1, sizeof(unsigned int), fp);
+	fread(&pkt_hdr->ts.tv_usec, 1, sizeof(unsigned int), fp);
+	fread(&pkt_hdr->caplen, 1, sizeof(unsigned int), fp);
+	fread(&pkt_hdr->len, 1, sizeof(unsigned int), fp);
+
+	return 16;
 }
 
 static int _read_ethernet_header(uint8_t *buf, int buf_len, pcap_eth_header_t *eth)

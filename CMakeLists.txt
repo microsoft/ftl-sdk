@@ -105,6 +105,8 @@ add_executable(ftl_app
 			   ftl_app/utils.c
 			   ftl_app/utils.h
 			   ftl_app/dec_obj.h
+			   ftl_app/pcap.c
+			   ftl_app/pcap.h
                ${FTL_PLATFORM_FILES})
 
 target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})

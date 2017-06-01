@@ -71,10 +71,12 @@ int reset_video(h264_obj_t *handle) {
 }
 
 int _store_first_nalu(h264_obj_t *handle) {
-	handle->curr_nalu->len = nalu_read(handle->fp, handle->curr_nalu->buf);
+	h264_get_nalu(handle->fp, handle->curr_nalu->buf, &handle->curr_nalu->len);
 	H264_Decode_Nalu(handle->h264_handle, handle->curr_nalu->buf, handle->curr_nalu->len);
 	memcpy(&handle->curr_nalu->slice, &handle->h264_handle->slice, sizeof(struct slice_header_t));
 	memcpy(&handle->curr_nalu->nalu, &handle->h264_handle->nalu, sizeof(struct nalu_t));
+
+	return 1;
 }
 
 int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *last_nalu_in_frame) {
@@ -90,12 +92,13 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *las
 	curr_slice = &handle->curr_nalu->slice;
 
 	/*read ahead to next packet*/
-	handle->next_nalu->len = nalu_read(handle->fp, handle->next_nalu->buf);
-	H264_Decode_Nalu(handle->h264_handle, handle->next_nalu->buf, handle->next_nalu->len);
-	memcpy(&handle->next_nalu->slice, &handle->h264_handle->slice, sizeof(struct slice_header_t));
-	memcpy(&handle->next_nalu->nalu, &handle->h264_handle->nalu, sizeof(struct nalu_t));
-	next_nalu = &handle->next_nalu->nalu;
-	next_slice = &handle->next_nalu->slice;
+	if (h264_get_nalu(handle->fp, handle->next_nalu->buf, &handle->next_nalu->len)) {
+		H264_Decode_Nalu(handle->h264_handle, handle->next_nalu->buf, handle->next_nalu->len);
+		memcpy(&handle->next_nalu->slice, &handle->h264_handle->slice, sizeof(struct slice_header_t));
+		memcpy(&handle->next_nalu->nalu, &handle->h264_handle->nalu, sizeof(struct nalu_t));
+		next_nalu = &handle->next_nalu->nalu;
+		next_slice = &handle->next_nalu->slice;
+	}
 
 	if (curr_nalu->nal_unit_type == NALU_TYPE_NON_IDR_SLICE || curr_nalu->nal_unit_type == NALU_TYPE_IDR_SLICE) {
 		//if the next packet is an sps/pps then the current packet is the end of the frame
@@ -198,30 +201,31 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *las
    uint32_t pos = 0;
    int got_sc = 0;
 
-   while (!feof(fp)) {
-     fread(&byte, 1, 1, fp);
+   do {
+	   while (!feof(fp)) {
+		   fread(&byte, 1, 1, fp);
 
-                 
-     if (buf != NULL) {
-       buf[pos] = byte;
-     }
+		   if (buf != NULL) {
+			   buf[pos] = byte;
+		   }
 
-     pos++;
+		   pos++;
 
-     sc = (sc << 8) | byte;
+		   sc = (sc << 8) | byte;
 
-     if (sc == 1 || ((sc & 0xFFFFFF) == 1)) {
+		   if (sc == 1 || ((sc & 0xFFFFFF) == 1)) {
 
-       pos -= 3;
+			   pos -= 3;
 
-       if (sc == 1) {
-         pos -= 1;
-       }
+			   if (sc == 1) {
+				   pos -= 1;
+			   }
 
-       got_sc = 1;
-       break;
-     }
-   }
+			   got_sc = 1;
+			   break;
+		   }
+	   }
+   } while (pos == 0);
 
    *length = pos;
 

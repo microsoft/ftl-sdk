@@ -97,10 +97,10 @@ pcap_pkt_t* pcap_read_packet(pcap_handle_t *handle) {
 }
 
 static int _read_pkt_header(pcap_pkt_header_t *pkt_hdr, FILE *fp) {
-	fread(&pkt_hdr->ts.tv_sec, 1, sizeof(unsigned int), fp);
-	fread(&pkt_hdr->ts.tv_usec, 1, sizeof(unsigned int), fp);
-	fread(&pkt_hdr->caplen, 1, sizeof(unsigned int), fp);
-	fread(&pkt_hdr->len, 1, sizeof(unsigned int), fp);
+	fread(&pkt_hdr->ts.tv_sec, 1, 4, fp);
+	fread(&pkt_hdr->ts.tv_usec, 1, 4, fp);
+	fread(&pkt_hdr->caplen, 1, 4, fp);
+	fread(&pkt_hdr->len, 1, 4, fp);
 
 	return 16;
 }

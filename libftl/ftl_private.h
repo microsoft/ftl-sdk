@@ -249,7 +249,8 @@ typedef struct {
   OS_MUTEX mutex;
   int assigned_port;
   OS_THREAD_HANDLE recv_thread;
-  OS_THREAD_HANDLE send_thread;
+  OS_THREAD_HANDLE video_send_thread;
+  OS_THREAD_HANDLE audio_send_thread;
   OS_THREAD_HANDLE ping_thread;
   OS_SEMAPHORE ping_thread_shutdown;
   int max_mtu;

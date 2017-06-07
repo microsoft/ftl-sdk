@@ -4,7 +4,8 @@
 #define MAX_RTT_FACTOR 1.3
 #define USEC_IN_SEC 1000000
 
-OS_THREAD_ROUTINE send_thread(void *data);
+OS_THREAD_ROUTINE video_send_thread(void *data);
+OS_THREAD_ROUTINE audio_send_thread(void *data);
 OS_THREAD_ROUTINE recv_thread(void *data);
 OS_THREAD_ROUTINE ping_thread(void *data);
 ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl);
@@ -109,9 +110,21 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       break;
     }
 
-    comp = &ftl->video.media_component;
+    if (os_semaphore_create(&ftl->video.media_component.pkt_ready, "/VideoPkt", O_CREAT, 0) < 0) {
+      status = FTL_MALLOC_FAILURE;
+      break;
+    }
 
-    if (os_semaphore_create(&comp->pkt_ready, "/VideoPkt", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&ftl->audio.media_component.pkt_ready, "/AudioPkt", O_CREAT, 0) < 0) {
+        status = FTL_MALLOC_FAILURE;
+        break;
+    }
+
+    // We need set this flag now so it is ready when the thread starts, but also 
+    // so it is set if we destroy this before the thread starts it will be cleaned up.
+    ftl_set_state(ftl, FTL_TX_THRD);
+    if ((os_create_thread(&media->video_send_thread, NULL, video_send_thread, ftl)) != 0) {
+      ftl_clear_state(ftl, FTL_TX_THRD);
       status = FTL_MALLOC_FAILURE;
       break;
     }
@@ -119,10 +132,10 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     // We need set this flag now so it is ready when the thread starts, but also 
     // so it is set if we destroy this before the thread starts it will be cleaned up.
     ftl_set_state(ftl, FTL_TX_THRD);
-    if ((os_create_thread(&media->send_thread, NULL, send_thread, ftl)) != 0) {
-      ftl_clear_state(ftl, FTL_TX_THRD);
-      status = FTL_MALLOC_FAILURE;
-      break;
+    if ((os_create_thread(&media->audio_send_thread, NULL, audio_send_thread, ftl)) != 0) {
+        ftl_clear_state(ftl, FTL_TX_THRD);
+        status = FTL_MALLOC_FAILURE;
+        break;
     }
 
     if (os_semaphore_create(&media->ping_thread_shutdown, "/PingThreadShutdown", O_CREAT, 0) < 0) {
@@ -181,9 +194,13 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
   if (ftl_get_state(ftl, FTL_TX_THRD)) {
     ftl_clear_state(ftl, FTL_TX_THRD);
     os_semaphore_post(&ftl->video.media_component.pkt_ready);
-    os_wait_thread(media->send_thread);
-    os_destroy_thread(media->send_thread);
+    os_semaphore_post(&ftl->audio.media_component.pkt_ready);
+    os_wait_thread(media->video_send_thread);
+    os_wait_thread(media->audio_send_thread);
+    os_destroy_thread(media->video_send_thread);
+    os_destroy_thread(media->audio_send_thread);
     os_semaphore_delete(&ftl->video.media_component.pkt_ready);
+    os_semaphore_delete(&ftl->audio.media_component.pkt_ready);
   }
 
   // Stop the receive thread while the socket is open.
@@ -545,11 +562,12 @@ int media_send_audio(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
 
         slot->len = pkt_len;
         slot->sn = sn;
+        slot->last = 1;
         gettimeofday(&slot->insert_time, NULL);
 
-        _media_send_packet(ftl, mc);
-
         os_unlock_mutex(&slot->mutex);
+
+        os_semaphore_post(&mc->pkt_ready);
       }
     }
 
@@ -1089,7 +1107,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
   return (OS_THREAD_TYPE)0;
 }
 
-OS_THREAD_ROUTINE send_thread(void *data)
+OS_THREAD_ROUTINE video_send_thread(void *data)
 {
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
   ftl_media_config_t *media = &ftl->media;
@@ -1169,6 +1187,32 @@ OS_THREAD_ROUTINE send_thread(void *data)
 
   FTL_LOG(ftl, FTL_LOG_INFO, "Exited Send Thread\n");
   return (OS_THREAD_TYPE)0;
+}
+
+OS_THREAD_ROUTINE audio_send_thread(void *data)
+{
+    ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
+    ftl_media_component_common_t *audio = &ftl->audio.media_component;
+
+#ifdef _WIN32
+    if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
+        FTL_LOG(ftl, FTL_LOG_WARN, "Failed to set recv_thread priority to THREAD_PRIORITY_TIME_CRITICAL\n");
+    }
+#endif
+
+    while (1) {
+
+        os_semaphore_pend(&audio->pkt_ready, FOREVER);
+
+        if (!ftl_get_state(ftl, FTL_TX_THRD)) {
+            break;
+        }
+
+        _media_send_packet(ftl, audio);
+    }
+
+    FTL_LOG(ftl, FTL_LOG_INFO, "Exited Audio Send Thread\n");
+    return (OS_THREAD_TYPE)0;
 }
 
 static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *transmit_level, struct timeval *start_tv, int bytes_per_ms) {

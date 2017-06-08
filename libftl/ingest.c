@@ -79,12 +79,11 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
 ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsCount, char* bestIngestIpComputed)
 {
     ftl_ingest_t* ingestElements;
+    int i;
 
     if ((ingestElements = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
         return FTL_MALLOC_FAILURE;
     }
-
-    int i;
 
     for (i =0; i < ingestsCount; i++) {
         strcpy_s(ingestElements[i].ip, sizeof(ingestElements[i].ip), ingestIps[i]);
@@ -94,7 +93,7 @@ ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsC
 
     OS_THREAD_HANDLE *handles;
     _tmp_ingest_thread_data_t *data;
-    int i;
+
     ftl_ingest_t *elmt, *best = NULL;
     struct timeval start, stop, delta;
 

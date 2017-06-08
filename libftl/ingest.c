@@ -84,7 +84,9 @@ ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsC
         return FTL_MALLOC_FAILURE;
     }
 
-    for (int i =0; i < ingestsCount; i++) {
+    int i;
+
+    for (i =0; i < ingestsCount; i++) {
         strcpy_s(ingestElements[i].ip, sizeof(ingestElements[i].ip), ingestIps[i]);
         ingestElements[i].rtt = 1000;
         ingestElements[i].next = NULL;

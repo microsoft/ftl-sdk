@@ -1,7 +1,7 @@
 #include "ftl.h"
 #include "ftl_private.h"
 #ifndef DISABLE_AUTO_INGEST
-#include <curl/curl.h>
+#include <curl.h>
 #include <jansson.h>
 #endif
 

@@ -3,7 +3,7 @@
 #include "ftl.h"
 #include "ftl_private.h"
 #ifndef DISABLE_AUTO_INGEST
-#include <curl/curl.h>
+#include <curl.h>
 #endif
 
 static BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key);

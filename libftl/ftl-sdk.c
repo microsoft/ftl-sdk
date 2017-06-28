@@ -30,20 +30,29 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
 
   do {
     if ((ftl = (ftl_stream_configuration_private_t *)malloc(sizeof(ftl_stream_configuration_private_t))) == NULL) {
-      ret_status = FTL_MALLOC_FAILURE;
-      break;
+      // Note it is important that we return here otherwise the call to 
+      // internal_ftl_ingest_destroy will fail!
+      return FTL_MALLOC_FAILURE;
     }
 
     memset(ftl, 0, sizeof(ftl_stream_configuration_private_t));
 
-    ftl->video.media_component.peak_kbps = params->peak_kbps;
+    // First create any components that the system relies on.
+    os_init_mutex(&ftl->state_mutex);
+    os_init_mutex(&ftl->disconnect_mutex);
+    os_init_mutex(&ftl->status_q.mutex);
 
+    if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
+        ret_status = FTL_MALLOC_FAILURE;
+        break;
+    }
+
+    // Capture the incoming key.
     ftl->key = NULL;
     if ((ftl->key = (char*)malloc(sizeof(char)*MAX_KEY_LEN)) == NULL) {
       ret_status = FTL_MALLOC_FAILURE;
       break;
     }
-
     if (_get_chan_id_and_key(params->stream_key, &ftl->channel_id, ftl->key) == FALSE) {
       ret_status = FTL_BAD_OR_INVALID_STREAM_KEY;
       break;
@@ -72,20 +81,13 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
     ftl->video.width = 1280;
     ftl->video.height = 720;
 
+    ftl->video.media_component.peak_kbps = params->peak_kbps;
+    ftl->ingest_hostname = _strdup(params->ingest_hostname);
+
     ftl->status_q.count = 0;
     ftl->status_q.head = NULL;
 
-    os_init_mutex(&ftl->status_q.mutex);
-
-    if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
-      return FTL_MALLOC_FAILURE;
-    }
-
-    os_init_mutex(&ftl->state_mutex);
-    os_init_mutex(&ftl->disconnect_mutex);
     ftl_set_state(ftl, FTL_STATUS_QUEUE);
-
-    ftl->ingest_hostname = _strdup(params->ingest_hostname);
 
     ftl_handle->priv = ftl;
     return ret_status;

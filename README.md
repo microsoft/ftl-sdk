@@ -1,6 +1,6 @@
 ![FTL-SDK](https://dl.dropboxusercontent.com/u/20701844/tachyon.png) FTL-SDK
 
-FTL-SDK is a cross platform SDK written in C to enable sending audio/video to beam using our FTL service
+FTL-SDK is a cross platform SDK written in C to enable sending audio/video to mixer using our FTL service
 
 ### Support Platforms
 
@@ -29,7 +29,7 @@ Prerequisites:
 getting the code:
 
 ```
-git clone https://github.com/WatchBeam/ftl-sdk
+git clone https://github.com/mixer/ftl-sdk
 cd ftl-sdk
 git submodule update --init
 ```
@@ -63,5 +63,5 @@ download the following test files:
 In the directory containing ftl_app
 
 ```
-ftl_app -i auto -s "<beam stream key>" -v path\to\sintel.h264 -a path\to\sintel.opus -f 24
+ftl_app -i auto -s "<mixer stream key>" -v path\to\sintel.h264 -a path\to\sintel.opus -f 24
 ```

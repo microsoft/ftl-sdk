@@ -1,7 +1,7 @@
 /**
  * \file ftl_private.h - Private Interfaces for the FTL SDK
  *
- * Copyright (c) 2015 Beam Inc.
+ * Copyright (c) 2015 Mixer Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,7 +72,7 @@
 #define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_PACKET_DURATION_MS 20
 #define IPV4_ADDR_ASCII_LEN INET_ADDRSTRLEN 
-#define INGEST_LIST_URI "https://beam.pro/api/v1/ingests/best"
+#define INGEST_LIST_URI "https://mixer.com/api/v1/ingests/best"
 #define INGEST_LOAD_PORT 8079
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/

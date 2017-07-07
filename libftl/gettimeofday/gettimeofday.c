@@ -171,3 +171,10 @@ void us_to_timeval(struct timeval *outputTimeVal, const int64_t inputTimeUs)
   outputTimeVal->tv_sec = USEC_TO_SEC(inputTimeUs);
   outputTimeVal->tv_usec = inputTimeUs - SEC_TO_USEC(outputTimeVal->tv_sec);
 }
+
+int64_t get_ms_elapsed_since(struct timeval *tv)
+{
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    return timeval_subtract_to_ms(&now, tv);
+}

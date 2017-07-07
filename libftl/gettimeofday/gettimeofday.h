@@ -20,5 +20,6 @@ float timeval_to_ms(struct timeval *tv);
 uint64_t timeval_to_us(struct timeval *tv);
 uint64_t timeval_to_ntp(struct timeval *tv);
 void us_to_timeval(struct timeval *outputTimeVal, const int64_t inputTimeUs);
+int64_t get_ms_elapsed_since(struct timeval *tv);
 
 #endif // __GETTIMEOFDAY_H

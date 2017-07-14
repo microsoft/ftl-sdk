@@ -1287,8 +1287,8 @@ static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_
   mc->stats.xmit_delay_samples = 0;
 
   // rtt stats are cleared by adaptive bitrate thread.
-  //mc->stats.pkt_rtt_max = 0;
-  //mc->stats.pkt_rtt_min = 10000;
+  mc->stats.pkt_rtt_max = 0;
+  mc->stats.pkt_rtt_min = 10000;
   //mc->stats.total_rtt = 0;
   //mc->stats.rtt_samples = 0;
 
@@ -1437,8 +1437,6 @@ ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, ui
     *rtt_recorded = (mc->stats.rtt_samples) ? mc->stats.total_rtt / mc->stats.rtt_samples : 0;
     *frames_dropped = mc->stats.dropped_frames;
 
-    mc->stats.pkt_rtt_max = 0;
-    mc->stats.pkt_rtt_min = 10000;
     mc->stats.total_rtt = 0;
     mc->stats.rtt_samples = 0;
 
@@ -1592,8 +1590,14 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
     //  bitrate is only deemed stable when we reach back to original bitrate, or when we revert to a bitrate after an excessive upgrade.
     BOOL check_bitrate_for_stability = FALSE;
 
-    while (os_semaphore_pend(&ftl->bitrate_thread_shutdown, 0) == -1)
+    while (1)
     {
+        os_semaphore_pend(&ftl->bitrate_thread_shutdown, 0);
+        if (!ftl_get_state(params->handle->priv, FTL_BITRATE_THRD))
+        {
+            break;
+        }
+
         uint64_t nacks_received_recorded = 0;
         uint64_t frames_sent_recorded = 0;
         uint64_t rtt_received = 0;
@@ -1779,18 +1783,19 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
                 current_position_of_circular_buffer = 0;
 
                 // set the peak kbps for throttling
-                ftl_media_component_common_t *video = &ftl->video.media_component;
-                video->peak_kbps = current_encoding_bitrate / 1000;
+                //ftl_media_component_common_t *video = &ftl->video.media_component;
+                //video->peak_kbps = current_encoding_bitrate / 1000;
 
                 // Sleep for a c_ulBitrateChangedCooldownIntervalMs period. If hBroadcastTerminated signal is received exit.
-                if (sleep_to_cooldown)
+                //if (sleep_to_cooldown)
+                //{
+                os_semaphore_pend(&ftl->bitrate_thread_shutdown, BITRATE_CHANGED_COOLDOWN_INTERVAL_MS);
+                if (!ftl_get_state(params->handle->priv, FTL_BITRATE_THRD))
                 {
-                    if (os_semaphore_pend(&ftl->bitrate_thread_shutdown, BITRATE_CHANGED_COOLDOWN_INTERVAL_MS) != -1)
-                    {
-                        break;
-                    }
-                    sleep_to_cooldown = FALSE;
+                    break;
                 }
+                //    sleep_to_cooldown = FALSE;
+                //}
                 // Update ullLastFramesSentRecorded and ullLastNacksReceivedRecorded, so the cool down has no impact on our calculations.
                 ftl_get_video_stats(params->handle, &last_frames_sent_recorded, &last_nacks_received_recorded, &rtt_received, &last_frames_dropped_recorded);
                 bitrate_changed = FALSE;
@@ -1843,7 +1848,8 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
         }
 
         // Sleep for c_ulStreamStatsCaptureMs before capturing the next stats
-        if (os_semaphore_pend(&ftl->bitrate_thread_shutdown, STREAM_STATS_CAPTURE_MS) != -1)
+        os_semaphore_pend(&ftl->bitrate_thread_shutdown, STREAM_STATS_CAPTURE_MS);
+        if (!ftl_get_state(params->handle->priv, FTL_BITRATE_THRD))
         {
             break;
         }

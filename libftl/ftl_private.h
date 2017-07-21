@@ -311,7 +311,9 @@ typedef struct
     ftl_handle_t* handle;
     BOOL(*change_bitrate_callback)(void*, uint64_t);
     void* context;
-    uint64_t ullInitialEncodingBitrate;
+    uint64_t initial_encoding_bitrate;
+    uint64_t max_encoding_bitrate;
+    uint64_t min_encoding_bitrate;
 } ftl_adaptive_bitrate_thread_params_t;
 
 typedef struct {

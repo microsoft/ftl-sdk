@@ -256,8 +256,8 @@ typedef struct
     uint64_t current_encoding_bitrate;
     uint64_t previous_encoding_bitrate;
     float nacks_to_frames_ratio;
-    uint32_t avg_rtt;
-    uint32_t avg_frames_dropped;
+    float avg_rtt;
+    uint64_t avg_frames_dropped;
 } ftl_bitrate_changed_msg_t;
 
 /*status messages*/
@@ -319,7 +319,14 @@ FTL_API ftl_status_t find_closest_available_ingest(const char* ingestIps[], int 
 
 FTL_API ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received, uint64_t* rtt_recorded, uint64_t* frames_dropped);
 
-FTL_API ftl_status_t ftl_adaptive_bitrate_thread(ftl_handle_t* ftl_handle, void* context, int(*change_bitrate_callback)(void*, uint64_t), uint64_t ullInitialEncodingBitrate);
+FTL_API ftl_status_t ftl_adaptive_bitrate_thread(
+    ftl_handle_t* ftl_handle,
+    void* context,
+    int(*change_bitrate_callback)(void*, uint64_t),
+    uint64_t initial_encoding_bitrate,
+    uint64_t min_encoding_bitrate,
+    uint64_t max_encoding_bitrate
+);
 
 
 #endif // __FTL_H

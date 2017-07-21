@@ -1822,9 +1822,9 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
                     check_bitrate_for_stability = FALSE;
                     if (current_encoding_bitrate == params->max_encoding_bitrate)
                     {
-                        FTL_LOG(params->handle->priv, FTL_LOG_INFO, "Zapping back to low value for demo.");
-                        current_encoding_bitrate = 512 * 1000;
-                        params->change_bitrate_callback(params->context, 512 * 1000);
+                        //FTL_LOG(params->handle->priv, FTL_LOG_INFO, "Zapping back to low value for demo.");
+                        //current_encoding_bitrate = 512 * 1000;
+                        //params->change_bitrate_callback(params->context, 512 * 1000);
                         //ftl_media_component_common_t *video = &ftl->video.media_component;
                         //video->peak_kbps = current_encoding_bitrate / 1000;
 

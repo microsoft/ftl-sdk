@@ -49,23 +49,24 @@ FTL_API extern const int FTL_VERSION_MAINTENANCE;
 */
 
 typedef enum {
-  FTL_SUCCESS, /**< Operation was successful */
+  FTL_SUCCESS,                  /**< Operation was successful */
   FTL_SOCKET_NOT_CONNECTED,
-  FTL_NON_ZERO_POINTER, /**< Function required a zero-ed pointer, but didn't get one */
-  FTL_MALLOC_FAILURE, /**< memory allocation failed */
-  FTL_DNS_FAILURE, /**< DNS probe failed */
-  FTL_CONNECT_ERROR, /**< Failed to connect to ingest */
-  FTL_INTERNAL_ERROR, /**< Got valid inputs, but FTL failed to complete the action due to internal failure */
-  FTL_CONFIG_ERROR, /**< The configuration supplied was invalid or incomplete */
-  FTL_STREAM_REJECTED, /**< Ingest rejected our connect command */
-  FTL_NOT_ACTIVE_STREAM, /**< The function required an active stream and was passed an inactive one */
-  FTL_UNAUTHORIZED, /**< Parameters were correct, but streamer not authorized to use FTL */
-  FTL_AUDIO_SSRC_COLLISION, /**< The audio SSRC from this IP is currently in use */
-  FTL_VIDEO_SSRC_COLLISION, /**< The video SSRC from this IP is currently in use */
-  FTL_BAD_REQUEST, /**< Ingest didn't like our request. Should never happen */
-  FTL_OLD_VERSION, /**< libftl needs to be updated */
+  FTL_NON_ZERO_POINTER,         /**< Function required a zero-ed pointer, but didn't get one */
+  FTL_MALLOC_FAILURE,           /**< memory allocation failed */
+  FTL_DNS_FAILURE,              /**< DNS probe failed */
+  FTL_CONNECT_ERROR,            /**< Failed to connect to ingest */
+  FTL_INTERNAL_ERROR,           /**< Got valid inputs, but FTL failed to complete the action due to internal failure */
+  FTL_CONFIG_ERROR,             /**< The configuration supplied was invalid or incomplete */
+  FTL_STREAM_REJECTED,          /**< Ingest rejected our connect command */
+  FTL_NOT_ACTIVE_STREAM,        /**< The function required an active stream and was passed an inactive one */
+  FTL_UNAUTHORIZED,             /**< Parameters were correct, but streamer not authorized to use FTL */
+  FTL_AUDIO_SSRC_COLLISION,     /**< The audio SSRC from this IP is currently in use */
+  FTL_VIDEO_SSRC_COLLISION,     /**< The video SSRC from this IP is currently in use */
+  FTL_BAD_REQUEST,              /**< Ingest didn't like our request. Should never happen */
+  FTL_OLD_VERSION,              /**< libftl needs to be updated */
   FTL_BAD_OR_INVALID_STREAM_KEY,
   FTL_UNSUPPORTED_MEDIA_TYPE,
+  FTL_GAME_BLOCKED,             /**< The current game set by this profile can't be streamed. */
   FTL_NOT_CONNECTED,
   FTL_ALREADY_CONNECTED,
   FTL_UNKNOWN_ERROR_CODE,
@@ -74,8 +75,8 @@ typedef enum {
   FTL_STATUS_WAITING_FOR_KEY_FRAME,
   FTL_QUEUE_EMPTY,
   FTL_NOT_INITIALIZED,
-  FTL_CHANNEL_IN_USE,//the channel is already actively streaming
-  FTL_REGION_UNSUPPORTED,//the region you are attempting to stream from is not authorized to stream by local governments
+  FTL_CHANNEL_IN_USE,           /**< The channel is already actively streaming */
+  FTL_REGION_UNSUPPORTED,       /**< The region you are attempting to stream from is not authorized to stream by local governments */
   FTL_NO_MEDIA_TIMEOUT,
   FTL_USER_DISCONNECT,
   FTL_INGEST_NO_RESPONSE,

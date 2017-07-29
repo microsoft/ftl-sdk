@@ -468,15 +468,15 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
 
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code){
 
-    switch (response_code) {
+  switch (response_code) {
     case FTL_INGEST_RESP_OK:
       FTL_LOG(ftl, FTL_LOG_DEBUG, "ingest accepted our paramteres");
     return FTL_SUCCESS;
-  case FTL_INGEST_NO_RESPONSE:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "ingest did not respond to request");
-    return FTL_INGEST_NO_RESPONSE;
-  case FTL_INGEST_RESP_PING:
-    return FTL_SUCCESS;
+    case FTL_INGEST_NO_RESPONSE:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "ingest did not respond to request");
+      return FTL_INGEST_NO_RESPONSE;
+    case FTL_INGEST_RESP_PING:
+      return FTL_SUCCESS;
     case FTL_INGEST_RESP_BAD_REQUEST:
       FTL_LOG(ftl, FTL_LOG_ERROR, "ingest responded bad request");
       return FTL_BAD_REQUEST;
@@ -492,33 +492,36 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
     case FTL_INGEST_RESP_VIDEO_SSRC_COLLISION:
       FTL_LOG(ftl, FTL_LOG_ERROR, "video SSRC collision from this IP address. Please change your audio SSRC to an unused value");
       return FTL_VIDEO_SSRC_COLLISION;
-  case FTL_INGEST_RESP_INVALID_STREAM_KEY:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "The stream key or channel id is incorrect");
-    return FTL_BAD_OR_INVALID_STREAM_KEY;
-  case FTL_INGEST_RESP_CHANNEL_IN_USE:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "the channel id is already actively streaming");
-    return FTL_CHANNEL_IN_USE;
-  case FTL_INGEST_RESP_REGION_UNSUPPORTED:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "the region is not authorized to stream");
-    return FTL_REGION_UNSUPPORTED;
-  case FTL_INGEST_RESP_NO_MEDIA_TIMEOUT:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "The server did not receive media (audio or video) for an extended period of time");
-    return FTL_NO_MEDIA_TIMEOUT;
+    case FTL_INGEST_RESP_INVALID_STREAM_KEY:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "The stream key or channel id is incorrect");
+      return FTL_BAD_OR_INVALID_STREAM_KEY;
+    case FTL_INGEST_RESP_CHANNEL_IN_USE:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "the channel id is already actively streaming");
+      return FTL_CHANNEL_IN_USE;
+    case FTL_INGEST_RESP_REGION_UNSUPPORTED:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "the region is not authorized to stream");
+      return FTL_REGION_UNSUPPORTED;
+    case FTL_INGEST_RESP_NO_MEDIA_TIMEOUT:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "The server did not receive media (audio or video) for an extended period of time");
+      return FTL_NO_MEDIA_TIMEOUT;
     case FTL_INGEST_RESP_INTERNAL_SERVER_ERROR:
       FTL_LOG(ftl, FTL_LOG_ERROR, "parameters accepted, but ingest couldn't start FTL. Please contact support!");
       return FTL_INTERNAL_ERROR;
-  case FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "Server memory error");
-    return FTL_INTERNAL_ERROR;
-  case FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "Server command error");
-    return FTL_INTERNAL_ERROR;
-  case FTL_INGEST_RESP_INTERNAL_SOCKET_CLOSED:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket closed.");
-    return FTL_INGEST_SOCKET_CLOSED;
-  case FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT:
-    FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket timeout.");
-    return FTL_INGEST_SOCKET_TIMEOUT;
+    case FTL_INGEST_RESP_GAME_BLOCKED:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "The current game set by this profile can't be streamed.");
+      return FTL_GAME_BLOCKED;
+    case FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "Server memory error");
+      return FTL_INTERNAL_ERROR;
+    case FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "Server command error");
+      return FTL_INTERNAL_ERROR;
+    case FTL_INGEST_RESP_INTERNAL_SOCKET_CLOSED:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket closed.");
+      return FTL_INGEST_SOCKET_CLOSED;
+    case FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket timeout.");
+      return FTL_INGEST_SOCKET_TIMEOUT;
   }    
 
   // TODO revert back

@@ -1428,22 +1428,32 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
   return 0;
 }
 
-ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received, uint64_t* rtt_recorded, uint64_t* frames_dropped)
-{
-    ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)handle->priv;
-    ftl_media_component_common_t *mc = &ftl->video.media_component;
-    *frames_sent = ftl->video.media_component.stats.frames_sent;
-    *nacks_received = ftl->video.media_component.stats.nack_requests;
-    *rtt_recorded = (mc->stats.rtt_samples) ? mc->stats.total_rtt / mc->stats.rtt_samples : 0;
-    *frames_dropped = mc->stats.dropped_frames;
-
-    mc->stats.total_rtt = 0;
-    mc->stats.rtt_samples = 0;
-
-    return FTL_SUCCESS;
-}
-
 // ================================================ Bitrate Monitor Logic =================================================== //
+
+ftl_status_t ftl_get_video_stats(
+  ftl_handle_t* handle,
+  uint64_t* frames_sent,
+  uint64_t* nacks_received,
+  uint64_t* rtt_recorded,
+  uint64_t* frames_dropped,
+  float* queue_fullness
+)
+{
+  ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)handle->priv;
+  ftl_media_component_common_t *mc = &ftl->video.media_component;
+  *frames_sent = ftl->video.media_component.stats.frames_sent;
+  *nacks_received = ftl->video.media_component.stats.nack_requests;
+  *rtt_recorded = (mc->stats.rtt_samples) ? mc->stats.total_rtt / mc->stats.rtt_samples : 0;
+  *frames_dropped = mc->stats.dropped_frames;
+  *queue_fullness = _media_get_queue_fullness(ftl, mc->ssrc);
+
+  mc->stats.pkt_rtt_max = 0;
+  mc->stats.pkt_rtt_min = 10000;
+  mc->stats.total_rtt = 0;
+  mc->stats.rtt_samples = 0;
+
+  return FTL_SUCCESS;
+}
 
 BOOL is_bitrate_reduction_required(
   const float nacks_to_frames_ratio,

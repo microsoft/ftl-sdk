@@ -97,7 +97,7 @@
 #define BITRATE_CHANGED_COOLDOWN_INTERVAL_MS 10000
 
  // Percentage to reduce the bitrate to if bandwidth seems too constrained
-#define BW_INSUFFICIENT_BITRATE_DOWNGRADE_PERCENTAGE 70
+#define BW_INSUFFICIENT_BITRATE_DOWNGRADE_PERCENTAGE 50
 
  // Percentange to reduce the bitrate to if bw upgrade was too excessive
 #define REVERT_TO_STABLE_BITRATE_DOWNGRADE_PERCENTAGE 80
@@ -111,13 +111,16 @@
  // If bandwidth is constrained within MaxBitrateUpgradeExcessiveSeconds after bitrate update, revert to last stable bitrate.
 #define MAX_MS_TO_DEEM_UPGRADE_EXCESSIVE 60000
 
+#define MAX_AVG_RTT_TO_DEEM_BW_STABLE 100
+
+#define MAX_QUEUE_FULLNESS_TO_DEEM_BW_STABLE 0.1
+
+#define MIN_QUEUE_FULLNESS_TO_DEEM_BW_CONSTRAINED 0.3
+
+#define MIN_AVG_RTT_TO_DEEM_BW_CONSTRAINED 300
  // If bitrate upgrade was excessive we freeze bitrate upgrade for the next c_bitrateUpgradeFreezeTimeMs milliseconds.
 #define BITRATE_UPGRADE_FREEZE_TIME_MS 600000 // 10*60*1000
 
-#define MAX_SUPPORTED_BITRATE_BPS 5000000 // 5*1000*1000
-#define MIN_SUPPORTED_BITRATE_BPS 512000 // 512*1000
-
-// This is BW_CHECK_DURATION_MS/STREAM_STATS_CAPTURE_MS.
 #define MAX_STAT_SIZE 5
 
 #ifndef _WIN32

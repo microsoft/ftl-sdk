@@ -1730,7 +1730,8 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
               current_encoding_bitrate,
               0,
               avg_rtt,
-              avg_frames_dropped_per_second
+              avg_frames_dropped_per_second,
+              queue_fullness
             };
             ftl_status_msg_t status_msg;
             status_msg.type = FTL_BITRATE_CHANGED;
@@ -1761,7 +1762,8 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
               current_encoding_bitrate,
               nacks_to_frames_ratio,
               avg_rtt,
-              avg_frames_dropped_per_second
+              avg_frames_dropped_per_second,
+              queue_fullness
             };
             ftl_status_msg_t status_msg;
             status_msg.type = FTL_BITRATE_CHANGED;
@@ -1795,7 +1797,8 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
                 current_encoding_bitrate,
                 nacks_to_frames_ratio,
                 avg_rtt,
-                avg_frames_dropped_per_second
+                avg_frames_dropped_per_second,
+                queue_fullness
               };
               ftl_status_msg_t status_msg;
               status_msg.type = FTL_BITRATE_CHANGED;
@@ -1858,7 +1861,8 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
               current_encoding_bitrate,
               nacks_to_frames_ratio,
               avg_rtt,
-              avg_frames_dropped_per_second
+              avg_frames_dropped_per_second,
+              queue_fullness
             };
             ftl_status_msg_t status_msg;
             status_msg.type = FTL_BITRATE_CHANGED;
@@ -1875,7 +1879,8 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
               current_encoding_bitrate,
               nacks_to_frames_ratio,
               avg_rtt,
-              avg_frames_dropped_per_second
+              avg_frames_dropped_per_second,
+              queue_fullness
             };
             ftl_status_msg_t status_msg;
             status_msg.type = FTL_BITRATE_CHANGED;

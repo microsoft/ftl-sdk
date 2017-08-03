@@ -258,6 +258,7 @@ typedef struct
     float nacks_to_frames_ratio;
     float avg_rtt;
     uint64_t avg_frames_dropped;
+    float queue_fullness;
 } ftl_bitrate_changed_msg_t;
 
 /*status messages*/

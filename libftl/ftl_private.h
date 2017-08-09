@@ -81,6 +81,48 @@
 #define PING_PTYPE 250
 #define SENDER_REPORT_PTYPE 200
 
+ // Adaptive bitrate constants
+
+ // If the ratio of nacks received to packets sent is greater than the following value, we request a bitrate downgrade.
+#define MIN_NACKS_RECEIVED_TO_PACKETS_SENT_RATIO_FOR_BITRATE_DOWNGRADE 0.1
+
+ // Duration at which we capture stream stats , i.e frames sent and nacks received
+#define STREAM_STATS_CAPTURE_MS 1000
+
+ // Duration over which we evaluate whether we need to downgrade/upgrade bitrate. Note that we 
+ // look at stats over the last c_ulBwCheckDurationMs milliseconds, every c_ulStreamStatsCaptureMs milliseconds.
+#define BW_CHECK_DURATION_MS 5000
+
+ // Interval to wait for bw test after we update bitrate.
+#define BITRATE_CHANGED_COOLDOWN_INTERVAL_MS 10000
+
+ // Percentage to reduce the bitrate to if bandwidth seems too constrained
+#define BW_INSUFFICIENT_BITRATE_DOWNGRADE_PERCENTAGE 50
+
+ // Percentange to reduce the bitrate to if bw upgrade was too excessive
+#define REVERT_TO_STABLE_BITRATE_DOWNGRADE_PERCENTAGE 80
+
+ // Percentage to increase bitrate by if conditions look ideal
+#define BW_IDEAL_BITRATE_UPGRADE_BPS 256000;
+
+ // If ratio of nacks received to packets sent is below the following value bitrate update can be requested
+#define MAX_NACKS_RECEIVED_TO_PACKETS_SENT_RATIO_FORBITRATE_UPGRADE 0.01
+
+ // If bandwidth is constrained within MaxBitrateUpgradeExcessiveSeconds after bitrate update, revert to last stable bitrate.
+#define MAX_MS_TO_DEEM_UPGRADE_EXCESSIVE 60000
+
+#define MAX_AVG_RTT_TO_DEEM_BW_STABLE 100
+
+#define MAX_QUEUE_FULLNESS_TO_DEEM_BW_STABLE 0.1
+
+#define MIN_QUEUE_FULLNESS_TO_DEEM_BW_CONSTRAINED 0.3
+
+#define MIN_AVG_RTT_TO_DEEM_BW_CONSTRAINED 300
+ // If bitrate upgrade was excessive we freeze bitrate upgrade for the next c_bitrateUpgradeFreezeTimeMs milliseconds.
+#define BITRATE_UPGRADE_FREEZE_TIME_MS 600000 // 10*60*1000
+
+#define MAX_STAT_SIZE 5
+
 #ifndef _WIN32
 #define strncpy_s(dst, dstsz, src, cnt) strncpy(dst, src, cnt)
 #define sprintf_s(buf, bufsz, fmt, ...) sprintf(buf, fmt, __VA_ARGS__)
@@ -110,6 +152,7 @@ typedef enum {
   FTL_TX_THRD = 0x0080,
   FTL_DISABLE_TX_PING_PKTS = 0x0100,
   FTL_SPEED_TEST = 0x0200,
+  FTL_BITRATE_THRD = 0x0400,
   FTL_DISCONNECT_IN_PROGRESS = 0x1000,
   FTL_DISABLE_TX_SENDER_REPORT = 0x2000
 }ftl_state_t;
@@ -266,6 +309,16 @@ typedef struct _ftl_ingest_t {
   struct _ftl_ingest_t *next;
 }ftl_ingest_t;
 
+typedef struct
+{
+    ftl_handle_t* handle;
+    BOOL(*change_bitrate_callback)(void*, uint64_t);
+    void* context;
+    uint64_t initial_encoding_bitrate;
+    uint64_t max_encoding_bitrate;
+    uint64_t min_encoding_bitrate;
+} ftl_adaptive_bitrate_thread_params_t;
+
 typedef struct {
   SOCKET ingest_socket;
   ftl_state_t state;
@@ -281,8 +334,10 @@ typedef struct {
   char vendor_version[20];
   OS_THREAD_HANDLE connection_thread;
   OS_THREAD_HANDLE keepalive_thread;
+  OS_THREAD_HANDLE bitrate_monitor_thread;
   OS_SEMAPHORE connection_thread_shutdown;
   OS_SEMAPHORE keepalive_thread_shutdown;
+  OS_SEMAPHORE bitrate_thread_shutdown;
   ftl_media_config_t media;
   ftl_audio_component_t audio;
   ftl_video_component_t video;

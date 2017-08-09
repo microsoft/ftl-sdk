@@ -174,7 +174,8 @@ typedef enum {
   FTL_STATUS_VIDEO,
   FTL_STATUS_AUDIO,
   FTL_STATUS_FRAMES_DROPPED,
-  FTL_STATUS_NETWORK
+  FTL_STATUS_NETWORK,
+  FTL_BITRATE_CHANGED
 } ftl_status_types_t;
 
 typedef enum {
@@ -233,16 +234,47 @@ typedef struct {
   int max_frame_size;
 }ftl_video_frame_stats_msg_t;
 
+typedef enum
+{
+    FTL_BITRATE_DECREASED,
+    FTL_BITRATE_INCREASED,
+    FTL_BITRATE_STABILIZED
+}ftl_bitrate_changed_type_t;
+
+typedef enum
+{
+    FTL_BANDWIDTH_CONSTRAINED,
+    FTL_UPGRADE_EXCESSIVE,
+    FTL_BANDWIDTH_AVAILABLE,
+    FTL_STABILIZE_ON_LOWER_BITRATE,
+    FTL_STABILIZE_ON_ORIGINAL_BITRATE,
+} ftl_bitrate_changed_reason_t;
+
+typedef struct
+{
+    ftl_bitrate_changed_type_t bitrate_changed_type;
+    ftl_bitrate_changed_reason_t bitrate_changed_reason;
+    uint64_t current_encoding_bitrate;
+    uint64_t previous_encoding_bitrate;
+    float nacks_to_frames_ratio;
+    float avg_rtt;
+    uint64_t avg_frames_dropped;
+    float queue_fullness;
+} ftl_bitrate_changed_msg_t;
+
 /*status messages*/
-typedef struct {
-  ftl_status_types_t type;
-  union {
-    ftl_status_log_msg_t log;
-    ftl_status_event_msg_t event;
-    ftl_packet_stats_msg_t pkt_stats;
-    ftl_packet_stats_instant_msg_t ipkt_stats;
-    ftl_video_frame_stats_msg_t video_stats;
-  } msg;
+typedef struct
+{
+    ftl_status_types_t type;
+    union
+    {
+        ftl_status_log_msg_t log;
+        ftl_status_event_msg_t event;
+        ftl_packet_stats_msg_t pkt_stats;
+        ftl_packet_stats_instant_msg_t ipkt_stats;
+        ftl_video_frame_stats_msg_t video_stats;
+        ftl_bitrate_changed_msg_t bitrate_changed_msg;
+    } msg;
 }ftl_status_msg_t;
 
 /*!
@@ -287,6 +319,16 @@ FTL_API char* ftl_status_code_to_string(ftl_status_t status);
 
 FTL_API ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsCount, char* bestIngestIpComputed);
 
-FTL_API ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received);
+FTL_API ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received, uint64_t* rtt_recorded, uint64_t* frames_dropped, float* queue_fullness);
+
+FTL_API ftl_status_t ftl_adaptive_bitrate_thread(
+    ftl_handle_t* ftl_handle,
+    void* context,
+    int(*change_bitrate_callback)(void*, uint64_t),
+    uint64_t initial_encoding_bitrate,
+    uint64_t min_encoding_bitrate,
+    uint64_t max_encoding_bitrate
+);
+
 
 #endif // __FTL_H

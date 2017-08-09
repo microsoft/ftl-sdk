@@ -1679,14 +1679,15 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
       uint64_t frames_dropped_total = 0;
       uint64_t avg_frames_dropped_per_second = 0;
       float nacks_to_frames_ratio = 0;
+	  int i;
 
       // Count all nacks received for the last c_ulBwCheckDurationMs milliseconds
-      for (int i = 0; i < MAX_STAT_SIZE; i++)
+      for (i = 0; i < MAX_STAT_SIZE; i++)
       {
         nacks_received_total += nacks_received[i];
       }
       // Count all frames sent over the last c_ulBwCheckDurationMs milliseconds
-      for (int i = 0; i< MAX_STAT_SIZE; i++)
+      for (i = 0; i< MAX_STAT_SIZE; i++)
       {
         frames_sent_total += frames_sent[i];
       }
@@ -1696,13 +1697,13 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
         nacks_to_frames_ratio = (float)nacks_received_total / (float)frames_sent_total;
       }
 
-      for (int i = 0; i< MAX_STAT_SIZE; i++)
+      for (i = 0; i< MAX_STAT_SIZE; i++)
       {
         total_rtt += rtts_received[i];
       }
       avg_rtt = total_rtt / MAX_STAT_SIZE;
 
-      for (int i = 0; i < MAX_STAT_SIZE; i++)
+      for (i = 0; i < MAX_STAT_SIZE; i++)
       {
         frames_dropped_total += frames_dropped[i];
       }

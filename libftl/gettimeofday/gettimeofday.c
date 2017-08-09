@@ -26,6 +26,7 @@
 * SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 */
 
+#include <stddef.h>
 #include "gettimeofday.h"
 
 #define NSEC_IN_SEC 1000000000

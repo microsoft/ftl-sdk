@@ -42,7 +42,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
     os_init_mutex(&ftl->disconnect_mutex);
     os_init_mutex(&ftl->status_q.mutex);
 
-    if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0, FALSE) < 0) {
         ret_status = FTL_MALLOC_FAILURE;
         break;
     }

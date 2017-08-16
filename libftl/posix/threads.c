@@ -66,29 +66,62 @@ int os_delete_mutex(OS_MUTEX *mutex) {
   return 0;
 }
 
-int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value) {
+int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value, BOOL is_global) {
 
-  if ((sem->name = strdup(name)) == NULL) {
-    return -1;
-  }
+  int retval = 0;
 
-  if (name == NULL || name[0] != '/') {
-    return -2;
-  }
+  sem->name = NULL;
+  sem->sem = NULL;
+
+  do {
+    if (name == NULL || name[0] != '/') {
+      retval = -1;
+      break;
+    }
+
+    //if the semaphore is intended to only be used by the same process and not across processes, give it unique name
+    if(!is_global) {
+      int name_len = strlen(name);
+
+      if ((sem->name = (char*)malloc( (name_len + 20) * sizeof(char))) == NULL) {
+        retval = -2;
+        break;
+      }
+
+      sprintf(sem->name, "%s_%d", name, (unsigned int)rand());
+    }
+    else {
+      if ((sem->name = strdup(name)) == NULL) {
+        return -2;
+      }
+    }
 
 #ifdef __ANDROID__
-  if ((sem->sem = (sem_t*)malloc(sizeof(sem_t))) == NULL) {
-    return -4;
-  }
+    if ((sem->sem = (sem_t*)malloc(sizeof(sem_t))) == NULL) {
+      retval = -4;
+      break;
+    }
 
-  if (sem_init(sem->sem, 0 /* pshared */, 0 /* value */)) {
+    if (sem_init(sem->sem, 0 /* pshared */, 0 /* value */)) {
 #else
-  if ((sem->sem = sem_open(name, oflag, 0644, value)) == SEM_FAILED) {
+    if ((sem->sem = sem_open(name, oflag, 0644, value)) == SEM_FAILED) {
 #endif
-    return -3;
+      retval = -3;
+      break;
+    }
+
+    return retval;
+  }while(0);
+
+  if(sem->name != NULL){
+    free(sem->name)
   }
 
-  return 0;
+  if(sem->sem != NULL){
+    free(sem->sem)
+  }
+
+  return retval;
 }
 
 int os_semaphore_pend(OS_SEMAPHORE *sem, int ms_timeout) {

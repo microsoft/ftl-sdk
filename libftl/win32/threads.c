@@ -88,20 +88,47 @@ int os_delete_mutex(OS_MUTEX *mutex) {
 
 char tmp[1024];
 
-int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value) {
+int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value, BOOL is_global) {
 
-  if (name == NULL) {
-    return -1;
+  char *internal_name = NULL;
+  int retval = 0;
+
+  do {
+    if (name == NULL) {
+      retval = -1;
+      break;
+    }
+
+    //if the semaphore is intended to only be used by the same process and not across processes, give it unique name
+    if(!is_global) {
+      int name_len = strlen(name);
+
+      if ((internal_name = (char*)malloc( (name_len + 20) * sizeof(char))) == NULL) {
+        retval = -2;
+        break;
+      }
+
+      sprintf(internal_name, "%s_%d", name, (unsigned int)rand());
+    }
+    else {
+      if ((internal_name = strdup(name)) == NULL) {
+        retval = -2;
+        break;
+      }
+    }  
+
+    if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, name)) == NULL){
+      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0, (LPTSTR)&tmp, 1000, NULL);
+      retval = -3;
+      break;
+    }
+  }while(0);
+
+  if( internal_name != NULL ){
+    free(internal_name);
   }
 
-  if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, name)) == NULL){
-
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0, (LPTSTR)&tmp, 1000, NULL);
-
-    return -3;
-  }
-
-  return 0;
+  return retval;
 }
 
 int os_semaphore_pend(OS_SEMAPHORE *sem, int ms_timeout) {

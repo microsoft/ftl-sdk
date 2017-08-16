@@ -101,17 +101,18 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
 
     //if the semaphore is intended to only be used by the same process and not across processes, give it unique name
     if(!is_global) {
-      int name_len = strlen(name);
+      size_t name_len = strlen(name);
+	  size_t max_name = name_len + 20;
 
-      if ((internal_name = (char*)malloc( (name_len + 20) * sizeof(char))) == NULL) {
+      if ((internal_name = (char*)malloc(max_name * sizeof(char))) == NULL) {
         retval = -2;
         break;
       }
 
-      sprintf(internal_name, "%s_%d", name, (unsigned int)rand());
+      sprintf_s(internal_name, max_name, "%s_%d", name, (unsigned int)rand());
     }
     else {
-      if ((internal_name = strdup(name)) == NULL) {
+      if ((internal_name = _strdup(name)) == NULL) {
         retval = -2;
         break;
       }

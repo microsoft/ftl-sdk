@@ -23,6 +23,7 @@
 **/
 
 #include <Windows.h>
+#include <stdio.h>
 
 typedef CRITICAL_SECTION OS_MUTEX;
 

@@ -88,7 +88,7 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
         break;
       }
 
-      sprintf(sem->name, "%s_%d", name, (unsigned int)rand());
+      sprintf_s(sem->name, "%s_%d", name, (unsigned int)rand());
     }
     else {
       if ((sem->name = strdup(name)) == NULL) {
@@ -114,11 +114,11 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
   }while(0);
 
   if(sem->name != NULL){
-    free(sem->name)
+    free(sem->name);
   }
 
   if(sem->sem != NULL){
-    free(sem->sem)
+    free(sem->sem);
   }
 
   return retval;

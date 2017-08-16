@@ -16,11 +16,16 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 10;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
+  struct timeval now;
+
   init_sockets();
   os_init();
 #ifndef DISABLE_AUTO_INGEST
   curl_global_init(CURL_GLOBAL_ALL);
 #endif
+
+  gettimeofday(&now, NULL);
+  srand((unsigned int)now.tv_sec);
   return FTL_SUCCESS;
 }
 

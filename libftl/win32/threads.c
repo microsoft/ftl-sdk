@@ -86,8 +86,6 @@ int os_delete_mutex(OS_MUTEX *mutex) {
   return 0;
 }
 
-char tmp[1024];
-
 int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value, BOOL is_global) {
 
   char *internal_name = NULL;
@@ -118,7 +116,7 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
       }
     }  
 
-    if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, name)) == NULL){
+    if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, internal_name)) == NULL){
       FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0, (LPTSTR)&tmp, 1000, NULL);
       retval = -3;
       break;

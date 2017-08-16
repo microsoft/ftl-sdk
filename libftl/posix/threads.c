@@ -104,7 +104,7 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
 
     if (sem_init(sem->sem, 0 /* pshared */, 0 /* value */)) {
 #else
-    if ((sem->sem = sem_open(name, oflag, 0644, value)) == SEM_FAILED) {
+    if ((sem->sem = sem_open(sem->name, oflag, 0644, value)) == SEM_FAILED) {
 #endif
       retval = -3;
       break;

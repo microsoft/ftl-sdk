@@ -88,7 +88,7 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
         break;
       }
 
-      sprintf_s(sem->name, "%s_%d", name, (unsigned int)rand());
+      sprintf(sem->name, "%s_%d", name, (unsigned int)rand());
     }
     else {
       if ((sem->name = strdup(name)) == NULL) {

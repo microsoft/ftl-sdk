@@ -833,7 +833,6 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
 
   os_lock_mutex(&ftl->media.mutex);
   if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, ftl->media.addrinfo.ai_addr, ftl->media.addrinfo.ai_addrlen)) == SOCKET_ERROR)
-  //if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
   {
     FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
   }
@@ -1055,9 +1054,6 @@ OS_THREAD_ROUTINE recv_thread(void *data)
   }
 
   while (ftl_get_state(ftl, FTL_RX_THRD)) {
-
-	  sleep_ms(100);
-	  continue;
 
     // Wait on the socket for data or a timeout. The timeout is how we
     // exit the thread when disconnecting.

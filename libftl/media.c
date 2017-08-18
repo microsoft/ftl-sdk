@@ -49,7 +49,6 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	struct sockaddr_in server_addr;
 	struct addrinfo hints;
 
-	unsigned char buf[sizeof(struct in_addr)];
 	uint8_t dummy[4];
 	struct timeval start, stop, delta;
 	int retval = -1;
@@ -61,20 +60,16 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_protocol = 0;
-
 	char port_str[10];
+	unsigned char ip_bytes[sizeof(struct in_addr)];
 
-	char ipv6[100];
-
-	if (inet_pton(AF_INET, ftl->ingest_ip, buf) == 0) {
+	if (inet_pton(AF_INET, ftl->ingest_ip, ip_bytes) == 0) {
 		return -1;
 	}
-
-	sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
-
+	
 	snprintf(port_str, 10, "%d", media->assigned_port);
 
-	err = getaddrinfo(ipv6, port_str, &hints, &resolved_names);
+	err = getaddrinfo("mixer.com", port_str, &hints, &resolved_names);
 	if (err != 0) {
 		return FTL_DNS_FAILURE;
 	}
@@ -85,36 +80,33 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 			continue;
 		}
 
+		if (p->ai_family == AF_INET) {
+			struct sockaddr_in *ipv4_addr = p->ai_addr;
+
+			//copy real ipv4 address into addr buffer
+			memcpy(&ipv4_addr->sin_addr, ip_bytes, sizeof(ip_bytes));
+
+			char str[100];
+			inet_ntop(p->ai_family, &ipv4_addr->sin_addr, str, sizeof(str));
+			printf("Got IPV4: %s\n", str);
+		}
+		else if (p->ai_family == AF_INET6) {
+			struct sockaddr_in6 *ipv6_addr = p->ai_addr;
+
+			memcpy((unsigned char*)(&ipv6_addr->sin6_addr) + 12, ip_bytes, sizeof(ip_bytes));
+
+			char str[100];
+			inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, str, sizeof(str));
+			printf("Got IPV6: %s\n", str);
+		}
+		else {
+			continue;
+		}
+
 		memcpy(&media->addrinfo, p, sizeof(struct addrinfo));
+		break;
 	}
-/*
-    //Create a socket
-    if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
-    {
-      FTL_LOG(ftl, FTL_LOG_ERROR, "Could not create socket : %s", get_socket_error());
-      status = FTL_INTERNAL_ERROR;
-      break;
-    }
 
-    set_socket_send_buf(media->media_socket, 2048);
-
-    FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
-
-    if (inet_pton(AF_INET, ftl->ingest_ip, buf) == 0) {
-      break;
-    }
-
-    //Prepare the sockaddr_in structure
-    media->server_addr.sin_family = AF_INET;
-    memcpy((char *)&media->server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
-    media->server_addr.sin_port = htons(media->assigned_port);
-
-
-	err = getaddrinfo(ipv6, port_str, &hints, &resolved_names);
-	if (err != 0) {
-		return FTL_DNS_FAILURE;
-	}
-*/
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
     media->sender_report_base_ntp.tv_usec = 0;
@@ -1077,7 +1069,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
       // This shouldn't be possible, we should only be here is poll above told us there was data.
       continue;
     }
-
+#if 0
     if (inet_ntop(AF_INET, &remote_addr.sin_addr.s_addr, remote_ip, sizeof(remote_ip)) == NULL) {
       continue;
     }
@@ -1087,7 +1079,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
       FTL_LOG(ftl, FTL_LOG_WARN, "Discarded packet from unexpected ip: %s\n", remote_ip);
       continue;
     }
-
+#endif
     int version, padding, feedbackType, ptype, length, ssrcSender, ssrcMedia;
     uint16_t snBase, blp, sn;
     int recv_len = ret;

@@ -50,7 +50,7 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   struct addrinfo* resolved_names = 0;
   struct addrinfo* p = 0;
 
-  char ipv6[100];
+  unsigned char ip_bytes[sizeof(struct in_addr)];
 
   int ingest_port = INGEST_PORT;
   char ingest_port_str[10];
@@ -64,17 +64,12 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   if ((retval = _set_ingest_ip(ftl)) != FTL_SUCCESS) {
     return retval;
   }
-
-  unsigned char buf[4];
-
-  if (inet_pton(AF_INET, ftl->ingest_ip, buf) == 0) {
+  
+  if (inet_pton(AF_INET, ftl->ingest_ip, ip_bytes) == 0) {
 	  return -1;
   }
 
-  //sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
-  sprintf(ipv6, "%s%02x%02x:%02x%02x", " 0:0:0:0:0:ffff:", buf[0], buf[1], buf[2], buf[3]);
-
-  err = getaddrinfo(ipv6, ingest_port_str, &hints, &resolved_names);
+  err = getaddrinfo("mixer.com", ingest_port_str, &hints, &resolved_names);
   if (err != 0) {
     FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_ip);
     FTL_LOG(ftl, FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));
@@ -89,6 +84,29 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
       FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", get_socket_error());
       continue;
     }
+
+	if (p->ai_family == AF_INET) {
+		struct sockaddr_in *ipv4_addr = p->ai_addr;
+
+		//copy real ipv4 address into addr buffer
+		memcpy(&ipv4_addr->sin_addr, ip_bytes, sizeof(ip_bytes));
+
+		char str[100];
+		inet_ntop(p->ai_family, &ipv4_addr->sin_addr, str, sizeof(str));
+		printf("Got IPV4: %s\n", str);
+	}
+	else if (p->ai_family == AF_INET6) {
+		struct sockaddr_in6 *ipv6_addr = p->ai_addr;
+
+		memcpy((unsigned char*)(&ipv6_addr->sin6_addr) + 12, ip_bytes, sizeof(ip_bytes));
+
+		char str[100];
+		inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, str, sizeof(str));
+		printf("Got IPV6: %s\n", str);
+	}
+	else {
+		continue;
+	}
 
     /* Go for broke */
     if (connect(sock, p->ai_addr, (int)p->ai_addrlen) == -1) {

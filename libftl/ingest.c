@@ -18,17 +18,16 @@ static int _ping_server(const char *ip, int port) {
 
   SOCKET sock;
   struct addrinfo hints;
-
-  unsigned char buf[sizeof(struct in_addr)];
-  uint8_t dummy[4];
+  char dummy[4];
   struct timeval start, stop, delta;
   int retval = -1;
   struct addrinfo* resolved_names = 0;
   struct addrinfo* p = 0;
   int err = 0;
+  int off = 0;
 
   memset(&hints, 0, sizeof(hints));
-  hints.ai_family = PF_INET6;
+  hints.ai_family = PF_UNSPEC;
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_protocol = 0;
 
@@ -36,43 +35,19 @@ static int _ping_server(const char *ip, int port) {
   char port_str[10];
   char ipv6[INET6_ADDRSTRLEN];
 
+  unsigned char ip_bytes[sizeof(struct in_addr)];
+
   snprintf(port_str, 10, "%d", port);
   
-  if (inet_pton(AF_INET, ip, buf) == 0) {
+  if (inet_pton(AF_INET, ip, ip_bytes) == 0) {
 	  return -1;
   }
-
-  sprintf(ipv6, "%s%s", "::ffff:", ip);
-#if 0
-  WSADATA wsaData;
-  SOCKET lsock = INVALID_SOCKET;
-  SOCKET csock = INVALID_SOCKET;
-  SOCKADDR_STORAGE serverAddr = { 0 };
-  SOCKADDR_STORAGE clientAddr = { 0 };
-  int off = 0;
-  int port = 8000;
-  int clientAddrLen = sizeof(clientAddr);
-  WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-
-  serverAddr.ss_family = AF_INET6;
-  INETADDR_SETANY((SOCKADDR *)&serverAddr);
-  SS_PORT(&serverAddr) = htons(port);
-  lsock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP)
-
-
-
-	  //make the socket a dual mode socket
-	  setsockopt(lsock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
-  bind(lsock, (SOCKADDR *)&serverAddr, (int)INET_SOCKADDR_LENGTH(serverAddr.ss_family));
-  listen(lsock, 5);
-  csock = accept(lsock, (SOCKADDR *)&clientAddr, &clientAddrLen);
-#endif
-  err = getaddrinfo(ip, port_str, &hints, &resolved_names);
+  
+  err = getaddrinfo("mixer.com", port_str, &hints, &resolved_names);
   if (err != 0) {
 	  return FTL_DNS_FAILURE;
   }
-
+  
   do {
 	  for (p = resolved_names; p != NULL; p = p->ai_next) {
 		  sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
@@ -80,6 +55,22 @@ static int _ping_server(const char *ip, int port) {
 			  continue;
 		  }
 
+		  if (p->ai_family == AF_INET) {
+			  struct sockaddr_in *ipv4_addr = p->ai_addr;
+
+			  //copy real ipv4 address into addr buffer
+			  memcpy(&ipv4_addr->sin_addr, ip_bytes, sizeof(ip_bytes));
+		  }
+		  else if(p->ai_family == AF_INET6) {
+			  struct sockaddr_in6 *ipv6_addr = p->ai_addr;
+
+			  memcpy((unsigned char*)(&ipv6_addr->sin6_addr) + 12, ip_bytes, sizeof(ip_bytes));
+		  }
+		  else {
+			  continue;
+		  }
+
+		  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
 		  set_socket_recv_timeout(sock, 500);
 
 		  gettimeofday(&start, NULL);

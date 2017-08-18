@@ -17,42 +17,64 @@ typedef struct {
 static int _ping_server(const char *ip, int port) {
 
   SOCKET sock;
-  struct sockaddr_in server_addr;
+  struct addrinfo hints;
+
   unsigned char buf[sizeof(struct in_addr)];
   uint8_t dummy[4];
   struct timeval start, stop, delta;
   int retval = -1;
+  struct addrinfo* resolved_names = 0;
+  struct addrinfo* p = 0;
+  int err = 0;
+
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = PF_UNSPEC;
+  hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_protocol = 0;
+
+  int ingest_port = INGEST_PORT;
+  char port_str[10];
+
+  snprintf(port_str, 10, "%d", port);
+
+  //char *ipv6 = "2001:2:0:1baa::adc0:949d";
+  char ipv6[100];
+
+  if (inet_pton(AF_INET, ip, buf) == 0) {
+	  return -1;
+  }
+  sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
+
+  err = getaddrinfo(ipv6, port_str, &hints, &resolved_names);
+  if (err != 0) {
+	  return FTL_DNS_FAILURE;
+  }
 
   do {
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
-    {
-      break;
-    }
+	  for (p = resolved_names; p != NULL; p = p->ai_next) {
+		  sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		  if (sock == -1) {
+			  continue;
+		  }
 
-    if (inet_pton(AF_INET, ip, buf) == 0) {
-      break;
-    }
+		  set_socket_recv_timeout(sock, 500);
 
-    //Prepare the sockaddr_in structure
-    server_addr.sin_family = AF_INET;
-    memcpy((char *)&server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
-    server_addr.sin_port = htons(port);
+		  gettimeofday(&start, NULL);
 
-    set_socket_recv_timeout(sock, 500);
+		  //if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
+		  if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, p->ai_addrlen) == SOCKET_ERROR) {
+			  printf("Sendto error: %s\n", get_socket_error());
+			  break;
+		  }
 
-    gettimeofday(&start, NULL);
+		  if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
+			  break;
+		  }
 
-    if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
-      break;
-    }
-
-    if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
-      break;
-    }
-
-    gettimeofday(&stop, NULL);
-    timeval_subtract(&delta, &stop, &start);
-    retval = (int)timeval_to_ms(&delta);
+		  gettimeofday(&stop, NULL);
+		  timeval_subtract(&delta, &stop, &start);
+		  retval = (int)timeval_to_ms(&delta);
+	  }
   } while (0);
 
   shutdown_socket(sock, SD_BOTH);
@@ -385,15 +407,14 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
   int s;
   BOOL success = FALSE;
   ingest_ip[0] = '\0';
-  char ip[INET_ADDRSTRLEN];
+  char ip[IPV4_ADDR_ASCII_LEN];
 
   if (*ingest_ip != NULL) {
     return -1;
   }
 
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_INET;    
-  hints.ai_socktype = 0;
+  hints.ai_family = AF_UNSPEC;
   hints.ai_flags = 0;
   hints.ai_protocol = 0;
   hints.ai_canonname = NULL;

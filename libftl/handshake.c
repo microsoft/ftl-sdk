@@ -50,6 +50,8 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   struct addrinfo* resolved_names = 0;
   struct addrinfo* p = 0;
 
+  char ipv6[100];
+
   int ingest_port = INGEST_PORT;
   char ingest_port_str[10];
 
@@ -63,7 +65,15 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
     return retval;
   }
 
-  err = getaddrinfo(ftl->ingest_ip, ingest_port_str, &hints, &resolved_names);
+  unsigned char buf[4];
+
+  if (inet_pton(AF_INET, ftl->ingest_ip, buf) == 0) {
+	  return -1;
+  }
+
+  sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
+
+  err = getaddrinfo(ipv6, ingest_port_str, &hints, &resolved_names);
   if (err != 0) {
     FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_ip);
     FTL_LOG(ftl, FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));

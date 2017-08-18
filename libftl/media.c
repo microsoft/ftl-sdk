@@ -46,6 +46,48 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     os_init_mutex(&ftl->video.mutex);
     os_init_mutex(&ftl->audio.mutex);
 
+	struct sockaddr_in server_addr;
+	struct addrinfo hints;
+
+	unsigned char buf[sizeof(struct in_addr)];
+	uint8_t dummy[4];
+	struct timeval start, stop, delta;
+	int retval = -1;
+	struct addrinfo* resolved_names = 0;
+	struct addrinfo* p = 0;
+	int err = 0;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = PF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = 0;
+
+	char port_str[10];
+
+	char ipv6[100];
+
+	if (inet_pton(AF_INET, ftl->ingest_ip, buf) == 0) {
+		return -1;
+	}
+
+	sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
+
+	snprintf(port_str, 10, "%d", media->assigned_port);
+
+	err = getaddrinfo(ipv6, port_str, &hints, &resolved_names);
+	if (err != 0) {
+		return FTL_DNS_FAILURE;
+	}
+
+	for (p = resolved_names; p != NULL; p = p->ai_next) {
+		media->media_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (media->media_socket == -1) {
+			continue;
+		}
+
+		memcpy(&media->addrinfo, p, sizeof(struct addrinfo));
+	}
+/*
     //Create a socket
     if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
     {
@@ -67,6 +109,12 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     memcpy((char *)&media->server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
     media->server_addr.sin_port = htons(media->assigned_port);
 
+
+	err = getaddrinfo(ipv6, port_str, &hints, &resolved_names);
+	if (err != 0) {
+		return FTL_DNS_FAILURE;
+	}
+*/
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
     media->sender_report_base_ntp.tv_usec = 0;
@@ -784,7 +832,8 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
   int tx_len;
 
   os_lock_mutex(&ftl->media.mutex);
-  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
+  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, ftl->media.addrinfo.ai_addr, ftl->media.addrinfo.ai_addrlen)) == SOCKET_ERROR)
+  //if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
   {
     FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
   }
@@ -1006,6 +1055,9 @@ OS_THREAD_ROUTINE recv_thread(void *data)
   }
 
   while (ftl_get_state(ftl, FTL_RX_THRD)) {
+
+	  sleep_ms(100);
+	  continue;
 
     // Wait on the socket for data or a timeout. The timeout is how we
     // exit the thread when disconnecting.

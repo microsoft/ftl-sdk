@@ -28,24 +28,47 @@ static int _ping_server(const char *ip, int port) {
   int err = 0;
 
   memset(&hints, 0, sizeof(hints));
-  hints.ai_family = PF_UNSPEC;
+  hints.ai_family = PF_INET6;
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_protocol = 0;
 
   int ingest_port = INGEST_PORT;
   char port_str[10];
+  char ipv6[INET6_ADDRSTRLEN];
 
   snprintf(port_str, 10, "%d", port);
-
-  //char *ipv6 = "2001:2:0:1baa::adc0:949d";
-  char ipv6[100];
-
+  
   if (inet_pton(AF_INET, ip, buf) == 0) {
 	  return -1;
   }
-  sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
 
-  err = getaddrinfo(ipv6, port_str, &hints, &resolved_names);
+  sprintf(ipv6, "%s%s", "::ffff:", ip);
+#if 0
+  WSADATA wsaData;
+  SOCKET lsock = INVALID_SOCKET;
+  SOCKET csock = INVALID_SOCKET;
+  SOCKADDR_STORAGE serverAddr = { 0 };
+  SOCKADDR_STORAGE clientAddr = { 0 };
+  int off = 0;
+  int port = 8000;
+  int clientAddrLen = sizeof(clientAddr);
+  WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+
+  serverAddr.ss_family = AF_INET6;
+  INETADDR_SETANY((SOCKADDR *)&serverAddr);
+  SS_PORT(&serverAddr) = htons(port);
+  lsock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP)
+
+
+
+	  //make the socket a dual mode socket
+	  setsockopt(lsock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
+  bind(lsock, (SOCKADDR *)&serverAddr, (int)INET_SOCKADDR_LENGTH(serverAddr.ss_family));
+  listen(lsock, 5);
+  csock = accept(lsock, (SOCKADDR *)&clientAddr, &clientAddrLen);
+#endif
+  err = getaddrinfo(ip, port_str, &hints, &resolved_names);
   if (err != 0) {
 	  return FTL_DNS_FAILURE;
   }
@@ -61,7 +84,6 @@ static int _ping_server(const char *ip, int port) {
 
 		  gettimeofday(&start, NULL);
 
-		  //if (sendto(sock, dummy, sizeof(dummy), 0, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
 		  if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, p->ai_addrlen) == SOCKET_ERROR) {
 			  printf("Sendto error: %s\n", get_socket_error());
 			  break;
@@ -414,7 +436,7 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
   }
 
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;
+  hints.ai_family = AF_INET;
   hints.ai_flags = 0;
   hints.ai_protocol = 0;
   hints.ai_canonname = NULL;

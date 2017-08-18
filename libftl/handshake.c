@@ -71,7 +71,8 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 	  return -1;
   }
 
-  sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
+  //sprintf(ipv6, "%s%02x%02x:%02x%02x", "2001:2:0:1baa::", buf[0], buf[1], buf[2], buf[3]);
+  sprintf(ipv6, "%s%02x%02x:%02x%02x", " 0:0:0:0:0:ffff:", buf[0], buf[1], buf[2], buf[3]);
 
   err = getaddrinfo(ipv6, ingest_port_str, &hints, &resolved_names);
   if (err != 0) {

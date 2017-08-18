@@ -416,23 +416,21 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
   struct addrinfo hints;
   struct addrinfo *result, *rp;
   struct sockaddr_in  *sockaddr_ipv4;
+  struct sockaddr_in6  *sockaddr_ipv6;
   int ips_found = 0;
   int s;
   BOOL success = FALSE;
   ingest_ip[0] = '\0';
-  char ip[IPV4_ADDR_ASCII_LEN];
+  char ip[IPVX_ADDR_ASCII_LEN];
 
   if (*ingest_ip != NULL) {
     return -1;
   }
 
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_INET;
+  hints.ai_family = AF_UNSPEC;
   hints.ai_flags = 0;
   hints.ai_protocol = 0;
-  hints.ai_canonname = NULL;
-  hints.ai_addr = NULL;
-  hints.ai_next = NULL;
 
   if ((s = getaddrinfo(ingest_location, NULL, &hints, &result)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
@@ -441,7 +439,9 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
 
   int total_ips = 0;
   for (rp = result; rp != NULL; rp = rp->ai_next) {
-    total_ips++;
+	  if (rp->ai_family == AF_INET/* || rp->ai_family == AF_INET6*/) {
+		  total_ips++;
+	  }
   }
 
   if ((*ingest_ip = malloc(sizeof(char*) * total_ips)) == NULL) {
@@ -450,17 +450,32 @@ static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
   
   ips_found = 0;
   for (rp = result; rp != NULL; rp = rp->ai_next, ips_found++) {
-    if (((*ingest_ip)[ips_found] = malloc(IPV4_ADDR_ASCII_LEN)) == NULL) {
+    if (((*ingest_ip)[ips_found] = malloc(IPVX_ADDR_ASCII_LEN)) == NULL) {
       return 0;
     }
 
-    sockaddr_ipv4 = (struct sockaddr_in *) rp->ai_addr;
+	if (rp->ai_family == AF_INET6) {
+		continue;
+/*
+		sockaddr_ipv6 = (struct sockaddr_in6 *) rp->ai_addr;
 
-    if (inet_ntop(AF_INET, &sockaddr_ipv4->sin_addr, ip, sizeof(ip)) == NULL) {
-      continue;
-    }
+		if (inet_ntop(AF_INET6, &sockaddr_ipv6->sin6_addr, ip, sizeof(ip)) == NULL) {
+			continue;
+		}
+		*/
+	}
+	else if (rp->ai_family == AF_INET) {
+		sockaddr_ipv4 = (struct sockaddr_in *) rp->ai_addr;
 
-    strcpy_s((*ingest_ip)[ips_found], IPV4_ADDR_ASCII_LEN, ip);
+		if (inet_ntop(AF_INET, &sockaddr_ipv4->sin_addr, ip, sizeof(ip)) == NULL) {
+			continue;
+		}
+	}
+	else {
+		continue;
+	}
+
+    strcpy_s((*ingest_ip)[ips_found], IPVX_ADDR_ASCII_LEN, ip);
   }
 
   freeaddrinfo(result);

@@ -14,7 +14,7 @@ typedef struct {
     ftl_stream_configuration_private_t *ftl;
 }_tmp_ingest_thread_data_t;
 
-static int _ping_server(const char *ip, int port) {
+static int _ping_server(const char *hostname, int port) {
 
   SOCKET sock;
   struct addrinfo hints;
@@ -33,17 +33,10 @@ static int _ping_server(const char *ip, int port) {
 
   int ingest_port = INGEST_PORT;
   char port_str[10];
-  char ipv6[INET6_ADDRSTRLEN];
-
-  unsigned char ip_bytes[sizeof(struct in_addr)];
 
   snprintf(port_str, 10, "%d", port);
   
-  if (inet_pton(AF_INET, ip, ip_bytes) == 0) {
-	  return -1;
-  }
-  
-  err = getaddrinfo("mixer.com", port_str, &hints, &resolved_names);
+   err = getaddrinfo(hostname, port_str, &hints, &resolved_names);
   if (err != 0) {
 	  return FTL_DNS_FAILURE;
   }
@@ -52,21 +45,6 @@ static int _ping_server(const char *ip, int port) {
 	  for (p = resolved_names; p != NULL; p = p->ai_next) {
 		  sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 		  if (sock == -1) {
-			  continue;
-		  }
-
-		  if (p->ai_family == AF_INET) {
-			  struct sockaddr_in *ipv4_addr = p->ai_addr;
-
-			  //copy real ipv4 address into addr buffer
-			  memcpy(&ipv4_addr->sin_addr, ip_bytes, sizeof(ip_bytes));
-		  }
-		  else if(p->ai_family == AF_INET6) {
-			  struct sockaddr_in6 *ipv6_addr = p->ai_addr;
-
-			  memcpy((unsigned char*)(&ipv6_addr->sin6_addr) + 12, ip_bytes, sizeof(ip_bytes));
-		  }
-		  else {
 			  continue;
 		  }
 
@@ -104,90 +82,11 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
 
     ingest->rtt = 1000;
 
-    if ((ping = _ping_server(ingest->ip, INGEST_PING_PORT)) >= 0) {
+    if ((ping = _ping_server(ingest->hostname, INGEST_PING_PORT)) >= 0) {
         ingest->rtt = ping;
     }
 
     return 0;
-}
-
-ftl_status_t find_closest_available_ingest(const char* ingestIps[], int ingestsCount, char* bestIngestIpComputed)
-{
-    ftl_ingest_t* ingestElements;
-    int i;
-
-    if ((ingestElements = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
-        return FTL_MALLOC_FAILURE;
-    }
-
-    for (i =0; i < ingestsCount; i++) {
-        strcpy_s(ingestElements[i].ip, sizeof(ingestElements[i].ip), ingestIps[i]);
-        ingestElements[i].rtt = 1000;
-        ingestElements[i].next = NULL;
-    }
-
-    OS_THREAD_HANDLE *handles;
-    _tmp_ingest_thread_data_t *data;
-
-    ftl_ingest_t *elmt, *best = NULL;
-    struct timeval start, stop, delta;
-
-    if ((handles = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
-        free(ingestElements);
-        return FTL_MALLOC_FAILURE;
-    }
-
-    if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ingestsCount)) == NULL) {
-        free(ingestElements);
-        free(handles);
-        return FTL_MALLOC_FAILURE;
-    }
-
-    gettimeofday(&start, NULL);
-
-    /*query all the ingests about cpu and rtt*/
-    for (i = 0; i < ingestsCount; i++) {
-        handles[i] = 0;
-        data[i].ingest = &ingestElements[i];
-        data[i].ftl = NULL;
-        os_create_thread(&handles[i], NULL, _ingest_get_rtt, &data[i]);
-        sleep_ms(5); //space out the pings
-    }
-
-    /*wait for all the ingests to complete*/
-    for (i = 0; i < ingestsCount; i++) {
-
-        if (handles[i] != 0) {
-            os_wait_thread(handles[i]);
-        }
-
-        if (best == NULL || ingestElements[i].rtt < best->rtt) {
-            best = &ingestElements[i];
-        }
-    }
-
-    gettimeofday(&stop, NULL);
-    timeval_subtract(&delta, &stop, &start);
-    int ms = (int)timeval_to_ms(&delta);
-
-    for (i = 0; i < ingestsCount; i++) {
-        if (handles[i] != 0) {
-            os_destroy_thread(handles[i]);
-        }
-    }
-
-    free(handles);
-    free(data);
-
-    if (best) {
-        strcpy_s(bestIngestIpComputed, sizeof(best->ip), best->ip);
-        free(ingestElements);
-        return FTL_SUCCESS;
-    }
-
-    free(ingestElements);
-
-    return FTL_UNKNOWN_ERROR_CODE;
 }
 
 #ifndef DISABLE_AUTO_INGEST
@@ -253,9 +152,11 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
   size_t size = json_array_size(ingests);
 
   for (i = 0; i < size; i++) {
-    const char *name, *ip;
+    char *name = NULL, *ip=NULL, *hostname=NULL;
     ingest_item = json_array_get(ingests, i);
-    json_unpack(ingest_item, "{s:s, s:s}", "name", &name, "ip", &ip);
+	if (json_unpack(ingest_item, "{s:s, s:s, s:s}", "name", &name, "ip", &ip, "hostname", &hostname) < 0) {
+		continue;
+	}
 
     ftl_ingest_t *ingest_elmt;
 
@@ -263,8 +164,10 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
       goto cleanup;
     }
 
-    strcpy_s(ingest_elmt->name, sizeof(ingest_elmt->name), name);
-    strcpy_s(ingest_elmt->ip, sizeof(ingest_elmt->ip), ip);
+	ingest_elmt->name = _strdup(name);
+	ingest_elmt->ip = _strdup(ip);
+	ingest_elmt->hostname = _strdup(hostname);
+
     ingest_elmt->rtt = 500;
 
     ingest_elmt->next = NULL;
@@ -308,6 +211,9 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
   while (ftl->ingest_list != NULL) {
     elmt = ftl->ingest_list;
     ftl->ingest_list = elmt->next;
+	free(elmt->hostname);
+	free(elmt->ip);
+	free(elmt->name);
     free(elmt);
   }
 
@@ -371,7 +277,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
   if (best){
     FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms\n", best->name, best->ip, best->rtt);
-    return _strdup(best->ip);
+    return _strdup(best->hostname);
   }
 
   return NULL;
@@ -389,96 +295,4 @@ void ingest_release(ftl_stream_configuration_private_t *ftl) {
     free(elmt);
     elmt = tmp;
   }
-}
-
-char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host) {
-  int total_ips;
-  char **ips;
-  char *ip;
-  int i;
-
-  if ((total_ips = _ingest_lookup_ip(host, &ips)) <= 0) {
-    return NULL;
-  }
-
-  ip = _strdup(ips[0]);
-
-  for (i = 0; i < total_ips; i++) {
-    free(ips[i]);
-  }
-
-  free(ips);
-
-  return ip;
-}
-
-static int _ingest_lookup_ip(const char *ingest_location, char ***ingest_ip) {
-  struct addrinfo hints;
-  struct addrinfo *result, *rp;
-  struct sockaddr_in  *sockaddr_ipv4;
-  struct sockaddr_in6  *sockaddr_ipv6;
-  int ips_found = 0;
-  int s;
-  BOOL success = FALSE;
-  ingest_ip[0] = '\0';
-  char ip[IPVX_ADDR_ASCII_LEN];
-
-  if (*ingest_ip != NULL) {
-    return -1;
-  }
-
-  memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_flags = 0;
-  hints.ai_protocol = 0;
-
-  if ((s = getaddrinfo(ingest_location, NULL, &hints, &result)) != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
-    return 0;
-  }
-
-  int total_ips = 0;
-  for (rp = result; rp != NULL; rp = rp->ai_next) {
-	  if (rp->ai_family == AF_INET/* || rp->ai_family == AF_INET6*/) {
-		  total_ips++;
-	  }
-  }
-
-  if ((*ingest_ip = malloc(sizeof(char*) * total_ips)) == NULL) {
-    return 0;
-  }
-  
-  ips_found = 0;
-  for (rp = result; rp != NULL; rp = rp->ai_next, ips_found++) {
-    if (((*ingest_ip)[ips_found] = malloc(IPVX_ADDR_ASCII_LEN)) == NULL) {
-      return 0;
-    }
-
-	if (rp->ai_family == AF_INET6) {
-		continue;
-/*
-		sockaddr_ipv6 = (struct sockaddr_in6 *) rp->ai_addr;
-
-		if (inet_ntop(AF_INET6, &sockaddr_ipv6->sin6_addr, ip, sizeof(ip)) == NULL) {
-			continue;
-		}
-		*/
-	}
-	else if (rp->ai_family == AF_INET) {
-		sockaddr_ipv4 = (struct sockaddr_in *) rp->ai_addr;
-
-		if (inet_ntop(AF_INET, &sockaddr_ipv4->sin_addr, ip, sizeof(ip)) == NULL) {
-			continue;
-		}
-	}
-	else {
-		continue;
-	}
-
-    strcpy_s((*ingest_ip)[ips_found], IPVX_ADDR_ASCII_LEN, ip);
-  }
-
-  freeaddrinfo(result);
-
-  return ips_found;
 }

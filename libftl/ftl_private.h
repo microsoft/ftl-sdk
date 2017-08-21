@@ -304,8 +304,9 @@ typedef struct {
 } ftl_media_config_t;
 
 typedef struct _ftl_ingest_t {
-  char name[30];
-  char ip[IPVX_ADDR_ASCII_LEN];
+  char *name;
+  char *ip;
+  char *hostname;
   int rtt;
   struct _ftl_ingest_t *next;
 }ftl_ingest_t;
@@ -325,8 +326,8 @@ typedef struct {
   ftl_state_t state;
   OS_MUTEX state_mutex;
   OS_MUTEX disconnect_mutex;
+  char *param_ingest_hostname;
   char *ingest_hostname;
-  char ingest_ip[IPVX_ADDR_ASCII_LEN];//ipv4 only
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];
@@ -417,13 +418,12 @@ BOOL ftl_get_state(ftl_stream_configuration_private_t *ftl, ftl_state_t state);
 BOOL is_legacy_ingest(ftl_stream_configuration_private_t *ftl);
 ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg, int ms_timeout);
 ftl_status_t enqueue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_status_msg_t *stats_msg);
-ftl_status_t _set_ingest_ip(ftl_stream_configuration_private_t *ftl);
+ftl_status_t _set_ingest_hostname(ftl_stream_configuration_private_t *ftl);
 
 ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl);
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *stream_config);
 ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *stream_config);
 char * ingest_find_best(ftl_stream_configuration_private_t *ftl);
-char * ingest_get_ip(ftl_stream_configuration_private_t *ftl, char *host);
 void ingest_release(ftl_stream_configuration_private_t *ftl);
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl);

@@ -33,7 +33,6 @@ static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
   ftl_media_config_t *media = &ftl->media;
-  unsigned char buf[sizeof(struct in_addr)];
   ftl_status_t status = FTL_SUCCESS;
   int idx;
 
@@ -46,11 +45,8 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     os_init_mutex(&ftl->video.mutex);
     os_init_mutex(&ftl->audio.mutex);
 
-	struct sockaddr_in server_addr;
 	struct addrinfo hints;
 
-	uint8_t dummy[4];
-	struct timeval start, stop, delta;
 	int retval = -1;
 	struct addrinfo* resolved_names = 0;
 	struct addrinfo* p = 0;
@@ -61,15 +57,10 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_protocol = 0;
 	char port_str[10];
-	unsigned char ip_bytes[sizeof(struct in_addr)];
-
-	if (inet_pton(AF_INET, ftl->ingest_ip, ip_bytes) == 0) {
-		return -1;
-	}
 	
 	snprintf(port_str, 10, "%d", media->assigned_port);
 
-	err = getaddrinfo("mixer.com", port_str, &hints, &resolved_names);
+	err = getaddrinfo(ftl->ingest_hostname, port_str, &hints, &resolved_names);
 	if (err != 0) {
 		return FTL_DNS_FAILURE;
 	}
@@ -77,29 +68,6 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	for (p = resolved_names; p != NULL; p = p->ai_next) {
 		media->media_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 		if (media->media_socket == -1) {
-			continue;
-		}
-
-		if (p->ai_family == AF_INET) {
-			struct sockaddr_in *ipv4_addr = p->ai_addr;
-
-			//copy real ipv4 address into addr buffer
-			memcpy(&ipv4_addr->sin_addr, ip_bytes, sizeof(ip_bytes));
-
-			char str[100];
-			inet_ntop(p->ai_family, &ipv4_addr->sin_addr, str, sizeof(str));
-			printf("Got IPV4: %s\n", str);
-		}
-		else if (p->ai_family == AF_INET6) {
-			struct sockaddr_in6 *ipv6_addr = p->ai_addr;
-
-			memcpy((unsigned char*)(&ipv6_addr->sin6_addr) + 12, ip_bytes, sizeof(ip_bytes));
-
-			char str[100];
-			inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, str, sizeof(str));
-			printf("Got IPV6: %s\n", str);
-		}
-		else {
 			continue;
 		}
 

@@ -82,7 +82,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
     ftl->video.height = 720;
 
     ftl->video.media_component.peak_kbps = params->peak_kbps;
-    ftl->ingest_hostname = _strdup(params->ingest_hostname);
+    ftl->param_ingest_hostname = _strdup(params->ingest_hostname);
 
     ftl->status_q.count = 0;
     ftl->status_q.head = NULL;
@@ -141,12 +141,12 @@ FTL_API ftl_status_t ftl_ingest_update_params(ftl_handle_t *ftl_handle, ftl_inge
   ftl->video.media_component.peak_kbps = params->peak_kbps;
 
   if (params->ingest_hostname != NULL) {
-    if (ftl->ingest_hostname != NULL) {
-      free(ftl->ingest_hostname);
-      ftl->ingest_hostname = NULL;
+    if (ftl->param_ingest_hostname != NULL) {
+      free(ftl->param_ingest_hostname);
+      ftl->param_ingest_hostname = NULL;
     }
 
-    ftl->ingest_hostname = _strdup(params->ingest_hostname);
+    ftl->param_ingest_hostname = _strdup(params->ingest_hostname);
   }
 
   /* not going to update fps for the moment*/
@@ -315,6 +315,10 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
     if (ftl->ingest_hostname != NULL) {
       free(ftl->ingest_hostname);
     }
+
+	if (ftl->param_ingest_hostname != NULL) {
+		free(ftl->param_ingest_hostname);
+	}
 
     free(ftl);
   }

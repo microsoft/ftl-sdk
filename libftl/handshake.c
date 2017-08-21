@@ -61,17 +61,13 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 
   snprintf(ingest_port_str, 10, "%d", ingest_port);
 
-  if ((retval = _set_ingest_ip(ftl)) != FTL_SUCCESS) {
+  if ((retval = _set_ingest_hostname(ftl)) != FTL_SUCCESS) {
     return retval;
   }
   
-  if (inet_pton(AF_INET, ftl->ingest_ip, ip_bytes) == 0) {
-	  return -1;
-  }
-
-  err = getaddrinfo("mixer.com", ingest_port_str, &hints, &resolved_names);
+  err = getaddrinfo(ftl->ingest_hostname, ingest_port_str, &hints, &resolved_names);
   if (err != 0) {
-    FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_ip);
+    FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_hostname);
     FTL_LOG(ftl, FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));
     return FTL_DNS_FAILURE;
   }
@@ -84,29 +80,6 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
       FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", get_socket_error());
       continue;
     }
-
-	if (p->ai_family == AF_INET) {
-		struct sockaddr_in *ipv4_addr = p->ai_addr;
-
-		//copy real ipv4 address into addr buffer
-		memcpy(&ipv4_addr->sin_addr, ip_bytes, sizeof(ip_bytes));
-
-		char str[100];
-		inet_ntop(p->ai_family, &ipv4_addr->sin_addr, str, sizeof(str));
-		printf("Got IPV4: %s\n", str);
-	}
-	else if (p->ai_family == AF_INET6) {
-		struct sockaddr_in6 *ipv6_addr = p->ai_addr;
-
-		memcpy((unsigned char*)(&ipv6_addr->sin6_addr) + 12, ip_bytes, sizeof(ip_bytes));
-
-		char str[100];
-		inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, str, sizeof(str));
-		printf("Got IPV6: %s\n", str);
-	}
-	else {
-		continue;
-	}
 
     /* Go for broke */
     if (connect(sock, p->ai_addr, (int)p->ai_addrlen) == -1) {

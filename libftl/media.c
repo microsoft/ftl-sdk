@@ -92,26 +92,6 @@ ftl_status_t _get_addr_info(short family, char *ip, short port, struct sockaddr 
 	return retval;
 }
 
-int _get_remote_ip(struct sockaddr *addr, size_t addrlen, char *remote_ip, size_t ip_len) {
-	if (addr->sa_family == AF_INET)
-	{
-		struct sockaddr_in *ipv4_addr = (struct sockaddr_in6 *)addr;
-
-		if (inet_ntop(AF_INET, &ipv4_addr->sin_addr.s_addr, remote_ip, ip_len) == NULL) {
-			return -1;
-		}
-	}
-	else if (addr->sa_family == AF_INET6) {
-		struct sockaddr_in6 *ipv6_addr = (struct sockaddr_in6 *)addr;
-
-		if (inet_ntop(AF_INET6, &ipv6_addr->sin6_addr.s6_addr, remote_ip, ip_len) == NULL) {
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
   ftl_media_config_t *media = &ftl->media;

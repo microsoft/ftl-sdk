@@ -277,3 +277,23 @@ ftl_status_t _set_ingest_hostname(ftl_stream_configuration_private_t *ftl) {
 
   return ret_status;
 }
+
+int _get_remote_ip(struct sockaddr *addr, size_t addrlen, char *remote_ip, size_t ip_len) {
+	if (addr->sa_family == AF_INET)
+	{
+		struct sockaddr_in *ipv4_addr = (struct sockaddr_in6 *)addr;
+
+		if (inet_ntop(AF_INET, &ipv4_addr->sin_addr.s_addr, remote_ip, ip_len) == NULL) {
+			return -1;
+		}
+	}
+	else if (addr->sa_family == AF_INET6) {
+		struct sockaddr_in6 *ipv6_addr = (struct sockaddr_in6 *)addr;
+
+		if (inet_ntop(AF_INET6, &ipv6_addr->sin6_addr.s6_addr, remote_ip, ip_len) == NULL) {
+			return -1;
+		}
+	}
+
+	return 0;
+}

@@ -51,6 +51,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	struct addrinfo* resolved_names = 0;
 	struct addrinfo* p = 0;
 	int err = 0;
+	char ingest_ip[IPVX_ADDR_ASCII_LEN];
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = PF_UNSPEC;
@@ -60,7 +61,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 	
 	snprintf(port_str, 10, "%d", media->assigned_port);
 
-	err = getaddrinfo(ftl->ingest_hostname, port_str, &hints, &resolved_names);
+	err = getaddrinfo(ftl->ingest_ip, port_str, &hints, &resolved_names);
 	if (err != 0) {
 		return FTL_DNS_FAILURE;
 	}
@@ -71,9 +72,13 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 			continue;
 		}
 
-		memcpy(&media->addrinfo, p, sizeof(struct addrinfo));
+		memcpy(&media->ai_addr, p->ai_addr, sizeof(struct sockaddr));
+		media->ai_addrlen = p->ai_addrlen;
 		break;
 	}
+
+	/* Free the resolved name struct */
+	freeaddrinfo(resolved_names);
 
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
@@ -792,7 +797,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
   int tx_len;
 
   os_lock_mutex(&ftl->media.mutex);
-  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, ftl->media.addrinfo.ai_addr, ftl->media.addrinfo.ai_addrlen)) == SOCKET_ERROR)
+  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, &ftl->media.ai_addr, ftl->media.ai_addrlen)) == SOCKET_ERROR)
   {
     FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
   }

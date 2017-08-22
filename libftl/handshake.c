@@ -47,10 +47,10 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = 0;
 
+  char ingest_ip[IPVX_ADDR_ASCII_LEN];
+
   struct addrinfo* resolved_names = 0;
   struct addrinfo* p = 0;
-
-  unsigned char ip_bytes[sizeof(struct in_addr)];
 
   int ingest_port = INGEST_PORT;
   char ingest_port_str[10];
@@ -80,6 +80,21 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
       FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", get_socket_error());
       continue;
     }
+
+	if (p->ai_family == AF_INET) {
+		struct sockaddr_in *ipv4_addr = p->ai_addr;
+		inet_ntop(p->ai_family, &ipv4_addr->sin_addr, ingest_ip, sizeof(ingest_ip));
+	}
+	else if (p->ai_family == AF_INET6) {
+		struct sockaddr_in6 *ipv6_addr = p->ai_addr;
+		inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, ingest_ip, sizeof(ingest_ip));
+	}
+	else {
+		continue;
+	}
+
+	printf("Got IP: %s\n", ingest_ip);
+	ftl->ingest_ip = _strdup(ingest_ip);
 
     /* Go for broke */
     if (connect(sock, p->ai_addr, (int)p->ai_addrlen) == -1) {

@@ -287,8 +287,8 @@ typedef struct {
 } ftl_video_component_t;
 
 typedef struct {
-  //struct sockaddr_in server_addr;
-  struct addrinfo addrinfo;
+  size_t ai_addrlen;
+  struct sockaddr ai_addr;
   SOCKET media_socket;
   OS_MUTEX mutex;
   int assigned_port;
@@ -328,6 +328,7 @@ typedef struct {
   OS_MUTEX disconnect_mutex;
   char *param_ingest_hostname;
   char *ingest_hostname;
+  char *ingest_ip;
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];

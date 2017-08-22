@@ -68,6 +68,9 @@ static int _ping_server(const char *hostname, int port) {
 	  }
   } while (0);
 
+  /* Free the resolved name struct */
+  freeaddrinfo(resolved_names);
+
   shutdown_socket(sock, SD_BOTH);
   close_socket(sock);
 

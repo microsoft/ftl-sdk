@@ -92,6 +92,26 @@ ftl_status_t _get_addr_info(short family, char *ip, short port, struct sockaddr 
 	return retval;
 }
 
+int _get_remote_ip(struct sockaddr *addr, size_t addrlen, char *remote_ip, size_t ip_len) {
+	if (addr->sa_family == AF_INET)
+	{
+		struct sockaddr_in *ipv4_addr = (struct sockaddr_in6 *)addr;
+
+		if (inet_ntop(AF_INET, &ipv4_addr->sin_addr.s_addr, remote_ip, ip_len) == NULL) {
+			return -1;
+		}
+	}
+	else if (addr->sa_family == AF_INET6) {
+		struct sockaddr_in6 *ipv6_addr = (struct sockaddr_in6 *)addr;
+
+		if (inet_ntop(AF_INET6, &ipv6_addr->sin6_addr.s6_addr, remote_ip, ip_len) == NULL) {
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
   ftl_media_config_t *media = &ftl->media;
@@ -1043,9 +1063,20 @@ OS_THREAD_ROUTINE recv_thread(void *data)
   ftl_media_config_t *media = &ftl->media;
   int ret;
   unsigned char *buf;
-  struct sockaddr_in remote_addr;
-  socklen_t addr_len;
-  char remote_ip[INET_ADDRSTRLEN];
+  struct sockaddr_in6 ipv6_addrinfo;
+  struct sockaddr_in ipv4_addrinfo;
+  struct sockaddr* addrinfo;
+  socklen_t addr_len, addrinfo_len;
+  char remote_ip[IPVX_ADDR_ASCII_LEN];
+
+  if (ftl->socket_family == AF_INET) {
+	  addrinfo = &ipv4_addrinfo;
+	  addrinfo_len = sizeof(struct sockaddr_in);
+  }
+  else {
+	  addrinfo = &ipv6_addrinfo;
+	  addrinfo_len = sizeof(struct sockaddr_in6);
+  }
 
 #ifdef _WIN32
   if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
@@ -1076,24 +1107,25 @@ OS_THREAD_ROUTINE recv_thread(void *data)
     }
 
     // We have data on the socket, read it.
-    addr_len = sizeof(remote_addr);
-    ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)&remote_addr, &addr_len);
+    addr_len = addrinfo_len;
+    ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)addrinfo, &addr_len);
     if (ret <= 0) {
       // This shouldn't be possible, we should only be here is poll above told us there was data.
+	  FTL_LOG(ftl, FTL_LOG_INFO, "recv from failed with %s\n", get_socket_error());
       continue;
     }
-#if 0
-    if (inet_ntop(AF_INET, &remote_addr.sin_addr.s_addr, remote_ip, sizeof(remote_ip)) == NULL) {
-      continue;
-    }
+
+	if (_get_remote_ip(addrinfo, addr_len, remote_ip, sizeof(remote_ip)) < 0) {
+		continue;
+	}
 
     if (strcmp(remote_ip, ftl->ingest_ip) != 0)
     {
       FTL_LOG(ftl, FTL_LOG_WARN, "Discarded packet from unexpected ip: %s\n", remote_ip);
       continue;
     }
-#endif
-    int version, padding, feedbackType, ptype, length, ssrcSender, ssrcMedia;
+
+	int version, padding, feedbackType, ptype, length, ssrcSender, ssrcMedia;
     uint16_t snBase, blp, sn;
     int recv_len = ret;
 

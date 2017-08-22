@@ -95,6 +95,7 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 
 	printf("Got IP: %s\n", ingest_ip);
 	ftl->ingest_ip = _strdup(ingest_ip);
+	ftl->socket_family = p->ai_family;
 
     /* Go for broke */
     if (connect(sock, p->ai_addr, (int)p->ai_addrlen) == -1) {

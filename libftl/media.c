@@ -30,6 +30,68 @@ static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_co
 static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms);
 static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms);
 
+size_t ingest_addrlen;
+struct sockaddr *ingest_addr;
+
+ftl_status_t _get_addr_info(short family, char *ip, short port, struct sockaddr **addr, size_t *addrlen) {
+
+	ftl_status_t retval = FTL_SUCCESS;
+
+	do {
+		if (family == AF_INET) {
+			struct sockaddr_in *ipv4_addr = NULL;
+			size_t len;
+
+			len = sizeof(struct sockaddr_in);
+
+			if ((ipv4_addr = malloc(len)) == NULL) {
+				retval = FTL_MALLOC_FAILURE;
+				break;
+			}
+
+			memset(ipv4_addr, 0, len);
+
+			ipv4_addr->sin_family = family;
+			ipv4_addr->sin_port = htons(port);
+
+			if (inet_pton(family, ip, &ipv4_addr->sin_addr) != 1) {
+				retval = FTL_DNS_FAILURE;
+				break;
+			}
+
+			*addrlen = len;
+			*addr = ipv4_addr;
+		}
+		else if (family == AF_INET6) {
+			struct sockaddr_in6 *ipv6_addr = NULL;
+			size_t len;
+
+			len = sizeof(struct sockaddr_in6);
+
+			if ((ipv6_addr = malloc(len)) == NULL) {
+				retval = FTL_MALLOC_FAILURE;
+				break;
+			}
+
+			memset(ipv6_addr, 0, len);
+
+			ipv6_addr->sin6_family = family;
+			ipv6_addr->sin6_port = htons(port);
+
+			if (inet_pton(family, ip, &ipv6_addr->sin6_addr) != 1) {
+				retval = FTL_DNS_FAILURE;
+				break;
+			}
+
+			*addrlen = len;
+			*addr = ipv6_addr;
+		}
+	}
+	while (0);
+
+	return retval;
+}
+
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
   ftl_media_config_t *media = &ftl->media;
@@ -45,40 +107,15 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     os_init_mutex(&ftl->video.mutex);
     os_init_mutex(&ftl->audio.mutex);
 
-	struct addrinfo hints;
-
-	int retval = -1;
-	struct addrinfo* resolved_names = 0;
-	struct addrinfo* p = 0;
-	int err = 0;
-	char ingest_ip[IPVX_ADDR_ASCII_LEN];
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = PF_UNSPEC;
-	hints.ai_socktype = SOCK_DGRAM;
-	hints.ai_protocol = 0;
-	char port_str[10];
-	
-	snprintf(port_str, 10, "%d", media->assigned_port);
-
-	err = getaddrinfo(ftl->ingest_ip, port_str, &hints, &resolved_names);
-	if (err != 0) {
+	//use the same socket family as the control connection
+	media->media_socket = socket(ftl->socket_family, SOCK_DGRAM, IPPROTO_UDP);
+	if (media->media_socket == -1) {
 		return FTL_DNS_FAILURE;
 	}
 
-	for (p = resolved_names; p != NULL; p = p->ai_next) {
-		media->media_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		if (media->media_socket == -1) {
-			continue;
-		}
-
-		memcpy(&media->ai_addr, p->ai_addr, sizeof(struct sockaddr));
-		media->ai_addrlen = p->ai_addrlen;
-		break;
+	if ((status = _get_addr_info(ftl->socket_family, ftl->ingest_ip, media->assigned_port, &media->ingest_addr, &media->ingest_addrlen)) != FTL_SUCCESS) {
+		return status;
 	}
-
-	/* Free the resolved name struct */
-	freeaddrinfo(resolved_names);
 
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
@@ -232,6 +269,9 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
       shutdown_socket(media->media_socket, SD_BOTH);
       close_socket(media->media_socket);
       media->media_socket = INVALID_SOCKET;
+	  if (media->ingest_addr) {
+		  free(media->ingest_addr);
+	  }
     }
     os_unlock_mutex(&media->mutex);
   }
@@ -797,7 +837,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
   int tx_len;
 
   os_lock_mutex(&ftl->media.mutex);
-  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, &ftl->media.ai_addr, ftl->media.ai_addrlen)) == SOCKET_ERROR)
+  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) ftl->media.ingest_addr, ftl->media.ingest_addrlen)) == SOCKET_ERROR)
   {
     FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
   }

@@ -71,7 +71,7 @@
 #define VIDEO_RTP_TS_CLOCK_HZ 90000
 #define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_PACKET_DURATION_MS 20
-#define IPVX_ADDR_ASCII_LEN INET_ADDRSTRLEN
+#define IPVX_ADDR_ASCII_LEN INET6_ADDRSTRLEN
 #define INGEST_LIST_URI "https://mixer.com/api/v1/ingests/best"
 #define INGEST_LOAD_PORT 8079
 #define INGEST_PING_PORT 8079
@@ -287,8 +287,8 @@ typedef struct {
 } ftl_video_component_t;
 
 typedef struct {
-  size_t ai_addrlen;
-  struct sockaddr ai_addr;
+  size_t ingest_addrlen;
+  struct sockaddr *ingest_addr;
   SOCKET media_socket;
   OS_MUTEX mutex;
   int assigned_port;
@@ -329,6 +329,7 @@ typedef struct {
   char *param_ingest_hostname;
   char *ingest_hostname;
   char *ingest_ip;
+  short socket_family;
   uint32_t channel_id;
   char *key;
   char hmacBuffer[512];

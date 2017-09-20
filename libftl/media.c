@@ -162,12 +162,12 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
       break;
     }
 
-    if (os_semaphore_create(&ftl->video.media_component.pkt_ready, "/VideoPkt", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&ftl->video.media_component.pkt_ready, "/VideoPkt", O_CREAT, 0, FALSE) < 0) {
       status = FTL_MALLOC_FAILURE;
       break;
     }
 
-    if (os_semaphore_create(&ftl->audio.media_component.pkt_ready, "/AudioPkt", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&ftl->audio.media_component.pkt_ready, "/AudioPkt", O_CREAT, 0, FALSE) < 0) {
         status = FTL_MALLOC_FAILURE;
         break;
     }
@@ -190,7 +190,7 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
         break;
     }
 
-    if (os_semaphore_create(&media->ping_thread_shutdown, "/PingThreadShutdown", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&media->ping_thread_shutdown, "/PingThreadShutdown", O_CREAT, 0, FALSE) < 0) {
       status = FTL_MALLOC_FAILURE;
       break;
     }
@@ -1623,7 +1623,7 @@ ftl_status_t ftl_adaptive_bitrate_thread(ftl_handle_t* ftl_handle, void* context
     thread_params->min_encoding_bitrate = min_encoding_bitrate;
     thread_params->context = context;
 
-    if (os_semaphore_create(&ftl->bitrate_thread_shutdown, "/BitrateThreadShutdown", O_CREAT, 0) < 0)
+    if (os_semaphore_create(&ftl->bitrate_thread_shutdown, "/BitrateThreadShutdown", O_CREAT, 0, FALSE) < 0)
     {
       ret_status = FTL_MALLOC_FAILURE;
       break;

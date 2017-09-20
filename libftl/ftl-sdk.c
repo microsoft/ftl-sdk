@@ -16,11 +16,16 @@ FTL_API const int FTL_VERSION_MAINTENANCE = 10;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
+  struct timeval now;
+
   init_sockets();
   os_init();
 #ifndef DISABLE_AUTO_INGEST
   curl_global_init(CURL_GLOBAL_ALL);
 #endif
+
+  gettimeofday(&now, NULL);
+  srand((unsigned int)now.tv_sec);
   return FTL_SUCCESS;
 }
 
@@ -42,7 +47,7 @@ FTL_API ftl_status_t ftl_ingest_create(ftl_handle_t *ftl_handle, ftl_ingest_para
     os_init_mutex(&ftl->disconnect_mutex);
     os_init_mutex(&ftl->status_q.mutex);
 
-    if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&ftl->status_q.sem, "/StatusQueue", O_CREAT, 0, FALSE) < 0) {
         ret_status = FTL_MALLOC_FAILURE;
         break;
     }

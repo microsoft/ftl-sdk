@@ -231,12 +231,12 @@ ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
 
     ftl_set_state(ftl, FTL_CONNECTED);
 
-    if (os_semaphore_create(&ftl->connection_thread_shutdown, "/ConnectionThreadShutdown", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&ftl->connection_thread_shutdown, "/ConnectionThreadShutdown", O_CREAT, 0, FALSE) < 0) {
         response_code = FTL_MALLOC_FAILURE;
         break;
     }
 
-    if (os_semaphore_create(&ftl->keepalive_thread_shutdown, "/KeepAliveThreadShutdown", O_CREAT, 0) < 0) {
+    if (os_semaphore_create(&ftl->keepalive_thread_shutdown, "/KeepAliveThreadShutdown", O_CREAT, 0, FALSE) < 0) {
         response_code = FTL_MALLOC_FAILURE;
         break;
     }

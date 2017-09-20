@@ -47,6 +47,8 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = 0;
 
+  char ingest_ip[IPVX_ADDR_ASCII_LEN];
+
   struct addrinfo* resolved_names = 0;
   struct addrinfo* p = 0;
 
@@ -59,13 +61,13 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 
   snprintf(ingest_port_str, 10, "%d", ingest_port);
 
-  if ((retval = _set_ingest_ip(ftl)) != FTL_SUCCESS) {
+  if ((retval = _set_ingest_hostname(ftl)) != FTL_SUCCESS) {
     return retval;
   }
-
-  err = getaddrinfo(ftl->ingest_ip, ingest_port_str, &hints, &resolved_names);
+  
+  err = getaddrinfo(ftl->ingest_hostname, ingest_port_str, &hints, &resolved_names);
   if (err != 0) {
-    FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_ip);
+    FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_hostname);
     FTL_LOG(ftl, FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));
     return FTL_DNS_FAILURE;
   }
@@ -78,6 +80,22 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
       FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", get_socket_error());
       continue;
     }
+
+	if (p->ai_family == AF_INET) {
+		struct sockaddr_in *ipv4_addr = p->ai_addr;
+		inet_ntop(p->ai_family, &ipv4_addr->sin_addr, ingest_ip, sizeof(ingest_ip));
+	}
+	else if (p->ai_family == AF_INET6) {
+		struct sockaddr_in6 *ipv6_addr = p->ai_addr;
+		inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, ingest_ip, sizeof(ingest_ip));
+	}
+	else {
+		continue;
+	}
+
+	FTL_LOG(ftl, FTL_LOG_DEBUG, "Got IP: %s\n", ingest_ip);
+	ftl->ingest_ip = _strdup(ingest_ip);
+	ftl->socket_family = p->ai_family;
 
     /* Go for broke */
     if (connect(sock, p->ai_addr, (int)p->ai_addrlen) == -1) {

@@ -261,34 +261,39 @@ ftl_status_t dequeue_status_msg(ftl_stream_configuration_private_t *ftl, ftl_sta
   return retval;
 }
 
-ftl_status_t _set_ingest_ip(ftl_stream_configuration_private_t *ftl) {
-  char *ingest_ip = NULL;
+ftl_status_t _set_ingest_hostname(ftl_stream_configuration_private_t *ftl) {
+
   ftl_status_t ret_status = FTL_SUCCESS;
 
   do {
-    if (!isdigit(ftl->ingest_hostname[0])) {
 #ifndef DISABLE_AUTO_INGEST
-      if (strcmp(ftl->ingest_hostname, "auto") == 0) {
-        ingest_ip = ingest_find_best(ftl);
+      if (strcmp(ftl->param_ingest_hostname, "auto") == 0) {
+		  ftl->ingest_hostname = ingest_find_best(ftl);
       }
       else
 #endif
-      {
-        ingest_ip = ingest_get_ip(ftl, ftl->ingest_hostname);
-      }
-
-      if (ingest_ip == NULL) {
-        ret_status = FTL_DNS_FAILURE;
-        break;
-      }
-    }
-    else {
-      ingest_ip = _strdup(ftl->ingest_hostname);
-    }
-
-    strcpy_s(ftl->ingest_ip, sizeof(ftl->ingest_ip), ingest_ip);
-    free(ingest_ip);
+	  ftl->ingest_hostname = _strdup(ftl->param_ingest_hostname);
   } while (0);
 
   return ret_status;
+}
+
+int _get_remote_ip(struct sockaddr *addr, size_t addrlen, char *remote_ip, size_t ip_len) {
+	if (addr->sa_family == AF_INET)
+	{
+		struct sockaddr_in *ipv4_addr = (struct sockaddr_in6 *)addr;
+
+		if (inet_ntop(AF_INET, &ipv4_addr->sin_addr.s_addr, remote_ip, ip_len) == NULL) {
+			return -1;
+		}
+	}
+	else if (addr->sa_family == AF_INET6) {
+		struct sockaddr_in6 *ipv6_addr = (struct sockaddr_in6 *)addr;
+
+		if (inet_ntop(AF_INET6, &ipv6_addr->sin6_addr.s6_addr, remote_ip, ip_len) == NULL) {
+			return -1;
+		}
+	}
+
+	return 0;
 }

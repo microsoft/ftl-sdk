@@ -30,10 +30,71 @@ static int _send_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_co
 static int _send_video_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms);
 static int _send_instant_pkt_stats(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc, int interval_ms);
 
+size_t ingest_addrlen;
+struct sockaddr *ingest_addr;
+
+ftl_status_t _get_addr_info(short family, char *ip, short port, struct sockaddr **addr, size_t *addrlen) {
+
+	ftl_status_t retval = FTL_SUCCESS;
+
+	do {
+		if (family == AF_INET) {
+			struct sockaddr_in *ipv4_addr = NULL;
+			size_t len;
+
+			len = sizeof(struct sockaddr_in);
+
+			if ((ipv4_addr = malloc(len)) == NULL) {
+				retval = FTL_MALLOC_FAILURE;
+				break;
+			}
+
+			memset(ipv4_addr, 0, len);
+
+			ipv4_addr->sin_family = family;
+			ipv4_addr->sin_port = htons(port);
+
+			if (inet_pton(family, ip, &ipv4_addr->sin_addr) != 1) {
+				retval = FTL_DNS_FAILURE;
+				break;
+			}
+
+			*addrlen = len;
+			*addr = ipv4_addr;
+		}
+		else if (family == AF_INET6) {
+			struct sockaddr_in6 *ipv6_addr = NULL;
+			size_t len;
+
+			len = sizeof(struct sockaddr_in6);
+
+			if ((ipv6_addr = malloc(len)) == NULL) {
+				retval = FTL_MALLOC_FAILURE;
+				break;
+			}
+
+			memset(ipv6_addr, 0, len);
+
+			ipv6_addr->sin6_family = family;
+			ipv6_addr->sin6_port = htons(port);
+
+			if (inet_pton(family, ip, &ipv6_addr->sin6_addr) != 1) {
+				retval = FTL_DNS_FAILURE;
+				break;
+			}
+
+			*addrlen = len;
+			*addr = ipv6_addr;
+		}
+	}
+	while (0);
+
+	return retval;
+}
+
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
 
   ftl_media_config_t *media = &ftl->media;
-  unsigned char buf[sizeof(struct in_addr)];
   ftl_status_t status = FTL_SUCCESS;
   int idx;
 
@@ -46,26 +107,15 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     os_init_mutex(&ftl->video.mutex);
     os_init_mutex(&ftl->audio.mutex);
 
-    //Create a socket
-    if ((media->media_socket = socket(AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET)
-    {
-      FTL_LOG(ftl, FTL_LOG_ERROR, "Could not create socket : %s", get_socket_error());
-      status = FTL_INTERNAL_ERROR;
-      break;
-    }
+	//use the same socket family as the control connection
+	media->media_socket = socket(ftl->socket_family, SOCK_DGRAM, IPPROTO_UDP);
+	if (media->media_socket == -1) {
+		return FTL_DNS_FAILURE;
+	}
 
-    set_socket_send_buf(media->media_socket, 2048);
-
-    FTL_LOG(ftl, FTL_LOG_INFO, "Socket created\n");
-
-    if (inet_pton(AF_INET, ftl->ingest_ip, buf) == 0) {
-      break;
-    }
-
-    //Prepare the sockaddr_in structure
-    media->server_addr.sin_family = AF_INET;
-    memcpy((char *)&media->server_addr.sin_addr.s_addr, (char *)buf, sizeof(buf));
-    media->server_addr.sin_port = htons(media->assigned_port);
+	if ((status = _get_addr_info(ftl->socket_family, ftl->ingest_ip, media->assigned_port, &media->ingest_addr, &media->ingest_addrlen)) != FTL_SUCCESS) {
+		return status;
+	}
 
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
@@ -219,6 +269,9 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
       shutdown_socket(media->media_socket, SD_BOTH);
       close_socket(media->media_socket);
       media->media_socket = INVALID_SOCKET;
+	  if (media->ingest_addr) {
+		  free(media->ingest_addr);
+	  }
     }
     os_unlock_mutex(&media->mutex);
   }
@@ -784,7 +837,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
   int tx_len;
 
   os_lock_mutex(&ftl->media.mutex);
-  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) &ftl->media.server_addr, sizeof(struct sockaddr_in))) == SOCKET_ERROR)
+  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) ftl->media.ingest_addr, ftl->media.ingest_addrlen)) == SOCKET_ERROR)
   {
     FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
   }
@@ -990,9 +1043,20 @@ OS_THREAD_ROUTINE recv_thread(void *data)
   ftl_media_config_t *media = &ftl->media;
   int ret;
   unsigned char *buf;
-  struct sockaddr_in remote_addr;
-  socklen_t addr_len;
-  char remote_ip[INET_ADDRSTRLEN];
+  struct sockaddr_in6 ipv6_addrinfo;
+  struct sockaddr_in ipv4_addrinfo;
+  struct sockaddr* addrinfo;
+  socklen_t addr_len, addrinfo_len;
+  char remote_ip[IPVX_ADDR_ASCII_LEN];
+
+  if (ftl->socket_family == AF_INET) {
+	  addrinfo = &ipv4_addrinfo;
+	  addrinfo_len = sizeof(struct sockaddr_in);
+  }
+  else {
+	  addrinfo = &ipv6_addrinfo;
+	  addrinfo_len = sizeof(struct sockaddr_in6);
+  }
 
 #ifdef _WIN32
   if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
@@ -1023,16 +1087,17 @@ OS_THREAD_ROUTINE recv_thread(void *data)
     }
 
     // We have data on the socket, read it.
-    addr_len = sizeof(remote_addr);
-    ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)&remote_addr, &addr_len);
+    addr_len = addrinfo_len;
+    ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)addrinfo, &addr_len);
     if (ret <= 0) {
       // This shouldn't be possible, we should only be here is poll above told us there was data.
+	  FTL_LOG(ftl, FTL_LOG_INFO, "recv from failed with %s\n", get_socket_error());
       continue;
     }
 
-    if (inet_ntop(AF_INET, &remote_addr.sin_addr.s_addr, remote_ip, sizeof(remote_ip)) == NULL) {
-      continue;
-    }
+	if (_get_remote_ip(addrinfo, addr_len, remote_ip, sizeof(remote_ip)) < 0) {
+		continue;
+	}
 
     if (strcmp(remote_ip, ftl->ingest_ip) != 0)
     {
@@ -1040,7 +1105,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
       continue;
     }
 
-    int version, padding, feedbackType, ptype, length, ssrcSender, ssrcMedia;
+	int version, padding, feedbackType, ptype, length, ssrcSender, ssrcMedia;
     uint16_t snBase, blp, sn;
     int recv_len = ret;
 

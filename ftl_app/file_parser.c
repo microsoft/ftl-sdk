@@ -40,6 +40,7 @@ int init_video(h264_obj_t *handle, const char *video_file) {
   if ((nalu->buf = malloc(10000000)) == NULL)
   {
 	  printf("Failed to allocate memory for bitstream\n");
+	  free(nalu);
 	  return -1;
   }
 
@@ -54,6 +55,7 @@ int init_video(h264_obj_t *handle, const char *video_file) {
   if ((nalu->buf = malloc(10000000)) == NULL)
   {
 	  printf("Failed to allocate memory for bitstream\n");
+	  free(nalu);
 	  return -1;
   }
 
@@ -248,7 +250,7 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *las
  }
 
  uint16_t get_16bits(uint8_t **buf, uint32_t *len) {
-   uint16_t val;
+   uint16_t val = 0;
    uint32_t bytes = sizeof(uint16_t);
 
    if (*len >= bytes) {
@@ -266,7 +268,7 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *las
  }
 
  uint32_t get_32bits(uint8_t **buf, uint32_t *len) {
-   uint32_t val;
+   uint32_t val = 0;
    uint32_t bytes = sizeof(uint32_t);
 
    if (*len >= bytes) {
@@ -284,7 +286,7 @@ int get_video_frame(h264_obj_t *handle, uint8_t *buf, uint32_t *length, int *las
  }
 
  uint64_t get_64bits(uint8_t **buf, uint32_t *len) {
-   uint64_t val;
+   uint64_t val = 0;
    uint32_t bytes = sizeof(uint64_t);
 
    if (*len >= bytes) {

@@ -834,16 +834,23 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 }
 
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
-  int tx_len;
+	int tx_len;
 
-  os_lock_mutex(&ftl->media.mutex);
-  if ((tx_len = sendto(ftl->media.media_socket, slot->packet, slot->len, 0, (struct sockaddr*) ftl->media.ingest_addr, ftl->media.ingest_addrlen)) == SOCKET_ERROR)
-  {
-    FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
-  }
-  os_unlock_mutex(&ftl->media.mutex);
+	uint8_t pkt[MAX_PACKET_BUFFER];
+	int pkt_len;
 
-  return tx_len;
+	os_lock_mutex(&ftl->media.mutex);
+	memcpy(pkt, slot->packet, slot->len);
+	pkt_len = slot->len;
+	os_unlock_mutex(&ftl->media.mutex);
+
+	if ((tx_len = sendto(ftl->media.media_socket, pkt, pkt_len, 0, (struct sockaddr*) ftl->media.ingest_addr, ftl->media.ingest_addrlen)) == SOCKET_ERROR)
+	{
+		FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
+	}
+
+
+	return tx_len;
 }
 
 static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc) {

@@ -404,6 +404,9 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
   ftl_response_code_t response_code;
   struct timeval last_send_time, now;
+  int ms_since_send = 0;
+
+  gettimeofday(&last_send_time, NULL);
 
   while (ftl_get_state(ftl, FTL_KEEPALIVE_THRD)) {
     os_semaphore_pend(&ftl->keepalive_thread_shutdown, KEEPALIVE_FREQUENCY_MS);
@@ -413,6 +416,16 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
       break;
     }
 
+    // Check how long it has been since we sent a ping last.
+    gettimeofday(&now, NULL);
+    ms_since_send = timeval_subtract_to_ms(&now, &last_send_time);
+    if (ms_since_send > KEEPALIVE_FREQUENCY_MS + KEEPALIVE_SEND_WARN_TOLERANCE_MS)
+    {
+       FTL_LOG(ftl, FTL_LOG_INFO, "Warning, we haven't sent a ping to ingest in longer than the warn tolerance. Time since last ping %d ms", ms_since_send);
+    }
+    gettimeofday(&last_send_time, NULL);
+
+    // Send the ping to ingest now.
     if ((response_code = _ftl_send_command(ftl, FALSE, NULL, 0, "PING %d", ftl->channel_id)) != FTL_INGEST_RESP_OK) {
       FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest ping failed with %d\n", response_code);
     }

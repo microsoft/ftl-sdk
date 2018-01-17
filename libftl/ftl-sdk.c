@@ -123,7 +123,10 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
     return status;
   } while (0);
 
-  internal_ingest_disconnect(ftl);
+  if (os_trylock_mutex(&ftl->disconnect_mutex)) {
+	  internal_ingest_disconnect(ftl);
+	  os_unlock_mutex(&ftl->disconnect_mutex);
+  }
   
   return status;
 }

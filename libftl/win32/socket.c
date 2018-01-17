@@ -77,6 +77,10 @@ int set_socket_send_buf(SOCKET socket, int buffer_space) {
   return setsockopt(socket, SOL_SOCKET, SO_SNDBUF, (char*)&buffer_space, sizeof(buffer_space));
 }
 
+int get_socket_bytes_available(SOCKET socket, unsigned long *bytes_available) {
+	return ioctlsocket(socket, FIONREAD, bytes_available);
+}
+
 int poll_socket_for_receive(SOCKET socket, int timeoutMs)
 {
   // timeoutMs behavior

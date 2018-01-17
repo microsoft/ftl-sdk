@@ -424,73 +424,102 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
 
 OS_THREAD_ROUTINE connection_status_thread(void *data)
 {
-  ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
-  char buf[1024];
-  ftl_status_msg_t status;
-  struct timeval last_ping, now;
-  int ms_since_ping = 0;
-  int keepalive_is_late = 3 * KEEPALIVE_FREQUENCY_MS; // Add a 10s buffer to the wait time
+	ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
+	char buf[1024];
+	ftl_status_msg_t status;
+	struct timeval last_ping, now;
+	int ms_since_ping = 0;
+	int keepalive_is_late = 3 * KEEPALIVE_FREQUENCY_MS; // Add a 10s buffer to the wait time
 
-  gettimeofday(&last_ping, NULL);
+	gettimeofday(&last_ping, NULL);
 
-  while (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
+	// Loop while the connection status thread should be alive.
+	while (ftl_get_state(ftl, FTL_CXN_STATUS_THRD)) {
 
-    os_semaphore_pend(&ftl->connection_thread_shutdown, 500);
-    if (!ftl_get_state(ftl, FTL_CXN_STATUS_THRD))
-    {
-      break;
-    }
+		// Wait on the shutdown event for at most STATUS_THREAD_SLEEP_TIME_MS
+		os_semaphore_pend(&ftl->connection_thread_shutdown, STATUS_THREAD_SLEEP_TIME_MS);
+		if (!ftl_get_state(ftl, FTL_CXN_STATUS_THRD))
+		{
+			break;
+		}
 
-    int ret = recv(ftl->ingest_socket, buf, sizeof(buf), MSG_PEEK);
+		ftl_status_t error_code = FTL_SUCCESS;
 
-    gettimeofday(&now, NULL);
-    ms_since_ping = timeval_subtract_to_ms(&now, &last_ping);
+		// Check if there is any data for us to consume.
+		unsigned long bytesAvailable = 0;
+		int ret = get_socket_bytes_available(ftl->ingest_socket, &bytesAvailable);
+		if (ret < 0)
+		{
+			FTL_LOG(ftl, FTL_LOG_ERROR, "Failed to call get_socket_bytes_available, %s", get_socket_error());
+			error_code = FTL_UNKNOWN_ERROR_CODE;
+		}
 
-    if (ret == 0 && ftl_get_state(ftl, FTL_CXN_STATUS_THRD) || ret > 0 || ms_since_ping > keepalive_is_late) {
-      ftl_status_t error_code = FTL_SUCCESS;
+		// If we have data waiting, consume it now.
+		if (bytesAvailable > 0)
+		{
+			int resp_code = _ftl_get_response(ftl, buf, sizeof(buf));
 
-      if (ret > 0) {
-        int resp_code;
-        if ((resp_code = _ftl_get_response(ftl, buf, sizeof(buf))) == FTL_INGEST_RESP_PING) {
-          gettimeofday(&last_ping, NULL);
-          continue;
-        }
+			// If we got a ping response, mark the time and loop again.
+			if (resp_code  == FTL_INGEST_RESP_PING) {
+				gettimeofday(&last_ping, NULL);
+				continue;
+			}
 
-        if (resp_code > 0) {
-          error_code = _log_response(ftl, resp_code);
-        }
-      }
+			// If it's anything else, it's an error.
+			error_code = _log_response(ftl, resp_code);
+		}
 
-      if (ms_since_ping > keepalive_is_late) {
-        error_code = FTL_NO_PING_RESPONSE;
-      }
-      
-      FTL_LOG(ftl, FTL_LOG_ERROR, "ingest connection has dropped: %s\n", get_socket_error());
+		// If we don't have an error, check if the ping has timed out.
+		if (error_code == FTL_SUCCESS)
+		{
+			// Get the current time and figure out the time since the last ping was recieved.
+			gettimeofday(&now, NULL);
+			ms_since_ping = timeval_subtract_to_ms(&now, &last_ping);
+			if (ms_since_ping < keepalive_is_late) {
+				continue;
+			}
 
-      ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
+			// Otherwise, we havn't gotten the ping in too long.
+			FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest ping timeout, we haven't gotten a ping in %d ms.", ms_since_ping);
+			error_code = FTL_NO_PING_RESPONSE;
+		}
 
-      if (os_trylock_mutex(&ftl->disconnect_mutex)) {
-        internal_ingest_disconnect(ftl);
-        os_unlock_mutex(&ftl->disconnect_mutex);
-      }
+		// At this point something is wrong, and we are going to shutdown the connection. Do one more check that we
+		// should still be running.
+		if (!ftl_get_state(ftl, FTL_CXN_STATUS_THRD))
+		{
+			break;
+		}
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest connection has dropped: error code %d\n", error_code);
 
-      status.type = FTL_STATUS_EVENT;
-      if (error_code == FTL_NO_MEDIA_TIMEOUT) {
-        status.msg.event.reason = FTL_STATUS_EVENT_REASON_NO_MEDIA;
-      }
-      else {
-        status.msg.event.reason = FTL_STATUS_EVENT_REASON_UNKNOWN;
-      }
-      status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
-      status.msg.event.error_code = error_code;
-      enqueue_status_msg(ftl, &status);
-      break;
-    }
-  }
+		// Clear the state that this thread is running. If we don't do this we will dead lock
+		// in the internal_ingest_disconnect.
+		ftl_clear_state(ftl, FTL_CXN_STATUS_THRD);
 
-  FTL_LOG(ftl, FTL_LOG_INFO, "Exited connection_status_thread\n");
+		// Shutdown the ingest connection.
+		if (os_trylock_mutex(&ftl->disconnect_mutex)) {
+			internal_ingest_disconnect(ftl);
+			os_unlock_mutex(&ftl->disconnect_mutex);
+		}
 
-  return 0;
+		// Fire an event indicating we shutdown.
+		status.type = FTL_STATUS_EVENT;
+		if (error_code == FTL_NO_MEDIA_TIMEOUT) {
+			status.msg.event.reason = FTL_STATUS_EVENT_REASON_NO_MEDIA;
+		}
+		else {
+			status.msg.event.reason = FTL_STATUS_EVENT_REASON_UNKNOWN;
+		}
+		status.msg.event.type = FTL_STATUS_EVENT_TYPE_DISCONNECTED;
+		status.msg.event.error_code = error_code;
+		enqueue_status_msg(ftl, &status);
+
+		// Exit the loop.
+		break;		
+	}
+
+	FTL_LOG(ftl, FTL_LOG_INFO, "Exited connection_status_thread");
+	return 0;
 }
 
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code){
@@ -549,6 +578,9 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
     case FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT:
       FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket timeout.");
       return FTL_INGEST_SOCKET_TIMEOUT;
+	case FTL_INGEST_RESP_UNKNOWN:
+		FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest unknown response.");
+		return FTL_INTERNAL_ERROR;
   }    
 
   // TODO revert back

@@ -7,4 +7,5 @@ int set_socket_enable_keepalive(SOCKET socket);
 int get_socket_send_buf(SOCKET socket, int *buffer_space);
 int set_socket_send_buf(SOCKET socket, int buffer_space);
 int poll_socket_for_receive(SOCKET socket, int ms_timeout);
+int get_socket_data_available(SOCKET socket);
 int shutdown_socket(SOCKET sock, int how);

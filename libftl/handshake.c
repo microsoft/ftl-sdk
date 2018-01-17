@@ -421,7 +421,7 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
     ms_since_send = timeval_subtract_to_ms(&now, &last_send_time);
     if (ms_since_send > KEEPALIVE_FREQUENCY_MS + KEEPALIVE_SEND_WARN_TOLERANCE_MS)
     {
-       FTL_LOG(ftl, FTL_LOG_INFO, "Warning, we haven't sent a ping to ingest in longer than the warn tolerance. Time since last ping %d ms", ms_since_send);
+       FTL_LOG(ftl, FTL_LOG_INFO, "Warning, ping time tolerance warning. Time since last ping %d ms", ms_since_send);
     }
     gettimeofday(&last_send_time, NULL);
 

@@ -35,7 +35,6 @@ endif()
 # We will only try to include lib jansson if auto ingest is enabled.
 SET(JANSSON_LIBRARIES "")
 if (NOT DISABLE_AUTO_INGEST)
-  MESSAGE( STATUS "JSON SHIT 11: " ${JANSSON_LIBRARIES})
   SET(JANSSON_BUILD_DOCS OFF CACHE BOOL "Jansson docs off")
   SET(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Jansson build without tests")
   SET(JANSSON_EXAMPLES OFF CACHE BOOL "Jansson disable examples")
@@ -45,8 +44,6 @@ if (NOT DISABLE_AUTO_INGEST)
   SET(JANSSON_LIBRARIES jansson)
 endif()
 
-include_directories(libftl libftl/gettimeofday)
-
 if (WIN32)
   set(FTL_PLATFORM_FILES  ftl_app/win32/xgetopt.c
                           ftl_app/win32/xgetopt.h
@@ -55,16 +52,15 @@ if (WIN32)
   #set(FTL_PLATFORM_LIBS ws2_32 )
   set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
                             libftl/win32/socket.h
-	                          libftl/win32/threads.c
-		                        libftl/win32/threads.h)
-
+                            libftl/win32/threads.c
+                            libftl/win32/threads.h)
   include_directories(libftl/win32)
 else()
   set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
   set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c
                             libftl/posix/socket.h
-	        	                libftl/posix/threads.c
-			                      libftl/posix/threads.h)
+                            libftl/posix/threads.c
+                            libftl/posix/threads.h)
   include_directories(libftl/posix)
 endif()
 
@@ -78,15 +74,18 @@ add_library(ftl SHARED libftl/hmac/hmac.c
                        libftl/handshake.c
                        libftl/ingest.c
                        libftl/ftl_helpers.c
-					             libftl/media.c
+                       libftl/media.c
                        libftl/logging.c
                        libftl/ftl.h
                        libftl/ftl_private.h
                        ${FTLSDK_PLATFORM_FILES})
+include_directories(libftl libftl/gettimeofday)
+
 set_target_properties(ftl PROPERTIES VERSION "0.5.0")
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 target_link_libraries(ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES})
+
 if(WIN32)
   target_link_libraries(ftl ws2_32)
 endif()
@@ -97,18 +96,18 @@ add_executable(ftl_app
                ftl_app/file_parser.c
                ftl_app/file_parser.h			   
                ftl_app/gettimeofday.c
-	             ftl_app/gettimeofday.h
-			         ftl_app/bitstream.c
-			         ftl_app/bitstream.h
-			         ftl_app/cavlc.c
-			         ftl_app/cavlc.h
-			         ftl_app/decode.c
-			         ftl_app/decode.h
-			         ftl_app/nalu.c
-			         ftl_app/nalu.h
-			         ftl_app/utils.c
-			         ftl_app/utils.h
-			         ftl_app/dec_obj.h
+               ftl_app/gettimeofday.h
+               ftl_app/bitstream.c
+               ftl_app/bitstream.h
+               ftl_app/cavlc.c
+               ftl_app/cavlc.h
+               ftl_app/decode.c
+               ftl_app/decode.h
+               ftl_app/nalu.c
+               ftl_app/nalu.h
+               ftl_app/utils.c
+               ftl_app/utils.h
+               ftl_app/dec_obj.h
                ${FTL_PLATFORM_FILES})
 
 target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})

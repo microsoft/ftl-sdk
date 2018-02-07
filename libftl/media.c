@@ -60,7 +60,7 @@ ftl_status_t _get_addr_info(short family, char *ip, short port, struct sockaddr 
 			}
 
 			*addrlen = len;
-			*addr = ipv4_addr;
+			*addr = (struct sockaddr *)ipv4_addr;
 		}
 		else if (family == AF_INET6) {
 			struct sockaddr_in6 *ipv6_addr = NULL;
@@ -84,7 +84,7 @@ ftl_status_t _get_addr_info(short family, char *ip, short port, struct sockaddr 
 			}
 
 			*addrlen = len;
-			*addr = ipv6_addr;
+			*addr = (struct sockaddr *)ipv6_addr;
 		}
 	}
 	while (0);
@@ -1057,11 +1057,11 @@ OS_THREAD_ROUTINE recv_thread(void *data)
   char remote_ip[IPVX_ADDR_ASCII_LEN];
 
   if (ftl->socket_family == AF_INET) {
-	  addrinfo = &ipv4_addrinfo;
+	  addrinfo = (struct sockaddr *)&ipv4_addrinfo;
 	  addrinfo_len = sizeof(struct sockaddr_in);
   }
   else {
-	  addrinfo = &ipv6_addrinfo;
+	  addrinfo = (struct sockaddr *)&ipv6_addrinfo;
 	  addrinfo_len = sizeof(struct sockaddr_in6);
   }
 

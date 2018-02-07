@@ -281,7 +281,7 @@ ftl_status_t _set_ingest_hostname(ftl_stream_configuration_private_t *ftl) {
 int _get_remote_ip(struct sockaddr *addr, size_t addrlen, char *remote_ip, size_t ip_len) {
 	if (addr->sa_family == AF_INET)
 	{
-		struct sockaddr_in *ipv4_addr = (struct sockaddr_in6 *)addr;
+		struct sockaddr_in *ipv4_addr = (struct sockaddr_in *)addr;
 
 		if (inet_ntop(AF_INET, &ipv4_addr->sin_addr.s_addr, remote_ip, ip_len) == NULL) {
 			return -1;

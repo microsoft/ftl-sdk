@@ -22,6 +22,7 @@
 * SOFTWARE.
 **/
 
+#include <stdlib.h>
 #include "threads.h"
 
 int os_init(){

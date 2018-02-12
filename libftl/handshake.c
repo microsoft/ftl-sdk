@@ -467,20 +467,22 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
             FTL_LOG(ftl, FTL_LOG_ERROR, "Failed to call get_socket_bytes_available, %s", get_socket_error());
             error_code = FTL_UNKNOWN_ERROR_CODE;
         }
-
-        // If we have data waiting, consume it now.
-        if (bytesAvailable > 0)
+        else
         {
-            int resp_code = _ftl_get_response(ftl, buf, sizeof(buf));
+            // If we have data waiting, consume it now.
+            if (bytesAvailable > 0)
+            {
+                int resp_code = _ftl_get_response(ftl, buf, sizeof(buf));
 
-            // If we got a ping response, mark the time and loop again.
-            if (resp_code  == FTL_INGEST_RESP_PING) {
-                gettimeofday(&last_ping, NULL);
-                continue;
+                // If we got a ping response, mark the time and loop again.
+                if (resp_code  == FTL_INGEST_RESP_PING) {
+                    gettimeofday(&last_ping, NULL);
+                    continue;
+                }
+
+                // If it's anything else, it's an error.
+                error_code = _log_response(ftl, resp_code);
             }
-
-            // If it's anything else, it's an error.
-            error_code = _log_response(ftl, resp_code);
         }
 
         // If we don't have an error, check if the ping has timed out.

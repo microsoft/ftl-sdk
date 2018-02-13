@@ -20,6 +20,7 @@ h264_dec_obj_t * H264_Decode_Open()
 	
 	if ((obj->nalu_buf = malloc(10000000)) == NULL)
 	{
+		free(obj);
 		return NULL;
 	}
 
@@ -72,12 +73,7 @@ int H264_Decode_Nalu(h264_dec_obj_t* h264_dec_obj, unsigned char *nalu, int len)
 			//printf("Frame %d\n",  h264_dec_obj->slice.frame_num);
 		}
 
-		if(last_mba == -1)
-		{
-			last_mba = h264_dec_obj->slice.first_mb_in_slice;
-			last_frame_num = h264_dec_obj->slice.frame_num;
-		}
-		else if(last_frame_num == h264_dec_obj->slice.frame_num)
+		if((last_mba != -1) && (last_frame_num == h264_dec_obj->slice.frame_num))
 		{
 			if(last_mba >= h264_dec_obj->slice.first_mb_in_slice)
 				printf("Error: frame %d: current mba is %d, last was %d\n", h264_dec_obj->slice.frame_num, h264_dec_obj->slice.first_mb_in_slice, last_mba);

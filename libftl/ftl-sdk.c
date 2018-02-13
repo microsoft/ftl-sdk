@@ -124,8 +124,8 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
   } while (0);
 
   if (os_trylock_mutex(&ftl->disconnect_mutex)) {
-	  internal_ingest_disconnect(ftl);
-	  os_unlock_mutex(&ftl->disconnect_mutex);
+    internal_ingest_disconnect(ftl);
+    os_unlock_mutex(&ftl->disconnect_mutex);
   }
   
   return status;
@@ -324,9 +324,9 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
       free(ftl->ingest_hostname);
     }
 
-	if (ftl->param_ingest_hostname != NULL) {
-		free(ftl->param_ingest_hostname);
-	}
+  if (ftl->param_ingest_hostname != NULL) {
+    free(ftl->param_ingest_hostname);
+  }
 
     free(ftl);
   }

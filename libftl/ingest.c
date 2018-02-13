@@ -38,34 +38,34 @@ static int _ping_server(const char *hostname, int port) {
   
    err = getaddrinfo(hostname, port_str, &hints, &resolved_names);
   if (err != 0) {
-	  return FTL_DNS_FAILURE;
+    return FTL_DNS_FAILURE;
   }
   
   do {
-	  for (p = resolved_names; p != NULL; p = p->ai_next) {
-		  sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		  if (sock == -1) {
-			  continue;
-		  }
+    for (p = resolved_names; p != NULL; p = p->ai_next) {
+      sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+      if (sock == -1) {
+        continue;
+      }
 
-		  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
-		  set_socket_recv_timeout(sock, 500);
+      setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
+      set_socket_recv_timeout(sock, 500);
 
-		  gettimeofday(&start, NULL);
+      gettimeofday(&start, NULL);
 
-		  if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, p->ai_addrlen) == SOCKET_ERROR) {
-			  printf("Sendto error: %s\n", get_socket_error());
-			  break;
-		  }
+      if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, p->ai_addrlen) == SOCKET_ERROR) {
+        printf("Sendto error: %s\n", get_socket_error());
+        break;
+      }
 
-		  if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
-			  break;
-		  }
+      if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
+        break;
+      }
 
-		  gettimeofday(&stop, NULL);
-		  timeval_subtract(&delta, &stop, &start);
-		  retval = (int)timeval_to_ms(&delta);
-	  }
+      gettimeofday(&stop, NULL);
+      timeval_subtract(&delta, &stop, &start);
+      retval = (int)timeval_to_ms(&delta);
+    }
   } while (0);
 
   /* Free the resolved name struct */
@@ -157,9 +157,9 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
   for (i = 0; i < size; i++) {
     char *name = NULL, *ip=NULL, *hostname=NULL;
     ingest_item = json_array_get(ingests, i);
-	if (json_unpack(ingest_item, "{s:s, s:s, s:s}", "name", &name, "ip", &ip, "hostname", &hostname) < 0) {
-		continue;
-	}
+  if (json_unpack(ingest_item, "{s:s, s:s, s:s}", "name", &name, "ip", &ip, "hostname", &hostname) < 0) {
+    continue;
+  }
 
     ftl_ingest_t *ingest_elmt;
 
@@ -167,9 +167,9 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
       goto cleanup;
     }
 
-	ingest_elmt->name = _strdup(name);
-	ingest_elmt->ip = _strdup(ip);
-	ingest_elmt->hostname = _strdup(hostname);
+  ingest_elmt->name = _strdup(name);
+  ingest_elmt->ip = _strdup(ip);
+  ingest_elmt->hostname = _strdup(hostname);
 
     ingest_elmt->rtt = 500;
 
@@ -214,9 +214,9 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
   while (ftl->ingest_list != NULL) {
     elmt = ftl->ingest_list;
     ftl->ingest_list = elmt->next;
-	free(elmt->hostname);
-	free(elmt->ip);
-	free(elmt->name);
+  free(elmt->hostname);
+  free(elmt->ip);
+  free(elmt->name);
     free(elmt);
   }
 

@@ -205,13 +205,13 @@ typedef struct _ping_pkt_t {
 }ping_pkt_t;
 
 typedef struct _senderReport_pkt_t {
-	uint32_t header;
-	uint32_t ssrc;
-	uint32_t ntpTimestampHigh;
-	uint32_t ntpTimestampLow;
-	uint32_t rtpTimestamp;
-	uint32_t senderPacketCount;
-	uint32_t senderOctetCount;
+  uint32_t header;
+  uint32_t ssrc;
+  uint32_t ntpTimestampHigh;
+  uint32_t ntpTimestampLow;
+  uint32_t rtpTimestamp;
+  uint32_t senderPacketCount;
+  uint32_t senderOctetCount;
 }senderReport_pkt_t;
 
 typedef struct {

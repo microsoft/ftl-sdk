@@ -404,7 +404,7 @@ OS_THREAD_ROUTINE control_keepalive_thread(void *data)
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)data;
   ftl_response_code_t response_code;
   struct timeval last_send_time, now;
-  int ms_since_send = 0;
+  int64_t ms_since_send = 0;
 
   gettimeofday(&last_send_time, NULL);
 
@@ -442,7 +442,7 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
     char buf[1024];
     ftl_status_msg_t status;
     struct timeval last_ping, now;
-    int ms_since_ping = 0;
+    int64_t ms_since_ping = 0;
     int keepalive_is_late = 3 * KEEPALIVE_FREQUENCY_MS; // Add a 10s buffer to the wait time
 
     gettimeofday(&last_ping, NULL);

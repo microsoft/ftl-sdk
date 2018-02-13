@@ -35,61 +35,60 @@ struct sockaddr *ingest_addr;
 
 ftl_status_t _get_addr_info(short family, char *ip, short port, struct sockaddr **addr, size_t *addrlen) {
 
-	ftl_status_t retval = FTL_SUCCESS;
+  ftl_status_t retval = FTL_SUCCESS;
 
-	do {
-		if (family == AF_INET) {
-			struct sockaddr_in *ipv4_addr = NULL;
-			size_t len;
+    do {
+      if (family == AF_INET) {
+        struct sockaddr_in *ipv4_addr = NULL;
+        size_t len;
 
-			len = sizeof(struct sockaddr_in);
+        len = sizeof(struct sockaddr_in);
 
-			if ((ipv4_addr = malloc(len)) == NULL) {
-				retval = FTL_MALLOC_FAILURE;
-				break;
-			}
+        if ((ipv4_addr = malloc(len)) == NULL) {
+          retval = FTL_MALLOC_FAILURE;
+          break;
+        }
 
-			memset(ipv4_addr, 0, len);
+        memset(ipv4_addr, 0, len);
 
-			ipv4_addr->sin_family = family;
-			ipv4_addr->sin_port = htons(port);
+        ipv4_addr->sin_family = family;
+        ipv4_addr->sin_port = htons(port);
 
-			if (inet_pton(family, ip, &ipv4_addr->sin_addr) != 1) {
-				retval = FTL_DNS_FAILURE;
-				break;
-			}
+        if (inet_pton(family, ip, &ipv4_addr->sin_addr) != 1) {
+          retval = FTL_DNS_FAILURE;
+          break;
+        }
 
-			*addrlen = len;
-			*addr = (struct sockaddr *)ipv4_addr;
-		}
-		else if (family == AF_INET6) {
-			struct sockaddr_in6 *ipv6_addr = NULL;
-			size_t len;
+        *addrlen = len;
+        *addr = (struct sockaddr *)ipv4_addr;
+      }
+      else if (family == AF_INET6) {
+        struct sockaddr_in6 *ipv6_addr = NULL;
+        size_t len;
 
-			len = sizeof(struct sockaddr_in6);
+        len = sizeof(struct sockaddr_in6);
 
-			if ((ipv6_addr = malloc(len)) == NULL) {
-				retval = FTL_MALLOC_FAILURE;
-				break;
-			}
+        if ((ipv6_addr = malloc(len)) == NULL) {
+                retval = FTL_MALLOC_FAILURE;
+                break;
+        }
 
-			memset(ipv6_addr, 0, len);
+        memset(ipv6_addr, 0, len);
 
-			ipv6_addr->sin6_family = family;
-			ipv6_addr->sin6_port = htons(port);
+        ipv6_addr->sin6_family = family;
+        ipv6_addr->sin6_port = htons(port);
 
-			if (inet_pton(family, ip, &ipv6_addr->sin6_addr) != 1) {
-				retval = FTL_DNS_FAILURE;
-				break;
-			}
+        if (inet_pton(family, ip, &ipv6_addr->sin6_addr) != 1) {
+                retval = FTL_DNS_FAILURE;
+                break;
+        }
 
-			*addrlen = len;
-			*addr = (struct sockaddr *)ipv6_addr;
-		}
-	}
-	while (0);
-
-	return retval;
+        *addrlen = len;
+        *addr = (struct sockaddr *)ipv6_addr;
+      }
+  }
+  while (0);
+  return retval;
 }
 
 ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
@@ -107,15 +106,15 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     os_init_mutex(&ftl->video.mutex);
     os_init_mutex(&ftl->audio.mutex);
 
-	//use the same socket family as the control connection
-	media->media_socket = socket(ftl->socket_family, SOCK_DGRAM, IPPROTO_UDP);
-	if (media->media_socket == -1) {
-		return FTL_DNS_FAILURE;
-	}
+        //use the same socket family as the control connection
+        media->media_socket = socket(ftl->socket_family, SOCK_DGRAM, IPPROTO_UDP);
+        if (media->media_socket == -1) {
+                return FTL_DNS_FAILURE;
+        }
 
-	if ((status = _get_addr_info(ftl->socket_family, ftl->ingest_ip, media->assigned_port, &media->ingest_addr, &media->ingest_addrlen)) != FTL_SUCCESS) {
-		return status;
-	}
+        if ((status = _get_addr_info(ftl->socket_family, ftl->ingest_ip, media->assigned_port, &media->ingest_addr, &media->ingest_addrlen)) != FTL_SUCCESS) {
+                return status;
+        }
 
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
@@ -269,9 +268,9 @@ ftl_status_t _internal_media_destroy(ftl_stream_configuration_private_t *ftl) {
       shutdown_socket(media->media_socket, SD_BOTH);
       close_socket(media->media_socket);
       media->media_socket = INVALID_SOCKET;
-	  if (media->ingest_addr) {
-		  free(media->ingest_addr);
-	  }
+      if (media->ingest_addr) {
+        free(media->ingest_addr);
+      }
     }
     os_unlock_mutex(&media->mutex);
   }
@@ -333,6 +332,7 @@ static int _nack_init(ftl_media_component_common_t *media) {
 
     slot->len = 0;
     slot->sn = -1;
+    slot->isPartOfIframe = 0;
   }
 
   os_init_mutex(&media->nack_slots_lock);
@@ -710,7 +710,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
           }
           os_unlock_mutex(&ftl->video.mutex);
           return bytes_queued;
-        }
+        }       
 
         os_lock_mutex(&slot->mutex);
 
@@ -737,6 +737,7 @@ int media_send_video(ftl_stream_configuration_private_t *ftl, int64_t dts_usec, 
         slot->len = pkt_len;
         slot->sn = sn;
         gettimeofday(&slot->insert_time, NULL);
+        slot->isPartOfIframe = nalu_type == H264_NALU_TYPE_IDR;
 
         os_unlock_mutex(&slot->mutex);
         os_semaphore_post(&mc->pkt_ready);
@@ -834,23 +835,22 @@ static float _media_get_queue_fullness(ftl_stream_configuration_private_t *ftl, 
 }
 
 static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t *slot) {
-	int tx_len;
+  int tx_len;
 
-	uint8_t pkt[MAX_PACKET_BUFFER];
-	int pkt_len;
+  uint8_t pkt[MAX_PACKET_BUFFER];
+  int pkt_len;
 
-	os_lock_mutex(&ftl->media.mutex);
-	memcpy(pkt, slot->packet, slot->len);
-	pkt_len = slot->len;
-	os_unlock_mutex(&ftl->media.mutex);
+  os_lock_mutex(&ftl->media.mutex);
+  memcpy(pkt, slot->packet, slot->len);
+  pkt_len = slot->len;
+  os_unlock_mutex(&ftl->media.mutex);
 
-	if ((tx_len = sendto(ftl->media.media_socket, pkt, pkt_len, 0, (struct sockaddr*) ftl->media.ingest_addr, ftl->media.ingest_addrlen)) == SOCKET_ERROR)
-	{
-		FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
-	}
-
-
-	return tx_len;
+  if ((tx_len = sendto(ftl->media.media_socket, pkt, pkt_len, 0, (struct sockaddr*) ftl->media.ingest_addr, ftl->media.ingest_addrlen)) == SOCKET_ERROR)
+  {
+    FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
+  }
+  
+  return tx_len;
 }
 
 static int _media_send_packet(ftl_stream_configuration_private_t *ftl, ftl_media_component_common_t *mc) {
@@ -928,7 +928,7 @@ static int _nack_resend_packet(ftl_stream_configuration_private_t *ftl, uint32_t
 
   if (mc->nack_enabled) {
     tx_len = _media_send_slot(ftl, slot);
-    FTL_LOG(ftl, FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms", ssrc, sn, req_delay);
+    FTL_LOG(ftl, FTL_LOG_INFO, "[%d] resent sn %d, request delay was %d ms, was part of iframe? %d", ssrc, sn, req_delay, slot->isPartOfIframe);
   }
   mc->stats.nack_requests++;
 
@@ -1057,12 +1057,12 @@ OS_THREAD_ROUTINE recv_thread(void *data)
   char remote_ip[IPVX_ADDR_ASCII_LEN];
 
   if (ftl->socket_family == AF_INET) {
-	  addrinfo = (struct sockaddr *)&ipv4_addrinfo;
-	  addrinfo_len = sizeof(struct sockaddr_in);
+     addrinfo = (struct sockaddr *)&ipv4_addrinfo;
+     addrinfo_len = sizeof(struct sockaddr_in);
   }
   else {
-	  addrinfo = (struct sockaddr *)&ipv6_addrinfo;
-	  addrinfo_len = sizeof(struct sockaddr_in6);
+     addrinfo = (struct sockaddr *)&ipv6_addrinfo;
+     addrinfo_len = sizeof(struct sockaddr_in6);
   }
 
 #ifdef _WIN32
@@ -1098,13 +1098,13 @@ OS_THREAD_ROUTINE recv_thread(void *data)
     ret = recvfrom(media->media_socket, buf, MAX_PACKET_BUFFER, 0, (struct sockaddr *)addrinfo, &addr_len);
     if (ret <= 0) {
       // This shouldn't be possible, we should only be here is poll above told us there was data.
-	  FTL_LOG(ftl, FTL_LOG_INFO, "recv from failed with %s\n", get_socket_error());
+      FTL_LOG(ftl, FTL_LOG_INFO, "recv from failed with %s\n", get_socket_error());
       continue;
     }
 
-	if (_get_remote_ip(addrinfo, addr_len, remote_ip, sizeof(remote_ip)) < 0) {
-		continue;
-	}
+    if (_get_remote_ip(addrinfo, addr_len, remote_ip, sizeof(remote_ip)) < 0) {
+      continue;
+    }
 
     if (strcmp(remote_ip, ftl->ingest_ip) != 0)
     {
@@ -1112,7 +1112,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
       continue;
     }
 
-	int version, padding, feedbackType, ptype, length, ssrcSender, ssrcMedia;
+    int version, padding, feedbackType, ptype, length, ssrcSender, ssrcMedia;
     uint16_t snBase, blp, sn;
     int recv_len = ret;
 
@@ -1751,7 +1751,7 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
       uint64_t frames_dropped_total = 0;
       uint64_t avg_frames_dropped_per_second = 0;
       float nacks_to_frames_ratio = 0;
-	  int i;
+      int i;
 
       // Count all nacks received for the last c_ulBwCheckDurationMs milliseconds
       for (i = 0; i < MAX_STAT_SIZE; i++)

@@ -196,6 +196,7 @@ typedef struct {
   int first;/*first packet in frame*/
   int last; /*last packet in frame*/
   OS_MUTEX mutex;
+  BOOL isPartOfIframe;
 }nack_slot_t;
 
 typedef struct _ping_pkt_t {

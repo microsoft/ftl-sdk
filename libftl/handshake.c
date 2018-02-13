@@ -443,7 +443,11 @@ OS_THREAD_ROUTINE connection_status_thread(void *data)
     ftl_status_msg_t status;
     struct timeval last_ping, now;
     int64_t ms_since_ping = 0;
-    int keepalive_is_late = 3 * KEEPALIVE_FREQUENCY_MS; // Add a 10s buffer to the wait time
+
+    // We ping every 5 seconds, but don't timeout the connection until 30 seconds has passed
+    // without hearing anything back from the ingest. This time is high, but some some poor networks
+    // this can happen.
+    int keepalive_is_late = 6 * KEEPALIVE_FREQUENCY_MS; 
 
     gettimeofday(&last_ping, NULL);
 

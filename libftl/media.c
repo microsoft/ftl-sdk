@@ -1,3 +1,4 @@
+#define __FTL_INTERNAL
 #include "ftl.h"
 #include "ftl_private.h"
 #include <assert.h>
@@ -106,15 +107,15 @@ ftl_status_t media_init(ftl_stream_configuration_private_t *ftl) {
     os_init_mutex(&ftl->video.mutex);
     os_init_mutex(&ftl->audio.mutex);
 
-        //use the same socket family as the control connection
-        media->media_socket = socket(ftl->socket_family, SOCK_DGRAM, IPPROTO_UDP);
-        if (media->media_socket == -1) {
-                return FTL_DNS_FAILURE;
-        }
+    //use the same socket family as the control connection
+    media->media_socket = socket(ftl->socket_family, SOCK_DGRAM, IPPROTO_UDP);
+    if (media->media_socket == -1) {
+            return FTL_DNS_FAILURE;
+    }
 
-        if ((status = _get_addr_info(ftl->socket_family, ftl->ingest_ip, media->assigned_port, &media->ingest_addr, &media->ingest_addrlen)) != FTL_SUCCESS) {
-                return status;
-        }
+    if ((status = _get_addr_info(ftl->socket_family, ftl->ingest_ip, media->assigned_port, &media->ingest_addr, &media->ingest_addrlen)) != FTL_SUCCESS) {
+            return status;
+    }
 
     media->max_mtu = MAX_MTU;
     gettimeofday(&media->stats_tv, NULL);
@@ -542,7 +543,7 @@ ftl_status_t media_speed_test(ftl_stream_configuration_private_t *ftl, int speed
 
     float adjusted_bytes_sent = (float)total_sent * (1.f - pkt_loss_percent);
     int64_t actual_send_time = total_ms + final_rtt - initial_rtt;
-    effective_kbps = (int)(adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time) / 1000.f;
+    effective_kbps = (int)(((float)adjusted_bytes_sent * 8.f * 1000.f / (float)actual_send_time) / 1000.f);
 
     results->pkts_sent = (int)pkts_sent;
     results->nack_requests = (int)lost_pkts;
@@ -845,7 +846,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
   pkt_len = slot->len;
   os_unlock_mutex(&ftl->media.mutex);
 
-  if ((tx_len = sendto(ftl->media.media_socket, pkt, pkt_len, 0, (struct sockaddr*) ftl->media.ingest_addr, ftl->media.ingest_addrlen)) == SOCKET_ERROR)
+  if ((tx_len = sendto(ftl->media.media_socket, pkt, pkt_len, 0, (struct sockaddr*) ftl->media.ingest_addr, (int)ftl->media.ingest_addrlen)) == SOCKET_ERROR)
   {
     FTL_LOG(ftl, FTL_LOG_ERROR, "sendto() failed with error: %s", get_socket_error());
   }
@@ -1167,7 +1168,7 @@ OS_THREAD_ROUTINE recv_thread(void *data)
       media_stats_t *pkt_stats = &ftl->video.media_component.stats;
 
       gettimeofday(&now, NULL);
-      delay_ms = timeval_subtract_to_ms(&now, &ping->xmit_time);
+      delay_ms = (int)timeval_subtract_to_ms(&now, &ping->xmit_time);
 
       if (delay_ms > pkt_stats->pkt_rtt_max) {
         pkt_stats->pkt_rtt_max = delay_ms;
@@ -1316,7 +1317,7 @@ static void _update_xmit_level(ftl_stream_configuration_private_t *ftl, int *tra
 static int _update_stats(ftl_stream_configuration_private_t *ftl) {
   struct timeval now;
   gettimeofday(&now, NULL);
-  int stats_interval = timeval_subtract_to_ms(&now, &ftl->media.stats_tv);
+  int stats_interval = (int)timeval_subtract_to_ms(&now, &ftl->media.stats_tv);
 
   if (stats_interval > 5000) {
 
@@ -1462,7 +1463,6 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
             // For each media component...
             ftl_media_component_common_t *media_comp[] = { &ftl->video.media_component, &ftl->audio.media_component };
             ftl_media_component_common_t *comp;
-            struct timeval delta_tv;
             int mediaCount = 0;
             for (mediaCount = 0; mediaCount < sizeof(media_comp) / sizeof(media_comp[0]); mediaCount++) {
 
@@ -1476,13 +1476,13 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
                 // Set the ssrc and packet counts
                 senderReport->ssrc = htonl(comp->ssrc);
-                senderReport->senderOctetCount = htonl(comp->stats.payload_bytes_sent);
-                senderReport->senderPacketCount = htonl(comp->stats.packets_sent);
+                senderReport->senderOctetCount = htonl((uint32_t)comp->stats.payload_bytes_sent);
+                senderReport->senderPacketCount = htonl((uint32_t)comp->stats.packets_sent);
 
                 // Grab the last rtp timestamp. Since this is multi threaded we need it locally to ensure it doesn't change.
                 uint64_t timestamp = comp->timestamp;
                 uint64_t timestamp_dts_usec = comp->timestamp_dts_usec;
-                senderReport->rtpTimestamp = htonl(timestamp);
+                senderReport->rtpTimestamp = htonl((uint32_t)timestamp);
 
                 // For the NTP time, we will take the base ntp time for this stream and increment it by the amount of time
                 // that has passed from this rtp timestamp and the base timestamp. This way all of the values are derived from
@@ -1511,7 +1511,7 @@ OS_THREAD_ROUTINE ping_thread(void *data) {
 
 // ================================================ Bitrate Monitor Logic =================================================== //
 
-ftl_status_t ftl_get_video_stats(
+FTL_API ftl_status_t ftl_get_video_stats(
   ftl_handle_t* handle,
   uint64_t* frames_sent,
   uint64_t* nacks_received,
@@ -1538,8 +1538,8 @@ ftl_status_t ftl_get_video_stats(
 
 BOOL is_bitrate_reduction_required(
   const float nacks_to_frames_ratio,
-  const uint64_t avg_rtt,
-  const int avg_frames_dropped_per_second,
+  const float avg_rtt,
+  const uint64_t avg_frames_dropped_per_second,
   const float queue_fullness)
 {
   // TODO : Improve estimation of rtt stability.
@@ -1556,7 +1556,7 @@ BOOL is_bitrate_reduction_required(
 
 BOOL is_bw_stable(
   const float nacks_to_frames_ratio,
-  const uint64_t avg_rtt,
+  const float avg_rtt,
   const uint64_t avg_frames_dropped_per_second,
   const float queue_fullness)
 {
@@ -1607,7 +1607,7 @@ uint64_t compute_recommended_bitrate(
   return recommended_bitrate;
 }
 
-ftl_status_t ftl_adaptive_bitrate_thread(ftl_handle_t* ftl_handle, void* context, int(*change_bitrate_callback)(void*, uint64_t), uint64_t initial_encoding_bitrate, uint64_t min_encoding_bitrate, uint64_t max_encoding_bitrate)
+FTL_API ftl_status_t ftl_adaptive_bitrate_thread(ftl_handle_t* ftl_handle, void* context, int(*change_bitrate_callback)(void*, uint64_t), uint64_t initial_encoding_bitrate, uint64_t min_encoding_bitrate, uint64_t max_encoding_bitrate)
 {
   ftl_status_t ret_status = FTL_SUCCESS;
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
@@ -1747,7 +1747,7 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
       uint64_t nacks_received_total = 0;
       uint64_t frames_sent_total = 0;
       uint64_t total_rtt = 0;
-      uint64_t avg_rtt = 0;
+      float avg_rtt = 0;
       uint64_t frames_dropped_total = 0;
       uint64_t avg_frames_dropped_per_second = 0;
       float nacks_to_frames_ratio = 0;
@@ -1773,7 +1773,7 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
       {
         total_rtt += rtts_received[i];
       }
-      avg_rtt = total_rtt / MAX_STAT_SIZE;
+      avg_rtt = (float)total_rtt / (float)MAX_STAT_SIZE;
 
       for (i = 0; i < MAX_STAT_SIZE; i++)
       {
@@ -1810,7 +1810,7 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
               FTL_UPGRADE_EXCESSIVE,
               recommended_bitrate,
               current_encoding_bitrate,
-              0,
+              0.f,
               avg_rtt,
               avg_frames_dropped_per_second,
               queue_fullness
@@ -1863,7 +1863,7 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
       {
         if (get_ms_elapsed_since(&bw_upgrade_freeze_start_time) > 180000)
         {
-          uint32_t recommended_bitrate = compute_recommended_bitrate(current_encoding_bitrate, params->max_encoding_bitrate, params->min_encoding_bitrate, FTL_BANDWIDTH_AVAILABLE);
+          uint64_t recommended_bitrate = compute_recommended_bitrate(current_encoding_bitrate, params->max_encoding_bitrate, params->min_encoding_bitrate, FTL_BANDWIDTH_AVAILABLE);
           if (recommended_bitrate != current_encoding_bitrate)
           {
             attempt_to_revert_to_stable_bandwidth_first = TRUE;
@@ -1909,7 +1909,7 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
 
         // set the peak kbps for throttling
         ftl_media_component_common_t *video = &ftl->video.media_component;
-        video->peak_kbps = 5 * current_encoding_bitrate / 1000;
+        video->peak_kbps = (int)(5 * current_encoding_bitrate / 1000);
 
         // Sleep for a c_ulBitrateChangedCooldownIntervalMs period. If hBroadcastTerminated signal is received exit.
         os_semaphore_pend(&ftl->bitrate_thread_shutdown, BITRATE_CHANGED_COOLDOWN_INTERVAL_MS);

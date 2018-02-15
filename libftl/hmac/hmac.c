@@ -17,7 +17,7 @@ int hmacsha512(const char * rawKey, const unsigned char * message, const int mes
   const char * key;
   if (keyLen > SHA512_BLOCK_SIZE) {
     Sha512Initialise(&ctx);
-    Sha512Update(&ctx, (void*)rawKey, keyLen);
+    Sha512Update(&ctx, (void*)rawKey, (uint32_t)keyLen);
     Sha512Finalise(&ctx, &computedHash);
 
     key = (const char *)computedHash.bytes;
@@ -32,7 +32,7 @@ int hmacsha512(const char * rawKey, const unsigned char * message, const int mes
   memset(oKeyPad, O_KEY_PAD, SHA512_BLOCK_SIZE);
   memset(iKeyPad, I_KEY_PAD, SHA512_BLOCK_SIZE);
 
-  int i;
+  size_t i = 0;
   for(i = 0; i < keyLen; i++) {
     oKeyPad[i] ^= key[i];
     iKeyPad[i] ^= key[i];

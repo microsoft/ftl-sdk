@@ -28,10 +28,14 @@
 #include <stdint.h>
 
 #ifdef _WIN32
-#  ifdef __FTL_INTERNAL
-#    define FTL_API __declspec(dllexport)
+#  ifdef FTL_STATIC_COMPILE
+#    define FTL_API
 #  else
-#    define FTL_API __declspec(dllimport)
+#    ifdef __FTL_INTERNAL
+#      define FTL_API __declspec(dllexport)
+#    else
+#      define FTL_API __declspec(dllimport)
+#    endif
 #  endif
 #else
 #  define FTL_API

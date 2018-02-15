@@ -35,8 +35,6 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
 ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response_code);
 
 ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
-  ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
-
   int err = 0;
   SOCKET sock = 0;
   struct addrinfo hints;
@@ -138,8 +136,6 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
 
 ftl_status_t _ingest_connect(ftl_stream_configuration_private_t *ftl) {
   ftl_response_code_t response_code = FTL_INGEST_RESP_UNKNOWN;
-
-  int err = 0;
   char response[MAX_INGEST_COMMAND_LEN];
 
   if (ftl_get_state(ftl, FTL_CONNECTED)) {
@@ -315,7 +311,6 @@ ftl_status_t _ingest_disconnect(ftl_stream_configuration_private_t *ftl) {
 
 static ftl_response_code_t _ftl_get_response(ftl_stream_configuration_private_t *ftl, char *response_buf, int response_len){
   int len;
-  int resp_code = FTL_INGEST_RESP_OK;
   memset(response_buf, 0, response_len);
   len = recv_all(ftl->ingest_socket, response_buf, response_len, '\n');
 
@@ -349,7 +344,6 @@ static ftl_response_code_t _ftl_get_response(ftl_stream_configuration_private_t 
 static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t *ftl, BOOL need_response, char *response_buf, int response_len, const char *cmd_fmt, ...) {
   int resp_code = FTL_INGEST_RESP_OK;
   va_list valist;
-  double sum = 0.0;
   char *buf = NULL;
   int len;
   int buflen = MAX_INGEST_COMMAND_LEN * sizeof(char);

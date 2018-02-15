@@ -99,10 +99,10 @@ int timeval_subtract(struct timeval *result, const struct timeval *end, const st
   differenceUs = timeval_subtract_to_us(end, start);
 
   // Get the number of seconds
-  result->tv_sec = USEC_TO_SEC(differenceUs);
+  result->tv_sec = (long)USEC_TO_SEC(differenceUs);
   
   // Put the remainder NS into the second value.
-  result->tv_usec = differenceUs - SEC_TO_USEC(result->tv_sec);
+  result->tv_usec = (long)(differenceUs - SEC_TO_USEC(result->tv_sec));
 
   /* Return 1 if result is negative. */
   return differenceUs < 0;
@@ -162,15 +162,15 @@ uint64_t timeval_to_us(struct timeval *tv)
 uint64_t timeval_to_ntp(struct timeval * tv) {
   uint64_t ntpts;
 
-  ntpts = (((uint64_t)tv->tv_sec + 2208988800u) << 32) + ((uint32_t)tv->tv_usec * 4294.967296);
+  ntpts = (uint64_t)((((uint64_t)tv->tv_sec + 2208988800u) << 32) + ((uint32_t)tv->tv_usec * 4294.967296));
 
   return (ntpts);
 }
 
 void us_to_timeval(struct timeval *outputTimeVal, const int64_t inputTimeUs)
 {
-  outputTimeVal->tv_sec = USEC_TO_SEC(inputTimeUs);
-  outputTimeVal->tv_usec = inputTimeUs - SEC_TO_USEC(outputTimeVal->tv_sec);
+  outputTimeVal->tv_sec = (long)USEC_TO_SEC(inputTimeUs);
+  outputTimeVal->tv_usec = (long)(inputTimeUs - SEC_TO_USEC(outputTimeVal->tv_sec));
 }
 
 int64_t get_ms_elapsed_since(struct timeval *tv)

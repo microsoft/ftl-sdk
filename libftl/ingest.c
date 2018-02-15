@@ -53,7 +53,7 @@ static int _ping_server(const char *hostname, int port) {
 
       gettimeofday(&start, NULL);
 
-      if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, p->ai_addrlen) == SOCKET_ERROR) {
+      if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, (int)p->ai_addrlen) == SOCKET_ERROR) {
         printf("Sendto error: %s\n", get_socket_error());
         break;
       }

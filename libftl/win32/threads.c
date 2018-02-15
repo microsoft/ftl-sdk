@@ -101,7 +101,7 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
     //if the semaphore is intended to only be used by the same process and not across processes, give it unique name
     if(!is_global) {
       size_t name_len = strlen(name);
-    size_t max_name = name_len + 20;
+      size_t max_name = name_len + 20;
 
       if ((internal_name = (char*)malloc(max_name * sizeof(char))) == NULL) {
         retval = -2;
@@ -117,15 +117,13 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
       }
     }  
 
-    if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, internal_name)) == NULL){
-    char tmp[1024];
-      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0, (LPTSTR)&tmp, 1000, NULL);
+    if ( (*sem = CreateSemaphoreA(NULL, value, MAX_SEM_COUNT, (LPCSTR)internal_name)) == NULL){
       retval = -3;
       break;
     }
   }while(0);
 
-  if( internal_name != NULL ){
+  if(internal_name != NULL){
     free(internal_name);
   }
 

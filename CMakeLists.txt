@@ -3,7 +3,10 @@ enable_language(C)
 project(libftl)
 
 option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependancies" FALSE)
-MESSAGE( STATUS "FTL DISABLE_AUTO_INGEST: " ${DISABLE_AUTO_INGEST})
+MESSAGE(STATUS "FTL DISABLE_AUTO_INGEST: " ${DISABLE_AUTO_INGEST})
+
+option(DISABLE_FTL_APP "Set to TRUE to disable including the ftl app in the cmake output." FALSE)
+MESSAGE(STATUS "FTL DISABLE_FTL_APP: " ${DISABLE_FTL_APP})
 
 find_package(Threads REQUIRED)
 
@@ -90,28 +93,30 @@ if(WIN32)
   target_link_libraries(ftl ws2_32)
 endif()
 
-add_executable(ftl_app
-               ftl_app/main.c
-               ftl_app/main.h
-               ftl_app/file_parser.c
-               ftl_app/file_parser.h			   
-               ftl_app/gettimeofday.c
-               ftl_app/gettimeofday.h
-               ftl_app/bitstream.c
-               ftl_app/bitstream.h
-               ftl_app/cavlc.c
-               ftl_app/cavlc.h
-               ftl_app/decode.c
-               ftl_app/decode.h
-               ftl_app/nalu.c
-               ftl_app/nalu.h
-               ftl_app/utils.c
-               ftl_app/utils.h
-               ftl_app/dec_obj.h
-               ${FTL_PLATFORM_FILES})
+if (NOT DISABLE_FTL_APP)
+  add_executable(ftl_app
+                ftl_app/main.c
+                ftl_app/main.h
+                ftl_app/file_parser.c
+                ftl_app/file_parser.h
+                ftl_app/gettimeofday.c
+                ftl_app/gettimeofday.h
+                ftl_app/bitstream.c
+                ftl_app/bitstream.h
+                ftl_app/cavlc.c
+                ftl_app/cavlc.h
+                ftl_app/decode.c
+                ftl_app/decode.h
+                ftl_app/nalu.c
+                ftl_app/nalu.h
+                ftl_app/utils.c
+                ftl_app/utils.h
+                ftl_app/dec_obj.h
+                ${FTL_PLATFORM_FILES})
 
-target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
-target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
+  target_link_libraries(ftl_app ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${FTL_PLATFORM_LIBS})
+  target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
+endif()
 
 # Install rules
 install(TARGETS ftl DESTINATION lib)

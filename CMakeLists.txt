@@ -8,6 +8,9 @@ MESSAGE(STATUS "FTL DISABLE_AUTO_INGEST: " ${DISABLE_AUTO_INGEST})
 option(DISABLE_FTL_APP "Set to TRUE to disable including the ftl app in the cmake output." FALSE)
 MESSAGE(STATUS "FTL DISABLE_FTL_APP: " ${DISABLE_FTL_APP})
 
+option(FTL_STATIC_COMPILE "Set to TRUE if you want ftl to be compiled as a static lib. If TRUE, the program will want to statically link to the ftl cmake object." FALSE)
+MESSAGE(STATUS "FTL FTL_STATIC_COMPILE: " ${FTL_STATIC_COMPILE})
+
 find_package(Threads REQUIRED)
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -67,7 +70,15 @@ else()
   include_directories(libftl/posix)
 endif()
 
-add_library(ftl SHARED libftl/hmac/hmac.c
+# Figure out what kind of lib we should be producing.
+if(FTL_STATIC_COMPILE)
+  set(FTL_LIB_TYPE STATIC)
+  add_definitions(-DFTL_STATIC_COMPILE=1)
+else(FTL_STATIC_COMPILE)
+  set(FTL_LIB_TYPE SHARED)
+endif(FTL_STATIC_COMPILE)
+
+add_library(ftl ${FTL_LIB_TYPE} libftl/hmac/hmac.c
                        libftl/hmac/hmac.h
                        libftl/hmac/sha2.c
                        libftl/hmac/sha2.h

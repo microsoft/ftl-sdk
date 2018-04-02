@@ -321,6 +321,8 @@ FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 
 FTL_API char* ftl_status_code_to_string(ftl_status_t status);
 
+FTL_API ftl_status_t find_closest_available_ingest(const char* ingestHosts[], int ingestsCount, char* bestIngestHostComputed);
+
 FTL_API ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received, uint64_t* rtt_recorded, uint64_t* frames_dropped, float* queue_fullness);
 
 FTL_API ftl_status_t ftl_adaptive_bitrate_thread(

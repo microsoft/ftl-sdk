@@ -92,6 +92,96 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
     return 0;
 }
 
+ftl_status_t find_closest_available_ingest(const char* ingestHosts[], int ingestsCount, char* bestIngestHostComputed)
+{
+    ftl_ingest_t* ingestElements;
+    int i;
+
+    if ((ingestElements = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
+        return FTL_MALLOC_FAILURE;
+    }
+
+    for (i = 0; i < ingestsCount; i++) {
+        size_t host_len = strlen(ingestHosts[i]);
+        if ((ingestElements[i].hostname = malloc(host_len)) == NULL) {
+            free(ingestElements);
+            return FTL_MALLOC_FAILURE;
+        }
+        strcpy_s(ingestElements[i].hostname, host_len, ingestHosts[i]);
+        ingestElements[i].rtt = 1000;
+        ingestElements[i].next = NULL;
+    }
+
+    OS_THREAD_HANDLE *handles;
+    _tmp_ingest_thread_data_t *data;
+
+    ftl_ingest_t *elmt, *best = NULL;
+    struct timeval start, stop, delta;
+
+    if ((handles = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
+        free(ingestElements);
+        return FTL_MALLOC_FAILURE;
+    }
+
+    if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ingestsCount)) == NULL) {
+        free(ingestElements);
+        free(handles);
+        return FTL_MALLOC_FAILURE;
+    }
+
+    gettimeofday(&start, NULL);
+
+    /*query all the ingests about cpu and rtt*/
+    for (i = 0; i < ingestsCount; i++) {
+        handles[i] = 0;
+        data[i].ingest = &ingestElements[i];
+        data[i].ftl = NULL;
+        os_create_thread(&handles[i], NULL, _ingest_get_rtt, &data[i]);
+        sleep_ms(5); //space out the pings
+    }
+
+    /*wait for all the ingests to complete*/
+    for (i = 0; i < ingestsCount; i++) {
+
+        if (handles[i] != 0) {
+            os_wait_thread(handles[i]);
+        }
+
+        if (best == NULL || ingestElements[i].rtt < best->rtt) {
+            best = &ingestElements[i];
+        }
+    }
+
+    gettimeofday(&stop, NULL);
+    timeval_subtract(&delta, &stop, &start);
+    int ms = (int)timeval_to_ms(&delta);
+
+    for (i = 0; i < ingestsCount; i++) {
+        if (handles[i] != 0) {
+            os_destroy_thread(handles[i]);
+        }
+    }
+
+    free(handles);
+    free(data);
+
+    if (best) {
+        strcpy_s(bestIngestHostComputed, strlen(best->hostname), best->hostname);
+        for (i = 0; i < ingestsCount; i++) {
+            free(ingestElements[i].hostname);
+        }
+        free(ingestElements);
+        return FTL_SUCCESS;
+    }
+
+    for (i = 0; i < ingestsCount; i++) {
+        free(ingestElements[i].hostname);
+    }
+    free(ingestElements);
+
+    return FTL_UNKNOWN_ERROR_CODE;
+}
+
 #ifndef DISABLE_AUTO_INGEST
 OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl);
 

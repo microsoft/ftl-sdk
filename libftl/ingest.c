@@ -92,43 +92,61 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
     return 0;
 }
 
-ftl_status_t find_closest_available_ingest(const char* ingestHosts[], int ingestsCount, char* bestIngestHostComputed)
+ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int ingestsCount, char* bestIngestHostComputed)
 {
     ftl_ingest_t* ingestElements;
+    OS_THREAD_HANDLE *handles;
+    _tmp_ingest_thread_data_t *data;
+    
     int i;
 
-    if ((ingestElements = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
-        return FTL_MALLOC_FAILURE;
-    }
+    ftl_status_t ret_status = FTL_SUCCESS;
+    do {
+      if ((ingestElements = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
+        ret_status = FTL_MALLOC_FAILURE;
+        break;
+      }
 
-    for (i = 0; i < ingestsCount; i++) {
-        size_t host_len = strlen(ingestHosts[i]);
+      for (i = 0; i < ingestsCount; i++) {
+        size_t host_len = strlen(ingestHosts[i]) + 1;
         if ((ingestElements[i].hostname = malloc(host_len)) == NULL) {
-            free(ingestElements);
-            return FTL_MALLOC_FAILURE;
+          ret_status = FTL_MALLOC_FAILURE;
+          break;
         }
         strcpy_s(ingestElements[i].hostname, host_len, ingestHosts[i]);
         ingestElements[i].rtt = 1000;
         ingestElements[i].next = NULL;
+      }
+      if (ret_status != FTL_SUCCESS) {
+        break;
+      }
+
+      if ((handles = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
+        ret_status = FTL_MALLOC_FAILURE;
+        break;
+      }
+
+      if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ingestsCount)) == NULL) {
+        ret_status = FTL_MALLOC_FAILURE;
+        break;
+      }
+    } while (0);
+
+    // malloc failed, cleanup
+    if (ret_status != FTL_SUCCESS) {
+      if (ingestElements != NULL) {
+        for (i = 0; i < ingestsCount; i++) {
+          free(ingestElements[i].hostname);
+        }
+      }
+      free(ingestElements);
+      free(handles);
+      free(data);
+      return ret_status;
     }
 
-    OS_THREAD_HANDLE *handles;
-    _tmp_ingest_thread_data_t *data;
-
-    ftl_ingest_t *elmt, *best = NULL;
+    ftl_ingest_t *best = NULL;
     struct timeval start, stop, delta;
-
-    if ((handles = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
-        free(ingestElements);
-        return FTL_MALLOC_FAILURE;
-    }
-
-    if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ingestsCount)) == NULL) {
-        free(ingestElements);
-        free(handles);
-        return FTL_MALLOC_FAILURE;
-    }
-
     gettimeofday(&start, NULL);
 
     /*query all the ingests about cpu and rtt*/
@@ -166,12 +184,9 @@ ftl_status_t find_closest_available_ingest(const char* ingestHosts[], int ingest
     free(data);
 
     if (best) {
-        strcpy_s(bestIngestHostComputed, strlen(best->hostname), best->hostname);
-        for (i = 0; i < ingestsCount; i++) {
-            free(ingestElements[i].hostname);
-        }
-        free(ingestElements);
-        return FTL_SUCCESS;
+      strcpy_s(bestIngestHostComputed, strlen(best->hostname), best->hostname);
+    } else {
+      ret_status = FTL_UNKNOWN_ERROR_CODE;
     }
 
     for (i = 0; i < ingestsCount; i++) {
@@ -179,7 +194,7 @@ ftl_status_t find_closest_available_ingest(const char* ingestHosts[], int ingest
     }
     free(ingestElements);
 
-    return FTL_UNKNOWN_ERROR_CODE;
+    return ret_status;
 }
 
 #ifndef DISABLE_AUTO_INGEST

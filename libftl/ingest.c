@@ -94,10 +94,10 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
 
 ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int ingestsCount, char* bestIngestHostComputed)
 {
-    if (ingestHosts == NULL || ingestCount <= 0) {
+    if (ingestHosts == NULL || ingestsCount <= 0) {
       return FTL_UNKNOWN_ERROR_CODE;
     }
-    
+
     ftl_ingest_t* ingestElements = NULL;
     OS_THREAD_HANDLE *handles = NULL;
     _tmp_ingest_thread_data_t *data = NULL;

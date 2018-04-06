@@ -106,7 +106,7 @@ ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int in
 
     ftl_status_t ret_status = FTL_SUCCESS;
     do {
-        if ((ingestElements = malloc(sizeof(ftl_ingest_t) * ingestsCount)) == NULL) {
+        if ((ingestElements = calloc(ingestsCount, sizeof(ftl_ingest_t))) == NULL) {
             ret_status = FTL_MALLOC_FAILURE;
             break;
         }

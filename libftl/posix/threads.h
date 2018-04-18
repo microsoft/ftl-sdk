@@ -43,8 +43,9 @@ typedef void* OS_THREAD_START_ROUTINE;
 typedef void OS_THREAD_ATTRIBS; //todo implement attributes
 
 typedef struct {
-  sem_t *sem;
-  char *name;
+  pthread_mutex_t mutex;
+  pthread_cond_t cond;
+  unsigned int value;
 }OS_SEMAPHORE;
 
 int os_init();
@@ -59,7 +60,7 @@ int os_trylock_mutex(OS_MUTEX *mutex);
 int os_unlock_mutex(OS_MUTEX *mutex);
 int os_delete_mutex(OS_MUTEX *mutex);
 
-int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value, BOOL is_global);
+int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value);
 int os_semaphore_pend(OS_SEMAPHORE *sem, int ms_timeout);
 int os_semaphore_post(OS_SEMAPHORE *sem);
 int os_semaphore_delete(OS_SEMAPHORE *sem);

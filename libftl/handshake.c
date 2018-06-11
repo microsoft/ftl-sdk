@@ -63,7 +63,11 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
     return retval;
   }
   
+  // Suppressing getaddrinfo warning here, Windows prefers GetAddrInfoW,etc. but this doesn't exist on Linux
+  #pragma warning(push)
+  #pragma warning(disable:38026)
   err = getaddrinfo(ftl->ingest_hostname, ingest_port_str, &hints, &resolved_names);
+  #pragma warning(pop)
   if (err != 0) {
     FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_hostname);
     FTL_LOG(ftl, FTL_LOG_ERROR, "gai error was: %s", gai_strerror(err));
@@ -366,7 +370,7 @@ static ftl_response_code_t _ftl_send_command(ftl_stream_configuration_private_t 
 
     memset(buf, 0, buflen);
 
-    len = vsnprintf(buf, buflen, format, valist);
+    len = vsnprintf_s(buf, buflen, MAX_INGEST_COMMAND_LEN, format, valist);
 
     va_end(valist);
 

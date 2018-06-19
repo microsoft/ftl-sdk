@@ -842,7 +842,7 @@ static int _media_send_slot(ftl_stream_configuration_private_t *ftl, nack_slot_t
   int pkt_len;
 
   os_lock_mutex(&ftl->media.mutex);
-  memcpy_s(pkt, sizeof(pkt), slot->packet, slot->len);
+  memcpy_s(pkt, sizeof(pkt) * MAX_PACKET_BUFFER, slot->packet, slot->len);
   pkt_len = slot->len;
   os_unlock_mutex(&ftl->media.mutex);
 

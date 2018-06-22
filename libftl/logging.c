@@ -22,6 +22,7 @@
  * SOFTWARE.
  **/
 
+#include <stdlib.h> 
 #include "ftl.h"
 #include "ftl_private.h"
 

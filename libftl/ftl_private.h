@@ -132,7 +132,7 @@
 #define _strdup(src) strdup(src)
 #define sscanf_s sscanf
 #define memcpy_s(dst, dstsz, src, cnt) memcpy(dst, src, cnt)
-#define vsnprintf_s(buf, bufsz, cnt, fmt, __VA_ARGS__) vsnprintf(buf, cnt, fmt, __VA_ARGS__)
+#define vsnprintf_s(buf, bufsz, cnt, fmt, ...) vsnprintf(buf, cnt, fmt, __VA_ARGS__)
 #endif
 
 typedef enum {

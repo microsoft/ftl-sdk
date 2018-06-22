@@ -1539,12 +1539,10 @@ FTL_API ftl_status_t ftl_get_video_stats(
 BOOL is_bitrate_reduction_required(
   const float nacks_to_frames_ratio,
   const float avg_rtt,
-  const uint64_t avg_frames_dropped_per_second,
   const float queue_fullness)
 {
   // TODO : Improve estimation of rtt stability.
   if (nacks_to_frames_ratio > MIN_NACKS_RECEIVED_TO_PACKETS_SENT_RATIO_FOR_BITRATE_DOWNGRADE
-    || avg_frames_dropped_per_second > 3
     || avg_rtt > MIN_AVG_RTT_TO_DEEM_BW_CONSTRAINED
     || queue_fullness > MIN_QUEUE_FULLNESS_TO_DEEM_BW_CONSTRAINED
     )
@@ -1783,9 +1781,9 @@ OS_THREAD_ROUTINE adaptive_bitrate_thread(void* data)
 
       // Check if bandwidth is constrained and bitrate reduction is required. The bandwidth can be constrained for two reasons.
       // Either the available bandwidth has decreased, or we tried to upgrade the bitrate and its too excessive.
-      if (is_bitrate_reduction_required(nacks_to_frames_ratio, avg_rtt, avg_frames_dropped_per_second, queue_fullness))
+      if (is_bitrate_reduction_required(nacks_to_frames_ratio, avg_rtt, queue_fullness))
       {
-        FTL_LOG(params->handle->priv, FTL_LOG_INFO, "Bitrate reduction required. Nacks Received %d , Frames Sent %d rtt %d queue_fullness %4.2f",
+        FTL_LOG(params->handle->priv, FTL_LOG_INFO, "Bitrate reduction required. Nacks Received %ull , Frames Sent %ull rtt %4.2f queue_fullness %4.2f",
           nacks_received_total,
           frames_sent_total,
           avg_rtt,

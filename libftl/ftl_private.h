@@ -58,6 +58,8 @@
 #define SOCKET_RECV_TIMEOUT_MS 5000
 #define SOCKET_SEND_TIMEOUT_MS 1000
 #define KEEPALIVE_FREQUENCY_MS 5000
+#define KEEPALIVE_SEND_WARN_TOLERANCE_MS 1000
+#define STATUS_THREAD_SLEEP_TIME_MS 500
 #define MAX_PACKET_BUFFER 1500  //Max length of buffer
 #define MAX_MTU 1392
 #define FTL_UDP_MEDIA_PORT 8082   //legacy port
@@ -77,7 +79,7 @@
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
 #define PING_TX_INTERVAL_MS 25
-#define SENDER_REPORT_TX_INTERVAL_MS 5000
+#define SENDER_REPORT_TX_INTERVAL_MS 1000
 #define PING_PTYPE 250
 #define SENDER_REPORT_PTYPE 200
 
@@ -194,6 +196,7 @@ typedef struct {
   int first;/*first packet in frame*/
   int last; /*last packet in frame*/
   OS_MUTEX mutex;
+  BOOL isPartOfIframe;
 }nack_slot_t;
 
 typedef struct _ping_pkt_t {
@@ -202,13 +205,13 @@ typedef struct _ping_pkt_t {
 }ping_pkt_t;
 
 typedef struct _senderReport_pkt_t {
-	uint32_t header;
-	uint32_t ssrc;
-	uint32_t ntpTimestampHigh;
-	uint32_t ntpTimestampLow;
-	uint32_t rtpTimestamp;
-	uint32_t senderPacketCount;
-	uint32_t senderOctetCount;
+  uint32_t header;
+  uint32_t ssrc;
+  uint32_t ntpTimestampHigh;
+  uint32_t ntpTimestampLow;
+  uint32_t rtpTimestamp;
+  uint32_t senderPacketCount;
+  uint32_t senderOctetCount;
 }senderReport_pkt_t;
 
 typedef struct {

@@ -38,34 +38,34 @@ static int _ping_server(const char *hostname, int port) {
   
    err = getaddrinfo(hostname, port_str, &hints, &resolved_names);
   if (err != 0) {
-	  return FTL_DNS_FAILURE;
+    return FTL_DNS_FAILURE;
   }
   
   do {
-	  for (p = resolved_names; p != NULL; p = p->ai_next) {
-		  sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		  if (sock == -1) {
-			  continue;
-		  }
+    for (p = resolved_names; p != NULL; p = p->ai_next) {
+      sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+      if (sock == -1) {
+        continue;
+      }
 
-		  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
-		  set_socket_recv_timeout(sock, 500);
+      setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
+      set_socket_recv_timeout(sock, 500);
 
-		  gettimeofday(&start, NULL);
+      gettimeofday(&start, NULL);
 
-		  if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, p->ai_addrlen) == SOCKET_ERROR) {
-			  printf("Sendto error: %s\n", get_socket_error());
-			  break;
-		  }
+      if (sendto(sock, dummy, sizeof(dummy), 0, p->ai_addr, (int)p->ai_addrlen) == SOCKET_ERROR) {
+        printf("Sendto error: %s\n", get_socket_error());
+        break;
+      }
 
-		  if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
-			  break;
-		  }
+      if (recv(sock, dummy, sizeof(dummy), 0) < 0) {
+        break;
+      }
 
-		  gettimeofday(&stop, NULL);
-		  timeval_subtract(&delta, &stop, &start);
-		  retval = (int)timeval_to_ms(&delta);
-	  }
+      gettimeofday(&stop, NULL);
+      timeval_subtract(&delta, &stop, &start);
+      retval = (int)timeval_to_ms(&delta);
+    }
   } while (0);
 
   /* Free the resolved name struct */
@@ -90,6 +90,115 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
     }
 
     return 0;
+}
+
+ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int ingestsCount, char* bestIngestHostComputed)
+{
+    if (ingestHosts == NULL || ingestsCount <= 0) {
+      return FTL_UNKNOWN_ERROR_CODE;
+    }
+
+    ftl_ingest_t* ingestElements = NULL;
+    OS_THREAD_HANDLE *handles = NULL;
+    _tmp_ingest_thread_data_t *data = NULL;
+    
+    int i;
+
+    ftl_status_t ret_status = FTL_SUCCESS;
+    do {
+        if ((ingestElements = calloc(ingestsCount, sizeof(ftl_ingest_t))) == NULL) {
+            ret_status = FTL_MALLOC_FAILURE;
+            break;
+        }
+
+        for (i = 0; i < ingestsCount; i++) {
+            size_t host_len = strlen(ingestHosts[i]) + 1;
+            if ((ingestElements[i].hostname = malloc(host_len)) == NULL) {
+                ret_status = FTL_MALLOC_FAILURE;
+                break;
+            }
+            strcpy_s(ingestElements[i].hostname, host_len, ingestHosts[i]);
+            ingestElements[i].rtt = 1000;
+            ingestElements[i].next = NULL;
+        }
+        if (ret_status != FTL_SUCCESS) {
+            break;
+        }
+
+        if ((handles = (OS_THREAD_HANDLE *)malloc(sizeof(OS_THREAD_HANDLE) * ingestsCount)) == NULL) {
+            ret_status = FTL_MALLOC_FAILURE;
+            break;
+        }
+
+        if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ingestsCount)) == NULL) {
+            ret_status = FTL_MALLOC_FAILURE;
+            break;
+        }
+    } while (0);
+
+    // malloc failed, cleanup
+    if (ret_status != FTL_SUCCESS) {
+        if (ingestElements != NULL) {
+            for (i = 0; i < ingestsCount; i++) {
+              free(ingestElements[i].hostname);
+            }
+        }
+        free(ingestElements);
+        free(handles);
+        free(data);
+        return ret_status;
+    }
+
+    ftl_ingest_t *best = NULL;
+    struct timeval start, stop, delta;
+    gettimeofday(&start, NULL);
+
+    /*query all the ingests about cpu and rtt*/
+    for (i = 0; i < ingestsCount; i++) {
+        handles[i] = 0;
+        data[i].ingest = &ingestElements[i];
+        data[i].ftl = NULL;
+        os_create_thread(&handles[i], NULL, _ingest_get_rtt, &data[i]);
+        sleep_ms(5); //space out the pings
+    }
+
+    /*wait for all the ingests to complete*/
+    for (i = 0; i < ingestsCount; i++) {
+
+        if (handles[i] != 0) {
+            os_wait_thread(handles[i]);
+        }
+
+        if (best == NULL || ingestElements[i].rtt < best->rtt) {
+            best = &ingestElements[i];
+        }
+    }
+
+    gettimeofday(&stop, NULL);
+    timeval_subtract(&delta, &stop, &start);
+    int ms = (int)timeval_to_ms(&delta);
+
+    for (i = 0; i < ingestsCount; i++) {
+        if (handles[i] != 0) {
+            os_destroy_thread(handles[i]);
+        }
+    }
+
+    free(handles);
+    free(data);
+
+    if (best) {
+        strcpy_s(bestIngestHostComputed, strlen(best->hostname), best->hostname);
+    } else {
+        ret_status = FTL_UNKNOWN_ERROR_CODE;
+    }
+
+    for (i = 0; i < ingestsCount; i++) {
+        free(ingestElements[i].hostname);
+    }
+    free(ingestElements);
+
+    return ret_status;
 }
 
 #ifndef DISABLE_AUTO_INGEST
@@ -157,9 +266,9 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
   for (i = 0; i < size; i++) {
     char *name = NULL, *ip=NULL, *hostname=NULL;
     ingest_item = json_array_get(ingests, i);
-	if (json_unpack(ingest_item, "{s:s, s:s, s:s}", "name", &name, "ip", &ip, "hostname", &hostname) < 0) {
-		continue;
-	}
+  if (json_unpack(ingest_item, "{s:s, s:s, s:s}", "name", &name, "ip", &ip, "hostname", &hostname) < 0) {
+    continue;
+  }
 
     ftl_ingest_t *ingest_elmt;
 
@@ -167,9 +276,9 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
       goto cleanup;
     }
 
-	ingest_elmt->name = _strdup(name);
-	ingest_elmt->ip = _strdup(ip);
-	ingest_elmt->hostname = _strdup(hostname);
+  ingest_elmt->name = _strdup(name);
+  ingest_elmt->ip = _strdup(ip);
+  ingest_elmt->hostname = _strdup(hostname);
 
     ingest_elmt->rtt = 500;
 
@@ -214,9 +323,9 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
   while (ftl->ingest_list != NULL) {
     elmt = ftl->ingest_list;
     ftl->ingest_list = elmt->next;
-	free(elmt->hostname);
-	free(elmt->ip);
-	free(elmt->name);
+  free(elmt->hostname);
+  free(elmt->ip);
+  free(elmt->name);
     free(elmt);
   }
 

@@ -22,6 +22,7 @@
 * SOFTWARE.
 **/
 
+#include <stdlib.h>
 #include "threads.h"
 
 int os_init(){
@@ -108,15 +109,13 @@ int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned
 
     sprintf_s(internal_name, max_name, "%s_%d", name, (unsigned int)rand());
 
-    if ( (*sem = CreateSemaphore(NULL, value, MAX_SEM_COUNT, internal_name)) == NULL){
-	  char tmp[1024];
-      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), 0, (LPTSTR)&tmp, 1000, NULL);
+    if ( (*sem = CreateSemaphoreA(NULL, value, MAX_SEM_COUNT, (LPCSTR)internal_name)) == NULL){
       retval = -3;
       break;
     }
   }while(0);
 
-  if( internal_name != NULL ){
+  if(internal_name != NULL){
     free(internal_name);
   }
 

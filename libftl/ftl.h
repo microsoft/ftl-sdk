@@ -28,10 +28,14 @@
 #include <stdint.h>
 
 #ifdef _WIN32
-#  ifdef __FTL_INTERNAL
-#    define FTL_API __declspec(dllexport)
+#  ifdef FTL_STATIC_COMPILE
+#    define FTL_API
 #  else
-#    define FTL_API __declspec(dllimport)
+#    ifdef __FTL_INTERNAL
+#      define FTL_API __declspec(dllexport)
+#    else
+#      define FTL_API __declspec(dllimport)
+#    endif
 #  endif
 #else
 #  define FTL_API
@@ -316,6 +320,8 @@ FTL_API ftl_status_t ftl_ingest_disconnect(ftl_handle_t *ftl_handle);
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle);
 
 FTL_API char* ftl_status_code_to_string(ftl_status_t status);
+
+FTL_API ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int ingestsCount, char* bestIngestHostComputed);
 
 FTL_API ftl_status_t ftl_get_video_stats(ftl_handle_t* handle, uint64_t* frames_sent, uint64_t* nacks_received, uint64_t* rtt_recorded, uint64_t* frames_dropped, float* queue_fullness);
 

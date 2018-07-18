@@ -12,7 +12,7 @@ static int _lookup_ingest_ip(const char *ingest_location, char *ingest_ip);
 char error_message[1000];
 FTL_API const int FTL_VERSION_MAJOR = 0;
 FTL_API const int FTL_VERSION_MINOR = 9;
-FTL_API const int FTL_VERSION_MAINTENANCE = 10;
+FTL_API const int FTL_VERSION_MAINTENANCE = 13;
 
 // Initializes all sublibraries used by FTL
 FTL_API ftl_status_t ftl_init() {
@@ -123,14 +123,16 @@ FTL_API ftl_status_t ftl_ingest_connect(ftl_handle_t *ftl_handle){
     return status;
   } while (0);
 
-  internal_ingest_disconnect(ftl);
+  if (os_trylock_mutex(&ftl->disconnect_mutex)) {
+    internal_ingest_disconnect(ftl);
+    os_unlock_mutex(&ftl->disconnect_mutex);
+  }
   
   return status;
 }
 
 FTL_API ftl_status_t ftl_ingest_get_status(ftl_handle_t *ftl_handle, ftl_status_msg_t *msg, int ms_timeout) {
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
-  ftl_status_t status = FTL_SUCCESS;
 
   if (ftl == NULL) {
     return FTL_NOT_INITIALIZED;
@@ -206,7 +208,7 @@ FTL_API int ftl_ingest_send_media_dts(ftl_handle_t *ftl_handle, ftl_media_type_t
 FTL_API int ftl_ingest_send_media(ftl_handle_t *ftl_handle, ftl_media_type_t media_type, uint8_t *data, int32_t len, int end_of_frame) {
 
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
-  int64_t dts_increment_usec, dts_usec;
+  int64_t dts_increment_usec, dts_usec = 0;
 
   if (media_type == FTL_AUDIO_DATA) {
     dts_usec = ftl->audio.dts_usec;
@@ -321,9 +323,9 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
       free(ftl->ingest_hostname);
     }
 
-	if (ftl->param_ingest_hostname != NULL) {
-		free(ftl->param_ingest_hostname);
-	}
+  if (ftl->param_ingest_hostname != NULL) {
+    free(ftl->param_ingest_hostname);
+  }
 
     free(ftl);
   }
@@ -333,14 +335,13 @@ ftl_status_t internal_ftl_ingest_destroy(ftl_stream_configuration_private_t *ftl
 
 FTL_API ftl_status_t ftl_ingest_destroy(ftl_handle_t *ftl_handle){
   ftl_stream_configuration_private_t *ftl = (ftl_stream_configuration_private_t *)ftl_handle->priv;
-  ftl_status_t status = FTL_SUCCESS;
 
   ftl_handle->priv = NULL;
 
   return internal_ftl_ingest_destroy(ftl);
 }
 
-char* ftl_status_code_to_string(ftl_status_t status) {
+FTL_API char* ftl_status_code_to_string(ftl_status_t status) {
 
   switch (status) {
   case FTL_SUCCESS:
@@ -415,8 +416,7 @@ char* ftl_status_code_to_string(ftl_status_t status) {
 }
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
-  size_t len;
-  int i;
+  size_t len, i = 0;
   
   len = strlen(stream_key);
   for (i = 0; i != len; i++) {

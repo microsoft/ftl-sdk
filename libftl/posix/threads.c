@@ -66,116 +66,78 @@ int os_delete_mutex(OS_MUTEX *mutex) {
   return 0;
 }
 
-int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value, BOOL is_global) {
+int os_semaphore_create(OS_SEMAPHORE *sem, const char *name, int oflag, unsigned int value) {
 
   int retval = 0;
 
-  sem->name = NULL;
-  sem->sem = NULL;
+  if (pthread_mutex_init(&sem->mutex, NULL))
+    return -2;
 
-  do {
-    if (name == NULL || name[0] != '/') {
-      retval = -1;
-      break;
-    }
-
-    //if the semaphore is intended to only be used by the same process and not across processes, give it unique name
-    if(!is_global) {
-      int name_len = strlen(name);
-
-      if ((sem->name = (char*)malloc( (name_len + 20) * sizeof(char))) == NULL) {
-        retval = -2;
-        break;
-      }
-
-      sprintf(sem->name, "%s_%d", name, (unsigned int)rand());
-    }
-    else {
-      if ((sem->name = strdup(name)) == NULL) {
-        return -2;
-      }
-    }
-
-#ifdef __ANDROID__
-    if ((sem->sem = (sem_t*)malloc(sizeof(sem_t))) == NULL) {
-      retval = -4;
-      break;
-    }
-
-    if (sem_init(sem->sem, 0 /* pshared */, 0 /* value */)) {
-#else
-    if ((sem->sem = sem_open(sem->name, oflag, 0644, value)) == SEM_FAILED) {
-#endif
-      retval = -3;
-      break;
-    }
-
-    return retval;
-  }while(0);
-
-  if(sem->name != NULL){
-    free(sem->name);
+  if (pthread_cond_init(&sem->cond, NULL)) {
+    pthread_mutex_destroy(&sem->mutex);
+    return -3;
   }
 
-  if(sem->sem != NULL){
-    free(sem->sem);
-  }
+  sem->value = value;
 
-  return retval;
+  return 0;
 }
 
 int os_semaphore_pend(OS_SEMAPHORE *sem, int ms_timeout) {
 
-  if (ms_timeout < 0) {
-    return sem_wait(sem->sem);
-  }
-  else {
-#ifdef __APPLE__
-    int sleep_interval = 50;
-    int retval;
-    //TODO find a better solution
-    /*OSX doesnt have a timedwait so this is an ugly polling solution since this SDK doesnt currently use timedwait for performance critical things*/
-    while (ms_timeout > 0) {
-      if ((retval = sem_trywait(sem->sem)) == 0) {
-        break;
+  int retval = 0;
+
+  if (pthread_mutex_lock(&sem->mutex))
+    return -1;
+
+  while (1) {
+    if (sem->value > 0) {
+      sem->value--;
+      break;
+    } else {
+      if (ms_timeout < 0) {
+        if (pthread_cond_wait(&sem->cond, &sem->mutex)) {
+          retval = -2;
+          break;
+        }
+      } else {
+        struct timespec ts;
+        if (clock_gettime(CLOCK_REALTIME, &ts)) {
+          retval = -3;
+          break;
+        }
+        timespec_add_ms(&ts, ms_timeout);
+        if (pthread_cond_timedwait(&sem->cond, &sem->mutex, &ts)) {
+          retval = -4;
+          break;
+        }
       }
-      sleep_ms(sleep_interval);
-      ms_timeout -= sleep_interval;
+      continue;
     }
-
-    return retval;
-#else
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    timespec_add_ms(&ts, ms_timeout);
-    return sem_timedwait(sem->sem, &ts);
-
-#endif
   }
+
+  pthread_mutex_unlock(&sem->mutex);
+  return retval;
 }
 
 int os_semaphore_post(OS_SEMAPHORE *sem) {
-  return sem_post(sem->sem);
+  int retval = 0;
+
+  if (pthread_mutex_lock(&sem->mutex))
+    return -1;
+
+  sem->value++;
+  if (pthread_cond_broadcast(&sem->cond))
+    retval = -2;
+
+  pthread_mutex_unlock(&sem->mutex);
+  return retval;
 }
 
 int os_semaphore_delete(OS_SEMAPHORE *sem) {
-  
-  int retval = 0;
-
-#ifdef __ANDROID__
-  retval = sem_destroy(sem->sem);
-  free(sem->sem);
-
-#else
-  if ( (retval = sem_close(sem->sem)) == 0) {
-    
-    retval = sem_unlink(sem->name);
-  }
-#endif
-
-  free(sem->name);
-
-  return retval;
+  pthread_mutex_destroy(&sem->mutex);
+  pthread_cond_destroy(&sem->cond);
+  return 0;
 }
 
 void sleep_ms(int ms)

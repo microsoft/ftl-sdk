@@ -1619,7 +1619,7 @@ FTL_API ftl_status_t ftl_adaptive_bitrate_thread(ftl_handle_t* ftl_handle, void*
       break;
     }
 
-    memset(thread_params, 0, sizeof(thread_params));
+    memset(thread_params, 0, sizeof(ftl_adaptive_bitrate_thread_params_t));
 
     thread_params->handle = ftl_handle;
     thread_params->change_bitrate_callback = change_bitrate_callback;

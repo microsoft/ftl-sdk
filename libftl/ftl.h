@@ -27,6 +27,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef _WIN32
 #  ifdef FTL_STATIC_COMPILE
 #    define FTL_API
@@ -142,15 +146,15 @@ typedef void(*ftl_logging_function_t)(ftl_log_severity_t log_level, const char *
 typedef void(*ftl_status_function_t)(ftl_connection_status_t status);
 
 typedef struct {
-  char *ingest_hostname;
-  char *stream_key;
+  char const *ingest_hostname;
+  char const *stream_key;
   ftl_video_codec_t video_codec;
   ftl_audio_codec_t audio_codec;
   int peak_kbps; //used for the leaky bucket to smooth out packet flow rate, set to 0 to bypass
   int fps_num;
   int fps_den;
-  char *vendor_name;
-  char *vendor_version;
+  char const *vendor_name;
+  char const *vendor_version;
 } ftl_ingest_params_t;
 
 typedef struct {
@@ -334,5 +338,8 @@ FTL_API ftl_status_t ftl_adaptive_bitrate_thread(
     uint64_t max_encoding_bitrate
 );
 
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // __FTL_H

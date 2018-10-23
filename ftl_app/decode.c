@@ -20,6 +20,7 @@ h264_dec_obj_t * H264_Decode_Open()
 	
 	if ((obj->nalu_buf = malloc(10000000)) == NULL)
 	{
+		free(obj);
 		return NULL;
 	}
 

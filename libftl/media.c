@@ -1012,8 +1012,6 @@ static int _media_make_video_rtp_packet(ftl_stream_configuration_private_t *ftl,
 }
 
 static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl, uint8_t *in, int in_len, uint8_t *out, int *out_len) {
-  int payload_len = in_len;
-
   ftl_audio_component_t *audio = &ftl->audio;
   ftl_media_component_common_t *mc = &audio->media_component;
 
@@ -1027,11 +1025,16 @@ static int _media_make_audio_rtp_packet(ftl_stream_configuration_private_t *ftl,
 
   mc->seq_num++;
 
+  int payload_len = in_len;
+  int left_len = (*out_len - rtp_hdr_len);
+  if (in_len > left_len) {
+    payload_len = left_len;
+  }
+
+  *out_len = payload_len + rtp_hdr_len;
   memcpy(out, in, payload_len);
 
-  *out_len = payload_len + RTP_HEADER_BASE_LEN;
-
-  return in_len;
+  return payload_len;
 }
 
 static int _media_set_marker_bit(ftl_media_component_common_t *mc, uint8_t *in) {

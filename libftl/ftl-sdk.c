@@ -418,13 +418,17 @@ FTL_API char* ftl_status_code_to_string(ftl_status_t status) {
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
   size_t len, i = 0;
 
+  if (stream_key == null) {
+    return FALSE;
+  }
+
   char * copy_of_key = _strdup(stream_key);
 
   len = strlen(stream_key);
 
   // Restream.io stream keys start with 're_' and 3 first letters should be skipped
   char *restream_stream_key_marker = "re_";
-  if (strncmp(stream_key, restream_stream_key_marker, strlen(restream_stream_key_marker)) == 0) {
+  if (len >= 3 && strncmp(stream_key, restream_stream_key_marker, strlen(restream_stream_key_marker)) == 0) {
     for (i = 0; i < len - 3; i++) {
       copy_of_key[i] = copy_of_key[i + 3];
     }

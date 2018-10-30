@@ -437,7 +437,6 @@ BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) 
 
     len = strlen(copy_of_key);
   }
-  free(restream_stream_key_marker);
 
   for (i = 0; i != len; i++) {
     if (copy_of_key[i] == '-' || copy_of_key[i] == ',' || copy_of_key[i] == '_') {

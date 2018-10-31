@@ -338,6 +338,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
   }
 
   if ((data = (_tmp_ingest_thread_data_t *)malloc(sizeof(_tmp_ingest_thread_data_t) * ftl->ingest_count)) == NULL) {
+    free(handle);
     return NULL;
   }
 

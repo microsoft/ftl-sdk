@@ -40,6 +40,7 @@ int init_video(h264_obj_t *handle, const char *video_file) {
   if ((nalu->buf = malloc(10000000)) == NULL)
   {
 	  printf("Failed to allocate memory for bitstream\n");
+	  free(nalu);
 	  return -1;
   }
 
@@ -54,6 +55,7 @@ int init_video(h264_obj_t *handle, const char *video_file) {
   if ((nalu->buf = malloc(10000000)) == NULL)
   {
 	  printf("Failed to allocate memory for bitstream\n");
+	  free(nalu);
 	  return -1;
   }
 

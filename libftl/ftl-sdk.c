@@ -417,25 +417,43 @@ FTL_API char* ftl_status_code_to_string(ftl_status_t status) {
 
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
   size_t len, i = 0;
-  
+
+  if (stream_key == NULL) {
+    return FALSE;
+  }
+
+  char * copy_of_key = _strdup(stream_key);
+
   len = strlen(stream_key);
+
+  // Restream.io stream keys start with 're_' and 3 first letters should be skipped
+  char *restream_stream_key_marker = "re_";
+  if (len >= 3 && strncmp(stream_key, restream_stream_key_marker, strlen(restream_stream_key_marker)) == 0) {
+    for (i = 0; i < len - 3; i++) {
+      copy_of_key[i] = copy_of_key[i + 3];
+    }
+
+    copy_of_key[i] = '\0';
+
+    len = strlen(copy_of_key);
+  }
+
   for (i = 0; i != len; i++) {
-    /* find the comma that divides the stream key */
-    if (stream_key[i] == '-' || stream_key[i] == ',') {
+    if (copy_of_key[i] == '-' || copy_of_key[i] == ',' || copy_of_key[i] == '_') {
       /* stream key gets copied */
-      strcpy_s(key, MAX_KEY_LEN, stream_key+i+1);
+      strcpy_s(key, MAX_KEY_LEN, copy_of_key+i+1);
 
       /* Now get the channel id */
-      char * copy_of_key = _strdup(stream_key);
       copy_of_key[i] = '\0';
       *chan_id = atol(copy_of_key);
-      free(copy_of_key);
 
+      free(copy_of_key);
       return TRUE;
     }
   }
 
-    return FALSE;
+  free(copy_of_key);
+  return FALSE;
 }
 
 

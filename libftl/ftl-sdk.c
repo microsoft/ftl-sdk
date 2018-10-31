@@ -418,7 +418,7 @@ FTL_API char* ftl_status_code_to_string(ftl_status_t status) {
 BOOL _get_chan_id_and_key(const char *stream_key, uint32_t *chan_id, char *key) {
   size_t len, i = 0;
 
-  if (stream_key == null) {
+  if (stream_key == NULL) {
     return FALSE;
   }
 

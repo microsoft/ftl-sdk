@@ -36,7 +36,12 @@ static int _ping_server(const char *hostname, int port) {
 
   snprintf(port_str, 10, "%d", port);
   
+  // Suppressing getaddrinfo warning here, Windows prefers GetAddrInfoW,etc. but this doesn't exist on Linux
+  #pragma warning(push)
+  #pragma warning(disable:38026)
    err = getaddrinfo(hostname, port_str, &hints, &resolved_names);
+  #pragma warning(pop)
+
   if (err != 0) {
     return FTL_DNS_FAILURE;
   }

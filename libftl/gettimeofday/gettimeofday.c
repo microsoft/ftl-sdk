@@ -44,7 +44,6 @@
 #define SEC_TO_NSEC(x) (((uint64_t)x) * NSEC_IN_SEC)
 
 #ifdef _WIN32
-#include <Windows.h>
 
 /* FILETIME of Jan 1 1970 00:00:00. */
 static const unsigned __int64 epoch = ((unsigned __int64)116444736000000000ULL);

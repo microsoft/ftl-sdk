@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 2.8.0)
 enable_language(C)
 project(libftl)
 
+SET(FTL_VERSION "0.5.0")
+
 option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependancies" FALSE)
 MESSAGE(STATUS "FTL DISABLE_AUTO_INGEST: " ${DISABLE_AUTO_INGEST})
 
@@ -100,7 +102,7 @@ add_library(ftl ${FTL_LIB_TYPE} libftl/hmac/hmac.c
                        ${FTLSDK_PLATFORM_FILES})
 include_directories(libftl libftl/gettimeofday)
 
-set_target_properties(ftl PROPERTIES VERSION "0.5.0")
+set_target_properties(ftl PROPERTIES VERSION ${FTL_VERSION})
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 target_link_libraries(ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES})
@@ -134,6 +136,11 @@ if (NOT DISABLE_FTL_APP)
   target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 endif()
 
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libftl.pc.in
+               ${CMAKE_CURRENT_BINARY_DIR}/libftl.pc @ONLY)
+
 # Install rules
 install(TARGETS ftl DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES libftl/ftl.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libftl)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libftl.pc
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

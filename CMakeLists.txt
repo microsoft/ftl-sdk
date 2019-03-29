@@ -11,6 +11,7 @@ MESSAGE(STATUS "FTL DISABLE_FTL_APP: " ${DISABLE_FTL_APP})
 option(FTL_STATIC_COMPILE "Set to TRUE if you want ftl to be compiled as a static lib. If TRUE, the program will want to statically link to the ftl cmake object." FALSE)
 MESSAGE(STATUS "FTL FTL_STATIC_COMPILE: " ${FTL_STATIC_COMPILE})
 
+include(GNUInstallDirs)
 find_package(Threads REQUIRED)
 find_package(PkgConfig)
 
@@ -134,4 +135,5 @@ if (NOT DISABLE_FTL_APP)
 endif()
 
 # Install rules
-install(TARGETS ftl DESTINATION lib)
+install(TARGETS ftl DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES libftl/ftl.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libftl)

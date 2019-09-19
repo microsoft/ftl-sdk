@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.8.0)
 enable_language(C)
 project(libftl)
 
-option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependancies" FALSE)
+option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependencies" FALSE)
 MESSAGE(STATUS "FTL DISABLE_AUTO_INGEST: " ${DISABLE_AUTO_INGEST})
 
 option(DISABLE_FTL_APP "Set to TRUE to disable including the ftl app in the cmake output." FALSE)

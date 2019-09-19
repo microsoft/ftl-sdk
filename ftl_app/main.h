@@ -33,7 +33,7 @@
  * header definitions without it as the winsock 1.1 API is in windows.h vs
  * ws2_32.h.
  *
- * Yay for backwards source compatability
+ * Yay for backwards source compatibility
  **/
 
 #define WIN32_LEAN_AND_MEAN 1

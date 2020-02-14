@@ -1,0 +1,16 @@
+#!/bin/bash
+set -ue
+
+: "${DOCKER_TAG:=ftl-sdk}"
+
+main () {
+  echo "running linter"
+
+  local lint_script;
+  lint_script="$(dirname "$(realpath -s "$0")")/lint"
+  "${lint_script}"
+
+}
+
+main
+

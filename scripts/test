@@ -1,0 +1,95 @@
+#!/bin/bash
+set -ue
+
+fail () {
+  local error_message="$1"
+  local exit_code=$2
+  echo "$error_message" >&2
+  exit "$exit_code"
+}
+
+check_dependency () {
+  local cmd="$1"
+  command -v "$cmd" > /dev/null || fail "please install $cmd" 2
+}
+
+check_dependencies () {
+  check_dependency 'curl' \
+    && check_dependency 'jq'
+}
+
+check_ingest () {
+  local ingest="$1"
+  [ "$ingest" = 'auto' ] \
+    || ping -c 1 "$ingest" \
+    || fail "failed to ping ingest '${ingest}'" 5
+}
+
+channel_online_status () {
+  local channel="$1"
+  curl -sL "https://mixer.com/api/v1/channels/${channel}" \
+    | jq .online \
+    | grep -E '(true)|(false)'
+}
+
+channel_online () {
+  local channel="$1"
+  channel_online_status "$channel" | grep -q 'true' && echo "${channel} online!"
+}
+
+channel_offline () {
+  local channel="$1"
+  channel_online_status "$channel" | grep -q 'false' && echo "${channel} offline!"
+}
+
+main () {
+  check_dependencies
+  check_ingest "$INGEST"
+
+  local max_wait=300
+  local sleep_duration=5
+  local i=0
+  echo "wait for channel ${CHANNEL:?} to go offline"
+  until channel_offline "$CHANNEL"; do
+    echo .
+    sleep $sleep_duration
+    (( i += sleep_duration ))
+    if [ "$i" -gt $max_wait ]; then
+      echo "channel ${CHANNEL} still online after ${max_wait} sec."
+      echo "exiting."
+      exit 42
+    fi
+  done
+
+  echo "starting stream"
+
+  export MIXER_STREAMER_KEY
+  export INGEST
+  export FPS
+
+  ./start-stream &
+  local pid="$!"
+
+  local j=0
+  echo "wait for channel ${CHANNEL} to come online"
+  until channel_online "$CHANNEL"; do
+    echo .
+    sleep $sleep_duration
+    (( j += sleep_duration ))
+    if [ "$j" -gt $max_wait ]; then
+      echo "channel ${CHANNEL} still offline after ${max_wait} sec."
+      echo "exiting."
+      exit 43
+    fi
+
+    ps -p "$pid" > /dev/null \
+      || fail "ftl_app (pid ${pid}) exited unexpectedly. exiting" 44
+  done
+
+  echo "channel ${CHANNEL} is online!"
+
+  kill -INT "$pid"
+  wait "$pid"
+}
+
+main

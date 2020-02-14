@@ -36,11 +36,11 @@ static int _ping_server(const char *hostname, int port) {
 
   snprintf(port_str, 10, "%d", port);
   
-   err = getaddrinfo(hostname, port_str, &hints, &resolved_names);
+  err = getaddrinfo(hostname, port_str, &hints, &resolved_names);
   if (err != 0) {
     return FTL_DNS_FAILURE;
   }
-  
+
   do {
     for (p = resolved_names; p != NULL; p = p->ai_next) {
       sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
@@ -70,10 +70,10 @@ static int _ping_server(const char *hostname, int port) {
 
   /* Free the resolved name struct */
   freeaddrinfo(resolved_names);
-
+  
   shutdown_socket(sock, SD_BOTH);
   close_socket(sock);
-
+  
   return retval;
 }
 
@@ -82,10 +82,10 @@ OS_THREAD_ROUTINE _ingest_get_rtt(void *data) {
     ftl_stream_configuration_private_t *ftl = thread_data->ftl;
     ftl_ingest_t *ingest = thread_data->ingest;
     int ping;
-
+    
     ingest->rtt = 1000;
-
-    if ((ping = _ping_server(ingest->hostname, INGEST_PING_PORT)) >= 0) {
+    
+    if ((ping = _ping_server(ingest->name, INGEST_PING_PORT)) >= 0) {
         ingest->rtt = ping;
     }
 
@@ -113,11 +113,11 @@ ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int in
 
         for (i = 0; i < ingestsCount; i++) {
             size_t host_len = strlen(ingestHosts[i]) + 1;
-            if ((ingestElements[i].hostname = malloc(host_len)) == NULL) {
+            if ((ingestElements[i].name = malloc(host_len)) == NULL) {
                 ret_status = FTL_MALLOC_FAILURE;
                 break;
             }
-            strcpy_s(ingestElements[i].hostname, host_len, ingestHosts[i]);
+            strcpy_s(ingestElements[i].name, host_len, ingestHosts[i]);
             ingestElements[i].rtt = 1000;
             ingestElements[i].next = NULL;
         }
@@ -140,7 +140,7 @@ ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int in
     if (ret_status != FTL_SUCCESS) {
         if (ingestElements != NULL) {
             for (i = 0; i < ingestsCount; i++) {
-              free(ingestElements[i].hostname);
+              free(ingestElements[i].name);
             }
         }
         free(ingestElements);
@@ -188,13 +188,13 @@ ftl_status_t ftl_find_closest_available_ingest(const char* ingestHosts[], int in
     free(data);
 
     if (best) {
-        strcpy_s(bestIngestHostComputed, strlen(best->hostname), best->hostname);
+        strcpy_s(bestIngestHostComputed, strlen(best->name), best->name);
     } else {
         ret_status = FTL_UNKNOWN_ERROR_CODE;
     }
 
     for (i = 0; i < ingestsCount; i++) {
-        free(ingestElements[i].hostname);
+        free(ingestElements[i].name);
     }
     free(ingestElements);
 
@@ -231,20 +231,49 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
   size_t i = 0;
   int total_ingest_cnt = 0;
   json_error_t error;
-  json_t *ingests = NULL, *ingest_item = NULL;
+  json_t *ingests = NULL, *ingest_item = NULL, *ingest_array = NULL;
 
   curl_handle = curl_easy_init();
 
   chunk.memory = malloc(1);  /* will be grown as needed by realloc */
   chunk.size = 0;    /* no data at this point */
+  char ingestBestUrl[1024], vendorName[100], vendorVersion[100], ftlSdkVersion[20];
+  struct curl_slist *list = NULL;
 
-  curl_easy_setopt(curl_handle, CURLOPT_URL, INGEST_LIST_URI);
+  int formatUri = snprintf(ingestBestUrl, sizeof(ingestBestUrl), INGEST_LIST_URI, ftl->channel_id);
+  
+  curl_easy_setopt(curl_handle, CURLOPT_URL, ingestBestUrl);
+
+  int formatVendorName = snprintf(vendorName, sizeof(vendorName), "MS-ClientId: %s", ftl->vendor_name);
+  int formatVendorVersion = snprintf(vendorVersion, sizeof(vendorVersion), "MS-ClientVersion: %s", ftl->vendor_version);
+  int formatFtlSdkVersion = snprintf(ftlSdkVersion, sizeof(ftlSdkVersion), "ftlsdk/%d.%d.%d", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
+  
+  if (formatVendorName > 0) {
+    list = curl_slist_append(list, vendorName);
+  }
+
+  if (formatVendorVersion > 0) {
+    list = curl_slist_append(list, vendorVersion);
+  }
+
+  if (list != NULL) {
+    curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, list);
+  }
+
   curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, TRUE);
   curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2L);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, _curl_write_callback);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
-  curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/1.0");
 
+  if (formatFtlSdkVersion > 0) {
+    curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, ftlSdkVersion);
+  }
+  else {
+    curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "ftlsdk/0.10.0");
+  }
+
+  curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
+  
 #if LIBCURL_VERSION_NUM >= 0x072400
   // A lot of servers don't yet support ALPN
   curl_easy_setopt(curl_handle, CURLOPT_SSL_ENABLE_ALPN, 0);
@@ -261,14 +290,16 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
     goto cleanup;
   }
   
-  size_t size = json_array_size(ingests);
-
+  ingest_array = json_object_get(ingests, "ingests");
+  
+  size_t size = json_array_size(ingest_array);
+  
   for (i = 0; i < size; i++) {
-    char *name = NULL, *ip=NULL, *hostname=NULL;
-    ingest_item = json_array_get(ingests, i);
-  if (json_unpack(ingest_item, "{s:s, s:s, s:s}", "name", &name, "ip", &ip, "hostname", &hostname) < 0) {
-    continue;
-  }
+    char *name = NULL;
+    ingest_item = json_array_get(ingest_array, i);    
+    if (json_unpack(ingest_item, "{s:s}", "name", &name) < 0) {
+        continue;
+    }
 
     ftl_ingest_t *ingest_elmt;
 
@@ -276,12 +307,8 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
       goto cleanup;
     }
 
-  ingest_elmt->name = _strdup(name);
-  ingest_elmt->ip = _strdup(ip);
-  ingest_elmt->hostname = _strdup(hostname);
-
+    ingest_elmt->name = _strdup(name);
     ingest_elmt->rtt = 500;
-
     ingest_elmt->next = NULL;
 
     if (ftl->ingest_list == NULL) {
@@ -297,7 +324,7 @@ OS_THREAD_ROUTINE _ingest_get_hosts(ftl_stream_configuration_private_t *ftl) {
     }
 
     total_ingest_cnt++;
-  }
+ }
 
 cleanup:
   free(chunk.memory);
@@ -305,9 +332,9 @@ cleanup:
   if (ingests != NULL) {
     json_decref(ingests);
   }
-
+  
   ftl->ingest_count = total_ingest_cnt;
-
+  
   return total_ingest_cnt;
 }
 
@@ -323,9 +350,7 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
   while (ftl->ingest_list != NULL) {
     elmt = ftl->ingest_list;
     ftl->ingest_list = elmt->next;
-  free(elmt->hostname);
-  free(elmt->ip);
-  free(elmt->name);
+    free(elmt->name);
     free(elmt);
   }
 
@@ -383,15 +408,14 @@ char * ingest_find_best(ftl_stream_configuration_private_t *ftl) {
 
     elmt = elmt->next;
   }
-
+  
   free(handle);
   free(data);
 
   if (best){
-    FTL_LOG(ftl, FTL_LOG_INFO, "%s at ip %s had the shortest RTT of %d ms\n", best->hostname, best->ip, best->rtt);
-    return _strdup(best->hostname);
+    FTL_LOG(ftl, FTL_LOG_INFO, "%s had the shortest RTT of %d ms\n", best->name, best->rtt);
+    return _strdup(best->name);
   }
-
   return NULL;
 }
 #endif

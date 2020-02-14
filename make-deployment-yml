@@ -1,0 +1,45 @@
+#!/bin/bash
+set -eu
+
+TOTAL_CPU=150
+TOTAL_MEM=50
+
+CPU_LIMIT=$((TOTAL_CPU))
+MEM_LIMIT=$((TOTAL_MEM))
+
+cat <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ftl-sdk-deployment
+  labels:
+    app: ftl-sdk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ftl-sdk
+
+  template:
+    metadata:
+      labels:
+        app: ftl-sdk
+    spec:
+      containers:
+        - name: ftl-sdk
+          image: $IMAGE
+          resources:
+            requests:
+              memory: "${TOTAL_MEM}Mi"
+              cpu: "${TOTAL_CPU}m"
+            limits:
+              memory: "${MEM_LIMIT}Mi"
+              cpu: "${CPU_LIMIT}m"
+          env:
+          - name: MIXER_STREAMER_KEY
+            value: "$MIXER_STREAMER_KEY"
+          - name: FPS
+            value: "24"
+      imagePullSecrets:
+        - name: docker-secret
+EOF

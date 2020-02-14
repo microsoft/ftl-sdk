@@ -74,7 +74,7 @@
 #define AUDIO_SAMPLE_RATE 48000
 #define AUDIO_PACKET_DURATION_MS 20
 #define IPVX_ADDR_ASCII_LEN INET6_ADDRSTRLEN
-#define INGEST_LIST_URI "https://mixer.com/api/v1/ingests/best"
+#define INGEST_LIST_URI "https://conductor.videosvc.mixer.com/api/video/v2/channels/%d/ingest"
 #define INGEST_LOAD_PORT 8079
 #define INGEST_PING_PORT 8079
 #define PEAK_BITRATE_KBPS 10000 /*if not supplied this is the peak from the perspective of the send buffer*/
@@ -308,8 +308,6 @@ typedef struct {
 
 typedef struct _ftl_ingest_t {
   char *name;
-  char *ip;
-  char *hostname;
   int rtt;
   struct _ftl_ingest_t *next;
 }ftl_ingest_t;
@@ -337,8 +335,8 @@ typedef struct {
   char *key;
   char hmacBuffer[512];
   int video_kbps;
-  char vendor_name[20];
-  char vendor_version[20];
+  char vendor_name[50];
+  char vendor_version[50];
   OS_THREAD_HANDLE connection_thread;
   OS_THREAD_HANDLE keepalive_thread;
   OS_THREAD_HANDLE bitrate_monitor_thread;
@@ -378,11 +376,12 @@ typedef enum {
   FTL_INGEST_RESP_REGION_UNSUPPORTED = 407,     // Streaming from this country or region is not authorized by local governments
   FTL_INGEST_RESP_NO_MEDIA_TIMEOUT = 408,
   FTL_INGEST_RESP_GAME_BLOCKED = 409,           // The game the user account is set to can't be streamed.
+  FTL_INGEST_RESP_SERVER_TERMINATE = 410,         // The sterver has terminated the stream.
   FTL_INGEST_RESP_INTERNAL_SERVER_ERROR = 500,
   FTL_INGEST_RESP_INTERNAL_MEMORY_ERROR = 900,
   FTL_INGEST_RESP_INTERNAL_COMMAND_ERROR = 901,
   FTL_INGEST_RESP_INTERNAL_SOCKET_CLOSED = 902,
-  FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT = 903,
+  FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT = 903
 } ftl_response_code_t;
 
 /**

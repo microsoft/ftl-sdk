@@ -1,0 +1,15 @@
+#!/bin/bash
+set -ue
+
+OUTPUT=$1
+
+curl 'https://www.dropbox.com/s/ruijibs0lgjnq51/sintel.h264' \
+     -H 'authority: www.dropbox.com' \
+     -H 'cache-control: max-age=0' \
+     -H 'upgrade-insecure-requests: 1' \
+     -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36' \
+     -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8' \
+     -H 'accept-encoding: gzip, deflate, br' \
+     -H 'accept-language: en-US,en;q=0.9' \
+     -H 'cookie: __Host-ss=UsByWdIPus; locale=en; gvc=MjU4NzQxNzA3MDE4MjU3MDIzNDY0Nzc2NjAxNDg5MTU4MTg0MjYz; seen-sl-signup-modal=VHJ1ZQ%3D%3D; t=0-Hq7tZ1TDyj-aBNiWYv8YQl; __Host-js_csrf=0-Hq7tZ1TDyj-aBNiWYv8YQl; seen-sl-download-modal=VHJ1ZQ%3D%3D' \
+     --compressed > $OUTPUT

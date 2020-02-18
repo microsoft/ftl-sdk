@@ -1,0 +1,14 @@
+#!/bin/bash
+set -ue
+
+BUILD_DIR='build-output'
+mkdir -p "$BUILD_DIR"
+pushd "$BUILD_DIR"
+cmake ..
+make "-j$(nproc --all)"
+
+popd
+mkdir -p publish
+cp "${BUILD_DIR}/ftl_app" publish
+cp "${BUILD_DIR}"/libftl.so* publish
+

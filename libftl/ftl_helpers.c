@@ -274,7 +274,7 @@ ftl_status_t _set_ingest_hostname(ftl_stream_configuration_private_t *ftl) {
 #endif
     ftl->ingest_hostname = _strdup(ftl->param_ingest_hostname);
   } while (0);
-
+  
   return ret_status;
 }
 

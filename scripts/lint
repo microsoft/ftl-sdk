@@ -1,0 +1,30 @@
+#!/bin/bash
+set -ue
+
+MOUNT_DIR='/build'
+IMAGE='koalaman/shellcheck'
+
+scripts_to_lint () {
+  grep -Erl '^#!/bin/(ba)?sh' "${base_dir}/scripts" \
+    | grep -v '^.git'
+}
+
+main () {
+  local base_dir
+  base_dir="$(dirname "$(dirname "$(realpath -s "$0")")")"
+
+  local scripts
+  scripts="$(scripts_to_lint | sed "s|$base_dir|$MOUNT_DIR|")"
+
+  for script in $scripts; do
+    echo "linting ${script}..."
+    docker run \
+      --rm \
+      -w "$base_dir" \
+      -v "${base_dir}:${MOUNT_DIR}" \
+      "$IMAGE" \
+      "${script}"
+  done
+}
+
+main

@@ -62,7 +62,7 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
   if ((retval = _set_ingest_hostname(ftl)) != FTL_SUCCESS) {
     return retval;
   }
-  
+
   err = getaddrinfo(ftl->ingest_hostname, ingest_port_str, &hints, &resolved_names);
   if (err != 0) {
     FTL_LOG(ftl, FTL_LOG_ERROR, "getaddrinfo failed to look up ingest address %s.", ftl->ingest_hostname);
@@ -78,22 +78,22 @@ ftl_status_t _init_control_connection(ftl_stream_configuration_private_t *ftl) {
       FTL_LOG(ftl, FTL_LOG_DEBUG, "failed to create socket. error: %s", get_socket_error());
       continue;
     }
+    
+    if (p->ai_family == AF_INET) {
+      struct sockaddr_in *ipv4_addr = (struct sockaddr_in *)p->ai_addr;
+      inet_ntop(p->ai_family, &ipv4_addr->sin_addr, ingest_ip, sizeof(ingest_ip));
+    }
+    else if (p->ai_family == AF_INET6) {
+      struct sockaddr_in6 *ipv6_addr = (struct sockaddr_in6 *)p->ai_addr;
+      inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, ingest_ip, sizeof(ingest_ip));
+    }
+    else {
+      continue;
+    }
 
-  if (p->ai_family == AF_INET) {
-    struct sockaddr_in *ipv4_addr = (struct sockaddr_in *)p->ai_addr;
-    inet_ntop(p->ai_family, &ipv4_addr->sin_addr, ingest_ip, sizeof(ingest_ip));
-  }
-  else if (p->ai_family == AF_INET6) {
-    struct sockaddr_in6 *ipv6_addr = (struct sockaddr_in6 *)p->ai_addr;
-    inet_ntop(p->ai_family, &ipv6_addr->sin6_addr, ingest_ip, sizeof(ingest_ip));
-  }
-  else {
-  continue;
-  }
-
-  FTL_LOG(ftl, FTL_LOG_DEBUG, "Got IP: %s\n", ingest_ip);
-  ftl->ingest_ip = _strdup(ingest_ip);
-  ftl->socket_family = p->ai_family;
+    FTL_LOG(ftl, FTL_LOG_DEBUG, "Got IP: %s\n", ingest_ip);
+    ftl->ingest_ip = _strdup(ingest_ip);
+    ftl->socket_family = p->ai_family;
 
     /* Go for broke */
     if (connect(sock, p->ai_addr, (int)p->ai_addrlen) == -1) {
@@ -592,11 +592,13 @@ ftl_status_t _log_response(ftl_stream_configuration_private_t *ftl, int response
     case FTL_INGEST_RESP_INTERNAL_SOCKET_TIMEOUT:
       FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest socket timeout.");
       return FTL_INGEST_SOCKET_TIMEOUT;
+    case FTL_INGEST_RESP_SERVER_TERMINATE:
+      FTL_LOG(ftl, FTL_LOG_ERROR, "The server has terminated the stream.");
+      return FTL_INGEST_SERVER_TERMINATE;
     case FTL_INGEST_RESP_UNKNOWN:
         FTL_LOG(ftl, FTL_LOG_ERROR, "Ingest unknown response.");
         return FTL_INTERNAL_ERROR;
   }    
 
-  // TODO revert back
-  return 100 + response_code;
+  return FTL_UNKNOWN_ERROR_CODE;
 }

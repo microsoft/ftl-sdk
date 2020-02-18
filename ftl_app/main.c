@@ -85,10 +85,10 @@ int main(int argc, char **argv)
   int verbose = 0;
 
   opterr = 0;
-
+  
   charon_install_ctrlc_handler();
-
-
+  
+  
   if (FTL_VERSION_MAINTENANCE != 0)
   {
     printf("FTLSDK - version %d.%d.%d\n", FTL_VERSION_MAJOR, FTL_VERSION_MINOR, FTL_VERSION_MAINTENANCE);
@@ -158,7 +158,7 @@ int main(int argc, char **argv)
 
     if (!init_video(&h264_handle, video_input))
     {
-      printf("Faild to open video file\n");
+      printf("Failed to open video file\n");
       return -1;
     }
   }
@@ -225,14 +225,14 @@ int main(int argc, char **argv)
   if (speedtest_duration)
   {
     printf("Running Speed test: sending %d kbps for %d ms", speedtest_kbps, speedtest_duration);
-  speed_test_t results;
-  if ((status_code = ftl_ingest_speed_test_ex(&handle, speedtest_kbps, speedtest_duration, &results)) == FTL_SUCCESS) {
-    printf("Speed test completed: Peak kbps %d, initial rtt %d, final rtt %d, %3.2f lost packets\n", 
+    speed_test_t results;
+    if ((status_code = ftl_ingest_speed_test_ex(&handle, speedtest_kbps, speedtest_duration, &results)) == FTL_SUCCESS) {
+      printf("Speed test completed: Peak kbps %d, initial rtt %d, final rtt %d, %3.2f lost packets\n", 
       results.peak_kbps, results.starting_rtt, results.ending_rtt, (float)results.lost_pkts * 100.f / (float)results.pkts_sent);
-  }
-  else {
-    printf("Speed test failed with: %s\n", ftl_status_code_to_string(status_code));
-  }
+    }
+    else {
+      printf("Speed test failed with: %s\n", ftl_status_code_to_string(status_code));
+    }
 
     goto cleanup;
   }

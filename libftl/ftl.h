@@ -92,6 +92,7 @@ typedef enum {
   FTL_SPEED_TEST_ABORTED,
   FTL_INGEST_SOCKET_CLOSED,
   FTL_INGEST_SOCKET_TIMEOUT,
+  FTL_INGEST_SERVER_TERMINATE,
 } ftl_status_t;
 
 typedef enum {

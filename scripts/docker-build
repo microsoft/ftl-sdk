@@ -1,0 +1,17 @@
+#!/bin/bash
+set -ue
+
+: "${DOCKER_TAG:=ftl-sdk}"
+: "${VIDEO_URL:=https://videotestmedia.blob.core.windows.net/ftl/sintel.h264}"
+: "${AUDIO_URL:=https://videotestmedia.blob.core.windows.net/ftl/sintel.opus}"
+
+git submodule init
+git submodule update
+
+docker build \
+  --build-arg VIDEO_URL="$VIDEO_URL" \
+  --build-arg AUDIO_URL="$AUDIO_URL" \
+  -t "$DOCKER_TAG" \
+  .
+
+docker push "$DOCKER_TAG"

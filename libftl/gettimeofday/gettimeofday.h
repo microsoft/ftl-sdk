@@ -5,6 +5,10 @@
 
 #ifndef _WIN32
 #include <sys/time.h>
+#else
+#include <WinSock2.h>
+
+struct timezone;
 #endif
 
 #ifdef _WIN32

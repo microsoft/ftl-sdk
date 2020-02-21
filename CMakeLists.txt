@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 2.8.0)
 enable_language(C)
 project(libftl)
 
+SET(FTL_VERSION "0.5.0")
+
 option(DISABLE_AUTO_INGEST "Set to TRUE to disable auto ingest feature which removes curl and jansson dependancies" FALSE)
 MESSAGE(STATUS "FTL DISABLE_AUTO_INGEST: " ${DISABLE_AUTO_INGEST})
 
@@ -11,7 +13,9 @@ MESSAGE(STATUS "FTL DISABLE_FTL_APP: " ${DISABLE_FTL_APP})
 option(FTL_STATIC_COMPILE "Set to TRUE if you want ftl to be compiled as a static lib. If TRUE, the program will want to statically link to the ftl cmake object." FALSE)
 MESSAGE(STATUS "FTL FTL_STATIC_COMPILE: " ${FTL_STATIC_COMPILE})
 
+include(GNUInstallDirs)
 find_package(Threads REQUIRED)
+find_package(PkgConfig)
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -39,15 +43,18 @@ if (NOT CURL_FOUND AND NOT DISABLE_AUTO_INGEST)
 endif()
 
 # We will only try to include lib jansson if auto ingest is enabled.
-SET(JANSSON_LIBRARIES "")
-if (NOT DISABLE_AUTO_INGEST)
+if (PKG_CONFIG_FOUND AND NOT DISABLE_AUTO_INGEST)
+  pkg_check_modules(JANSSON jansson)
+endif()
+if (NOT JANSSON_FOUND AND NOT DISABLE_AUTO_INGEST)
   SET(JANSSON_BUILD_DOCS OFF CACHE BOOL "Jansson docs off")
   SET(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Jansson build without tests")
   SET(JANSSON_EXAMPLES OFF CACHE BOOL "Jansson disable examples")
   SET(USE_WINDOWS_CRYPTOAPI off)
   add_subdirectory(libjansson)
-  include_directories(${CMAKE_CURRENT_BINARY_DIR}/libjansson/include)
+  SET(JANSSON_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/libjansson/include)
   SET(JANSSON_LIBRARIES jansson)
+  include_directories(${JANSSON_INCLUDE_DIRS})
 endif()
 
 if (WIN32)
@@ -95,7 +102,7 @@ add_library(ftl ${FTL_LIB_TYPE} libftl/hmac/hmac.c
                        ${FTLSDK_PLATFORM_FILES})
 include_directories(libftl libftl/gettimeofday)
 
-set_target_properties(ftl PROPERTIES VERSION "0.5.0")
+set_target_properties(ftl PROPERTIES VERSION ${FTL_VERSION})
 set_target_properties(ftl PROPERTIES SOVERSION 0)
 
 target_link_libraries(ftl ${CURL_LIBRARIES} ${JANSSON_LIBRARIES})
@@ -129,5 +136,11 @@ if (NOT DISABLE_FTL_APP)
   target_include_directories(ftl_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ftl_app)
 endif()
 
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libftl.pc.in
+               ${CMAKE_CURRENT_BINARY_DIR}/libftl.pc @ONLY)
+
 # Install rules
-install(TARGETS ftl DESTINATION lib)
+install(TARGETS ftl DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES libftl/ftl.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libftl)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libftl.pc
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

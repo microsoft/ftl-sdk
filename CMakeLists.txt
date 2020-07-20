@@ -11,10 +11,14 @@ MESSAGE(STATUS "FTL DISABLE_FTL_APP: " ${DISABLE_FTL_APP})
 option(FTL_STATIC_COMPILE "Set to TRUE if you want ftl to be compiled as a static lib. If TRUE, the program will want to statically link to the ftl cmake object." FALSE)
 MESSAGE(STATUS "FTL FTL_STATIC_COMPILE: " ${FTL_STATIC_COMPILE})
 
+option(FTL_INSTALL_INCLUDES "Set to TRUE if you want development headers to be installed." FALSE)
+MESSAGE(STATUS "FTL FTL_INSTALL_INCLUDES: " ${FTL_INSTALL_INCLUDES})
+
 find_package(Threads REQUIRED)
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+include("GNUInstallDirs")
 
 if (DISABLE_AUTO_INGEST)
   add_definitions(-DDISABLE_AUTO_INGEST)
@@ -56,17 +60,18 @@ if (WIN32)
                           ftl_app/win32/ctrlc_handler.c)
   #set(FTL_PLATFORM_LIBS kernel32 user32 gdi32 advapi32 )
   #set(FTL_PLATFORM_LIBS ws2_32 )
-  set(FTLSDK_PLATFORM_FILES libftl/win32/socket.c
-                            libftl/win32/socket.h
-                            libftl/win32/threads.c
-                            libftl/win32/threads.h)
+  set(FTLSDK_PLATFORM_HEADERS libftl/win32/socket.h
+                              libftl/win32/threads.h)
+  set(FTLSDK_PLATFORM_SOURCES libftl/win32/socket.c
+                              libftl/win32/threads.c)
   include_directories(libftl/win32)
 else()
   set(FTL_PLATFORM_FILES ftl_app/posix/ctrlc_handler.c)
-  set(FTLSDK_PLATFORM_FILES libftl/posix/socket.c
-                            libftl/posix/socket.h
-                            libftl/posix/threads.c
-                            libftl/posix/threads.h)
+
+  set(FTLSDK_PLATFORM_HEADERS libftl/posix/socket.h
+                              libftl/posix/threads.h)
+  set(FTLSDK_PLATFORM_SOURCES libftl/posix/socket.c
+                              libftl/posix/threads.c)
   include_directories(libftl/posix)
 endif()
 
@@ -78,21 +83,33 @@ else(FTL_STATIC_COMPILE)
   set(FTL_LIB_TYPE SHARED)
 endif(FTL_STATIC_COMPILE)
 
-add_library(ftl ${FTL_LIB_TYPE} libftl/hmac/hmac.c
-                       libftl/hmac/hmac.h
-                       libftl/hmac/sha2.c
-                       libftl/hmac/sha2.h
-                       libftl/gettimeofday/gettimeofday.c
-                       libftl/gettimeofday/gettimeofday.h
-                       libftl/ftl-sdk.c
-                       libftl/handshake.c
-                       libftl/ingest.c
-                       libftl/ftl_helpers.c
-                       libftl/media.c
-                       libftl/logging.c
-                       libftl/ftl.h
-                       libftl/ftl_private.h
-                       ${FTLSDK_PLATFORM_FILES})
+set(FTL_HEADERS
+    libftl/ftl.h
+    libftl/ftl_private.h)
+
+set(FTL_HMAC_HEADERS
+    libftl/hmac/hmac.h
+    libftl/hmac/sha2.h)
+
+set(FTL_GETTIMEOFDAY_HEADERS
+    libftl/gettimeofday/gettimeofday.h)
+
+set(FTL_SOURCES
+    libftl/hmac/hmac.c
+    libftl/hmac/sha2.c
+    libftl/gettimeofday/gettimeofday.c
+    libftl/ftl-sdk.c
+    libftl/handshake.c
+    libftl/ingest.c
+    libftl/ftl_helpers.c
+    libftl/media.c
+    libftl/logging.c)
+
+add_library(ftl ${FTL_LIB_TYPE} ${FTL_HEADERS}
+                                ${FTL_HMAC_HEADERS}
+                                ${FTL_GETTIMEOFDAY_HEADERS}
+                                ${FTLSDK_PLATFORM_HEADERS}
+                                ${FTLSDK_PLATFORM_SOURCES})
 include_directories(libftl libftl/gettimeofday)
 
 set_target_properties(ftl PROPERTIES VERSION "0.5.0")
@@ -130,4 +147,20 @@ if (NOT DISABLE_FTL_APP)
 endif()
 
 # Install rules
-install(TARGETS ftl DESTINATION lib)
+install(TARGETS ftl DESTINATION
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+if (FTL_INSTALL_INCLUDES)
+foreach(ITEM ${FTL_HEADERS})
+  install(FILES ${ITEM} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ftl)
+endforeach()
+foreach(ITEM ${FTL_HMAC_HEADERS})
+  install(FILES ${ITEM} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ftl/hmac/)
+endforeach()
+foreach(ITEM ${FTL_GETTIMEOFDAY_HEADERS})
+  install(FILES ${ITEM} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ftl/gettimeofday)
+endforeach()
+foreach(ITEM ${FTLSDK_PLATFORM_HEADERS})
+  install(FILES ${ITEM} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ftl)
+endforeach()
+endif()

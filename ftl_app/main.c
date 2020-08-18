@@ -22,6 +22,7 @@
  * SOFTWARE.
  **/
 
+#include "ftl.h"
 #include "main.h"
 #include "gettimeofday.h"
 #ifdef _WIN32
@@ -34,6 +35,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 #endif
+#include <string.h>
 #include "file_parser.h"
 
 void sleep_ms(int ms)

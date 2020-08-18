@@ -11,6 +11,17 @@ MESSAGE(STATUS "FTL DISABLE_FTL_APP: " ${DISABLE_FTL_APP})
 option(FTL_STATIC_COMPILE "Set to TRUE if you want ftl to be compiled as a static lib. If TRUE, the program will want to statically link to the ftl cmake object." FALSE)
 MESSAGE(STATUS "FTL FTL_STATIC_COMPILE: " ${FTL_STATIC_COMPILE})
 
+include(CheckCCompilerFlag)
+
+if(LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "e2k")
+	foreach(TEST_C_FLAG "-Wno-unused-parameter" "-Wno-pointer-sign" "-Wno-unused-variable" "-Wno-sign-compare" "-Wno-maybe-uninitialized")
+		CHECK_C_COMPILER_FLAG(${TEST_C_FLAG} C_COMPILER_SUPPORTS_FLAG_${TEST_C_FLAG})
+		if(C_COMPILER_SUPPORTS_FLAG_${TEST_C_FLAG})
+			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${TEST_C_FLAG}")
+		endif()
+	endforeach()
+endif()
+
 find_package(Threads REQUIRED)
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

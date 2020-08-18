@@ -315,7 +315,7 @@ typedef struct _ftl_ingest_t {
 typedef struct
 {
     ftl_handle_t* handle;
-    BOOL(*change_bitrate_callback)(void*, uint64_t);
+    int(*change_bitrate_callback)(void*, uint64_t);
     void* context;
     uint64_t initial_encoding_bitrate;
     uint64_t max_encoding_bitrate;

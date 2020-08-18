@@ -22,6 +22,7 @@
  * SOFTWARE.
  **/
 
+#include "ftl.h"
 #include "main.h"
 #include "gettimeofday.h"
 #ifdef _WIN32
@@ -34,6 +35,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 #endif
+#include <string.h>
 #include "file_parser.h"
 
 void sleep_ms(int ms)
@@ -425,7 +427,7 @@ static void *ftl_status_thread(void *data)
     {
       ftl_packet_stats_msg_t *p = &status.msg.pkt_stats;
 
-      printf("Avg packet send per second %3.1f, total nack requests %d\n",
+      printf("Avg packet send per second %3.1f, total nack requests %ld\n",
              (float)p->sent * 1000.f / p->period,
              p->nack_reqs);
     }

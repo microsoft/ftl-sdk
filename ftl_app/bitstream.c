@@ -1,3 +1,4 @@
+#include "dec_obj.h"
 #include "utils.h"
 #include "bitstream.h"
 

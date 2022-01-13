@@ -394,7 +394,7 @@ static void *ftl_status_thread(void *data)
         continue;
       }
 
-    /*dont reconnect for speed test*/
+    /*don't reconnect for speed test*/
     if (speedtest_duration) {
       continue;
     }
